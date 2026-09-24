@@ -4,6 +4,33 @@
 
 ---
 
+## v0.72.2 — no-tool-action=prompt 保留 LLM 最后一轮输出
+
+> **版本**: v0.72.2
+
+> **状态**: 🚧 进行中（分支 `FIX-552`）
+> **里程碑**: no-tool-action=prompt 时，若 LLM 未调用任何工具，不再删除最后一轮 LLM 输出，而是保留该输出并直接追加提醒调用任务报告的消息，模拟一问一答，避免 LLM 忽略提示陷入死循环
+> **说明**：当前 no-tool-action=prompt 时，若 LLM 未调用工具，会删掉 LLM 最后一轮输出，再追加一段提醒调用任务报告的消息，容易导致 LLM 忽略后面的提示而陷入死循环。本次改进为：保留最后一轮 LLM 输出，直接追加提醒消息，模拟一问一答。no-tool-action=retry 时处理策略不变。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-552 | 0.72.2 | P1 | no-tool-action=prompt 时保留 LLM 最后一轮输出，直接追加提醒消息，模拟一问一答；retry 策略不变 |
+
+> 当前 BUILD: 1109
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-552 no-tool-action=prompt 保留 LLM 最后一轮输出**
+  - 背景（用户提出）：「现在 no-tool-action，选择 prompt 时，如果一轮 LLM 没有调用工具，现在的处理会删掉 LLM 的最后一轮输出，然后在追加一段提醒调用任务报告的消息，这会容易导致 LLM 忽略后面的提示，而陷入死循环。在这里做一个改进，当 no-tool-action，选择 prompt 时，如果 LLM 在返回时没有调用任何工具，那么不要删掉最后一轮 LLM 的输出，直接追加提醒调用任务报告的消息，模拟一问一答。注意：no-tool-action 选择 retry 时，处理策略不变。」
+  - 分支：**FIX-552**（基于 main，v0.72.1 已合并并打 tag），版本 v0.72.2
+  - 实现概要：
+    - `agent/run_stream.go`：`no-tool-action=prompt` 分支中，在追加 continuePrompt 用户消息之前，先把 assistant 消息（`finalContent` + `finalReasoning`）加入 `a.messages`，形成「一问一答」；`retry` 分支保持不变。
+    - 影响面确认：`stripLastAssistantAndContinue`（`agent.go`）在循环检测时会剥离「末尾 assistant（无 tool_calls）+ continue prompt」对，与新行为兼容；`getRecentAssistantHistory`（`loop.go`）会让循环判定模型看到这些 assistant 输出，有利于死循环判定；其余「找最后 user 消息」的逻辑（envelope 注入、retry 计数等）不受影响，因为 continuePrompt 仍是最后 user 消息。
+
+---
+
 ## v0.72.1 — no-tool-action=prompt 提示词格式调整
 
 > **版本**: v0.72.1

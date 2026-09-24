@@ -1238,9 +1238,15 @@ iterationLoop:
 				continue
 
 			default: // "prompt" or unknown — backward compatible with FEATURE-17
-				// DON'T append the assistant message to history (FEATURE-17 方案C).
-				// Only append continuePrompt as a user message to force next action.
+				// FIX-552: Keep the last assistant output in history (simulate a Q&A),
+				// then append continuePrompt as a user message to force next action.
+				// This avoids the LLM ignoring the prompt and falling into a loop.
 				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:             "assistant",
+					Content:          finalContent,
+					ReasoningContent: finalReasoning,
+				})
 				if a.memoryEnabled {
 					if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
 						log.Warn("Failed to save assistant message to memory: %v", err)
@@ -1253,7 +1259,7 @@ iterationLoop:
 				})
 				a.mu.Unlock()
 
-				log.Debug("Agent.RunStream: 0 tool calls, no-tool-action=prompt, sending continue instruction")
+				log.Debug("Agent.RunStream: 0 tool calls, no-tool-action=prompt, keeping assistant output and sending continue instruction")
 				continue
 			}
 		}
