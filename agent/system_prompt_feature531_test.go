@@ -159,7 +159,7 @@ func TestWorkModesHaveNoSectionsField(t *testing.T) {
 		t.Fatal("DefaultWorkModes returned no modes")
 	}
 	Sections := config.DefaultSections()
-	if len(Sections) != 8 || Sections[2] != "ResultMode" {
+	if len(Sections) != 9 || Sections[2] != "ResultMode" || Sections[3] != "Objective" {
 		t.Errorf("unexpected global section list: %v", Sections)
 	}
 }

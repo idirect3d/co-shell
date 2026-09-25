@@ -906,6 +906,7 @@ func DefaultSections() []string {
 		"Identity",
 		"ToolUsage",
 		"ResultMode",
+		"Objective",
 		"Capabilities",
 		"Rules",
 		"Skills",

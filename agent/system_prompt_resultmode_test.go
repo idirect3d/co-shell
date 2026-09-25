@@ -277,7 +277,7 @@ func TestResearchRulesMovedFromGlobalRules(t *testing.T) {
 func TestDefaultSectionsStaticAcrossModes(t *testing.T) {
 	i18n.Init("en")
 	sections := config.DefaultSections()
-	want := []string{"Identity", "ToolUsage", "ResultMode", "Capabilities", "Rules", "Skills", "ExternalTools", "Environment"}
+	want := []string{"Identity", "ToolUsage", "ResultMode", "Objective", "Capabilities", "Rules", "Skills", "ExternalTools", "Environment"}
 	if len(sections) != len(want) {
 		t.Fatalf("global section list length = %d, want %d: %v", len(sections), len(want), sections)
 	}
@@ -285,6 +285,35 @@ func TestDefaultSectionsStaticAcrossModes(t *testing.T) {
 		if sections[i] != want[i] {
 			t.Errorf("section %d = %q, want %q", i, sections[i], want[i])
 		}
+	}
+}
+
+// TestObjectiveSectionRestored verifies the OBJECTIVE section is part of the
+// default section list (right after ResultMode) and that the rendered system
+// prompt carries the section body plus the no_tool_action exit rule (FIX-552:
+// the section was accidentally dropped by FEATURE-270).
+func TestObjectiveSectionRestored(t *testing.T) {
+	i18n.Init("en")
+	sections := config.DefaultSections()
+	found := -1
+	for i, name := range sections {
+		if name == "Objective" {
+			found = i
+		}
+	}
+	if found < 0 {
+		t.Fatalf("default section list has no Objective: %v", sections)
+	}
+	if found == 0 || sections[found-1] != "ResultMode" {
+		t.Errorf("Objective must follow ResultMode: %v", sections)
+	}
+
+	prompt := buildSystemPromptWithMode(nil, "", config.ResultModeMinimal, false, promptIdentity{}, "web", "", "", true)
+	if !strings.Contains(prompt, "OBJECTIVE") {
+		t.Errorf("rendered system prompt has no OBJECTIVE section:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "no_tool_action") {
+		t.Errorf("rendered system prompt has no no_tool_action exit rule in OBJECTIVE:\n%s", prompt)
 	}
 }
 
