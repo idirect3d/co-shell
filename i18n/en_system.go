@@ -1630,7 +1630,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 6. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
 
 **IMPORTANT: The only way to end the task**
-At the end of each iteration, if you did not call any tools, the system will automatically stop the iteration. To continue, you must call a tool or explicitly call attempt_completion.
+When <no_tool_action> in <environment_details> is: (1) exit — not calling any tool (suitable for ordinary Q&A) or explicitly calling attempt_completion both end the iteration; (2) retry or prompt — you must explicitly call attempt_completion to end the iteration.
 - **Only call attempt_completion when you are absolutely sure, after careful consideration, that all task steps have been successfully completed and the results have been presented to the user.**
 - If the task is clearly infeasible, use ask_user to explain the situation and ask the user to adjust the goal.
 

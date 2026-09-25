@@ -175,6 +175,9 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<current_mode>")
 	sb.WriteString(a.currentWorkMode())
 	sb.WriteString("</current_mode>\n")
+	sb.WriteString("<no_tool_action>")
+	sb.WriteString(a.noToolAction())
+	sb.WriteString("</no_tool_action>\n")
 	// FEATURE-488: expose the current session title so the LLM can use it as a
 	// memory anchor when generating a new session_title in attempt_completion
 	// (combining the existing title with the newly completed work). Only
@@ -265,6 +268,16 @@ func (a *Agent) currentWorkMode() string {
 		return a.cfg.LLM.WorkMode
 	}
 	return "act"
+}
+
+// noToolAction returns the current no-tool-action strategy (exit/retry/prompt),
+// defaulting to "exit" when unset. Written into <no_tool_action> in
+// <environment_details> so the LLM knows how 0-tool-call iterations are handled.
+func (a *Agent) noToolAction() string {
+	if a.cfg != nil && a.cfg.LLM.NoToolAction != "" {
+		return a.cfg.LLM.NoToolAction
+	}
+	return "exit"
 }
 
 // isDefaultSessionTitle reports whether the given title is the auto-generated

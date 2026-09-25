@@ -1613,7 +1613,7 @@ OBJECTIVE
 6. 用户可能会提供反馈，你可以据此进行改进并重试。但不要陷入无意义的来回对话，即不要以问题或进一步帮助的提议结束回复。
 
 **重要：任务退出的唯一方式**
-每次迭代结束时，如果你没有调用任何工具，系统将自动停止迭代。要继续执行，必须调用工具或显式调用 attempt_completion。
+当 <environment_details> 中的 <no_tool_action> 为：（1）exit——不调用任何工具（适用于一般问答）或显式调用 attempt_completion 均可退出迭代；（2）retry 或 prompt——必须显式调用 attempt_completion 才能退出迭代。
 - **只有当你经过深思熟虑、确认所有任务步骤都已成功完成、结果已向用户呈现后，才能调用 attempt_completion**。
 - 如果任务明显不可行，应通过 ask_user 向用户说明情况并请求调整目标。
 `

@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FIX-552 | 0.72.2 | P1 | no-tool-action=prompt 时保留 LLM 最后一轮输出，直接追加提醒消息，模拟一问一答；retry 策略不变 |
 
-> 当前 BUILD: 1109
+> 当前 BUILD: 1112
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,6 +28,7 @@
   - 实现概要：
     - `agent/run_stream.go`：`no-tool-action=prompt` 分支中，在追加 continuePrompt 用户消息之前，先把 assistant 消息（`finalContent` + `finalReasoning`）加入 `a.messages`，形成「一问一答」；`retry` 分支保持不变。
     - 影响面确认：`stripLastAssistantAndContinue`（`agent.go`）在循环检测时会剥离「末尾 assistant（无 tool_calls）+ continue prompt」对，与新行为兼容；`getRecentAssistantHistory`（`loop.go`）会让循环判定模型看到这些 assistant 输出，有利于死循环判定；其余「找最后 user 消息」的逻辑（envelope 注入、retry 计数等）不受影响，因为 continuePrompt 仍是最后 user 消息。
+  - 补充优化（用户提出）：系统提示词「任务退出的唯一方式」硬编码假设 `no-tool-action=exit` 行为（"没有调用任何工具，系统将自动停止迭代"），当配置为 prompt/retry 时与实际行为不符，误导 LLM。改进：① `i18n/zh_system.go` + `i18n/en_system.go` 的 `KeySystemPromptObjective` 改为通用描述（说明系统按 no-tool-action 配置处理 0 工具调用：exit 视为完成停止、retry 丢弃重试、prompt 保留输出追加提醒）；② `agent/envelope.go` 新增 `noToolAction()` 方法（默认 exit）+ `buildFullEnvironmentDetails` 注入 `<no_tool_action>` 标签，每条消息动态反映当前配置；③ 新增 `agent/no_tool_action_test.go` 单元测试（5 个用例：默认值/配置值/标签注入/默认标签/动态反映）。
 
 ---
 
