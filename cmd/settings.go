@@ -300,6 +300,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "dynamic-event-queue-size":
 		return h.handleDynamicQueueSetting(args)
 
+	// FEATURE-553: workspace tree exclusion list (Web settings "工作区" tab).
+	case subcommand == TreeExcludesSettingKey:
+		return h.handleTreeExcludesSetting(args)
+
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 	}

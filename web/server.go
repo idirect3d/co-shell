@@ -76,16 +76,6 @@ func serveStatic() http.Handler {
 // maxUploadFileSize caps one uploaded file (bytes).
 const maxUploadFileSize = 100 << 20 // 100 MiB
 
-// treeExcludedNames are directory entries hidden from the workspace tree
-// (noise / internals). output/ is intentionally kept.
-var treeExcludedNames = map[string]bool{
-	".git":         true,
-	"node_modules": true,
-	"db":           true,
-	"log":          true,
-	"tmp":          true,
-}
-
 // errPathOutside marks any path that would escape the workspace root.
 var errPathOutside = errors.New("path escapes workspace")
 
@@ -260,6 +250,12 @@ type ServerOptions struct {
 	// GET /api/usage to build the history popover (FEATURE-546). Nil means the
 	// endpoint answers with zeroed totals.
 	UsageFn func() ([]store.TokenUsageEntry, error)
+
+	// TreeExcludes returns the workspace-tree exclusion sets (FEATURE-553): a
+	// folder-NAME set matched at any depth and a workspace-relative PATH set
+	// matched exactly. It is read on every tree request, so a settings change
+	// applies to the next refresh without a restart. Nil disables filtering.
+	TreeExcludes func() (names map[string]bool, paths map[string]bool)
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -836,10 +832,24 @@ type treeNode struct {
 	Children []*treeNode `json:"children,omitempty"`
 }
 
+// treeWalk carries the per-request state of a workspace tree build: the git
+// status map plus the exclusion sets of FEATURE-553 — folder NAMES matched at
+// any depth and workspace-relative PATHS matched exactly.
+type treeWalk struct {
+	statusMap map[string]string
+	names     map[string]bool
+	paths     map[string]bool
+}
+
+// excluded reports whether a directory entry is hidden from the tree. Only
+// folders are matched, so a file sharing a listed name stays visible.
+func (tw *treeWalk) excluded(name, rel string) bool {
+	return tw.names[name] || tw.paths[rel]
+}
+
 // buildTree walks the workspace recursively (depth-capped), skipping the
-// excluded noise directories. Directories sort before files. statusMap maps
-// workspace-relative file paths to git status codes (may be nil).
-func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]string) *treeNode {
+// folders excluded by the workspace settings. Directories sort before files.
+func (s *Server) buildTree(abs, rel string, depth int, tw *treeWalk) *treeNode {
 	n := &treeNode{Name: filepath.Base(abs), Path: rel, Dir: true}
 	if depth >= 8 {
 		return n
@@ -856,16 +866,19 @@ func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]stri
 	})
 	count := 0
 	for _, e := range entries {
-		if treeExcludedNames[e.Name()] || count >= 500 {
+		if count >= 500 {
 			continue
 		}
-		count++
 		childRel := e.Name()
 		if rel != "" {
 			childRel = rel + "/" + e.Name()
 		}
+		if e.IsDir() && tw.excluded(e.Name(), childRel) {
+			continue
+		}
+		count++
 		if e.IsDir() {
-			child := s.buildTree(filepath.Join(abs, e.Name()), childRel, depth+1, statusMap)
+			child := s.buildTree(filepath.Join(abs, e.Name()), childRel, depth+1, tw)
 			n.Children = append(n.Children, child)
 			n.Changes += child.Changes
 		} else {
@@ -874,7 +887,7 @@ func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]stri
 				child.Mtime = info.ModTime().Unix()
 				child.Size = info.Size()
 			}
-			if st, ok := statusMap[childRel]; ok {
+			if st, ok := tw.statusMap[childRel]; ok {
 				child.Status = st
 				n.Changes++
 			}
@@ -885,7 +898,14 @@ func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]stri
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
-	root := s.buildTree(s.root, "", 0, gitStatusMap(s.root))
+	// FEATURE-553: the exclusion list comes from the workspace settings and is
+	// re-read per request, so a change in the settings panel shows up on the
+	// next tree refresh without a restart.
+	tw := &treeWalk{statusMap: gitStatusMap(s.root)}
+	if s.opts.TreeExcludes != nil {
+		tw.names, tw.paths = s.opts.TreeExcludes()
+	}
+	root := s.buildTree(s.root, "", 0, tw)
 	root.Name = filepath.Base(s.root)
 	writeJSON(w, http.StatusOK, root)
 }

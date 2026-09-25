@@ -56,29 +56,6 @@ func getJSON(t *testing.T, url string, out interface{}) {
 	}
 }
 
-// TestTreeExclusions verifies the excluded noise directories are hidden and
-// output/ is kept.
-func TestTreeExclusions(t *testing.T) {
-	_, ts, _ := newTestServer(t)
-	var root treeNode
-	getJSON(t, ts.URL+"/api/tree", &root)
-	names := map[string]bool{}
-	for _, c := range root.Children {
-		names[c.Name] = c.Dir
-	}
-	for _, excluded := range []string{".git", "node_modules", "db", "log", "tmp"} {
-		if _, ok := names[excluded]; ok {
-			t.Errorf("tree contains excluded entry %q", excluded)
-		}
-	}
-	if isDir, ok := names["output"]; !ok || !isDir {
-		t.Errorf("tree must keep the output/ directory")
-	}
-	if _, ok := names["hello.txt"]; !ok {
-		t.Errorf("tree missing hello.txt")
-	}
-}
-
 // uploadFiles posts one multipart file to /api/upload and returns the
 // response status and decoded body.
 func uploadFiles(t *testing.T, url, field, filename, content string) (int, map[string]interface{}) {

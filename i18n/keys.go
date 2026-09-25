@@ -1279,11 +1279,11 @@ const (
 	// FEATURE-535: two parts of the RULES section. The note is appended AFTER
 	// placeholder substitution (it mentions the placeholder tokens literally),
 	// while {DEFAULT_RULES} expands to the built-in default text at runtime.
-	KeySystemPromptRulesNote        = "system_prompt_rules_note"
-	KeyWorkModeAct                  = "work_mode_act"
-	KeyWorkModePlan                 = "work_mode_plan"
-	KeyWorkModeResearch             = "work_mode_research"
-	KeySystemPromptResultMode       = "system_prompt_result_mode"
+	KeySystemPromptRulesNote  = "system_prompt_rules_note"
+	KeyWorkModeAct            = "work_mode_act"
+	KeyWorkModePlan           = "work_mode_plan"
+	KeyWorkModeResearch       = "work_mode_research"
+	KeySystemPromptResultMode = "system_prompt_result_mode"
 	// FEATURE-472: lead sentence of the static RESULT MODE section, with a %d
 	// placeholder for the number of configured work modes.
 	KeySystemPromptResultModeLead = "system_prompt_result_mode_lead"
@@ -2530,6 +2530,13 @@ const (
 	KeyCol3WebWhitelist     = "col3_web_whitelist"
 	KeyCol3WebInputDir      = "col3_web_input_dir"
 	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
+
+	// FEATURE-553: workspace tree exclusion list (Web settings "工作区" tab).
+	KeyCol3WorkspaceTreeTab          = "col3_workspace_tree_tab"
+	KeyCol3WorkspaceTreePathDesc     = "col3_workspace_tree_path_desc"
+	KeyCol3WorkspaceTreeExcludesDesc = "col3_workspace_tree_excludes_desc"
+	KeyWorkspaceTreeExcludesSaved    = "workspace_tree_excludes_saved"
+	KeyWorkspaceTreeExcludesInvalid  = "workspace_tree_excludes_invalid"
 
 	// FEATURE-508: Web UI stream sliding-window thresholds.
 	KeyCol3StreamWindowMaxBlocks = "col3_stream_window_max_blocks"

@@ -5670,6 +5670,7 @@ function settingsGroupIcon(title) {
   if (t.includes("显示") || t.includes("display") || t.includes("输出")) return "i-display";
   if (t.includes("安全") || t.includes("safety") || t.includes("确认")) return "i-shield";
   if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "i-memory";
+  if (t.includes("工作区") || t.includes("workspace")) return "i-folder";
   if (t.includes("mcp")) return "i-mcp";
   if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "i-devtools";
   return "i-settings";
@@ -5758,6 +5759,12 @@ function renderSettingsPane() {
     renderMCPServerManager();
     return;
   }
+  // FEATURE-553: the "workspace" group renders the read-only workspace path
+  // plus the editable folder-exclusion list of the workspace tree.
+  if (g.kind === "workspace") {
+    renderWorkspaceSettings(g);
+    return;
+  }
   const frag = document.createDocumentFragment();
   for (const it of g.items || []) {
     frag.appendChild(renderSettingItem(it));
@@ -5789,6 +5796,101 @@ settingsSearch.addEventListener("input", () => {
   }
   applySettingsFilter(q);
 });
+
+/* ---------- FEATURE-553: workspace tree exclusions ---------- */
+
+// wsTreeRefreshPending is set while a tree-excludes save is in flight, so
+// showSettingsResult refreshes the workspace file tree once the save succeeds.
+let wsTreeRefreshPending = false;
+
+// renderWorkspaceSettings renders the "workspace" settings group: the current
+// workspace path as a plain sentence (the backend composes it into the item
+// description) followed by the list of folders hidden from the workspace tree.
+// Adding/removing an entry saves immediately (settings_set) and the tree is
+// refreshed when the backend confirms.
+function renderWorkspaceSettings(g) {
+  const items = g.items || [];
+  const pathItem = items.find((it) => it.key === "workspace-path");
+  const listItem = items.find((it) => it.key === "tree-excludes");
+  let list = [];
+  try {
+    const parsed = JSON.parse((listItem && listItem.value) || "[]");
+    if (Array.isArray(parsed)) list = parsed;
+  } catch (_) {
+    list = [];
+  }
+
+  const frag = document.createDocumentFragment();
+
+  // Current workspace path: a plain sentence, not a read-only input.
+  const pathLine = document.createElement("div");
+  pathLine.className = "set-desc ws-path-line";
+  pathLine.textContent = (pathItem && pathItem.desc) || "";
+  frag.appendChild(pathLine);
+
+  // Exclusion list: one row per entry with its remove button.
+  const listLabel = document.createElement("div");
+  listLabel.className = "set-desc ws-excludes-label";
+  listLabel.textContent = (listItem && listItem.desc) || "";
+  frag.appendChild(listLabel);
+  const listEl = document.createElement("div");
+  listEl.className = "ws-excludes-list";
+  for (const entry of list) listEl.appendChild(wsExcludeRow(entry, list));
+  frag.appendChild(listEl);
+
+  // Add form: Enter or the button appends the entry.
+  const addRow = document.createElement("div");
+  addRow.className = "ws-add";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "set-input ws-add-input";
+  input.placeholder = i18nT("wsExcludesPlaceholder", "文件夹名称或相对路径，如 db 或 docs/private");
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "btn-mini ws-add-btn";
+  addBtn.textContent = i18nT("wsExcludesAdd", "添加");
+  const commit = () => {
+    const value = (input.value || "").trim().replace(/^\/+|\/+$/g, "");
+    // Empty or duplicate input is ignored here; the backend reports rejects
+    // (invalid paths) with a localized message in the settings result area.
+    if (!value || list.includes(value)) return;
+    wsSaveTreeExcludes(list.concat([value]));
+  };
+  addBtn.onclick = commit;
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); commit(); }
+  });
+  addRow.appendChild(input);
+  addRow.appendChild(addBtn);
+  frag.appendChild(addRow);
+
+  settingsDynamic.appendChild(frag);
+}
+
+// wsExcludeRow builds one exclusion entry row with its remove button.
+function wsExcludeRow(entry, list) {
+  const row = document.createElement("div");
+  row.className = "ws-exclude-item";
+  const name = document.createElement("span");
+  name.className = "ws-exclude-name";
+  name.textContent = entry;
+  const rm = document.createElement("button");
+  rm.type = "button";
+  rm.className = "btn-mini ws-exclude-rm";
+  rm.innerHTML = iconHTML("i-close");
+  rm.title = i18nT("wsExcludesRemove", "移除");
+  rm.onclick = () => wsSaveTreeExcludes(list.filter((e) => e !== entry));
+  row.appendChild(name);
+  row.appendChild(rm);
+  return row;
+}
+
+// wsSaveTreeExcludes persists the whole list; the workspace tree is refreshed
+// once the backend confirms (see showSettingsResult).
+function wsSaveTreeExcludes(list) {
+  wsTreeRefreshPending = true;
+  wsSend({ type: "settings_set", key: "tree-excludes", value: JSON.stringify(list) });
+}
 
 // renderSettingItem builds one setting row with its label and form control.
 function renderSettingItem(it) {
@@ -6078,6 +6180,12 @@ function renderLogoBlock() {
 // the settings pane (right side), so it does not shift the setting list and
 // cause the panel to jump (FEATURE-462).
 function showSettingsResult(msg) {
+  // FEATURE-553: a successful workspace-tree save refreshes the file tree so
+  // hidden folders disappear (or reappear) without a page reload.
+  if (wsTreeRefreshPending) {
+    wsTreeRefreshPending = false;
+    if (msg.ok) loadTree();
+  }
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");

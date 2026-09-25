@@ -26,9 +26,9 @@
 package cmd
 
 import (
-	"errors"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -965,10 +965,12 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 			}
 		}
 	}
-	for _, m := range template.Models {
-		if !seen[m] {
-			suggestions = append(suggestions, m)
-			seen[m] = true
+	if template != nil {
+		for _, m := range template.Models {
+			if !seen[m] {
+				suggestions = append(suggestions, m)
+				seen[m] = true
+			}
 		}
 	}
 	return suggestions, endpoint, nil, fetchErr

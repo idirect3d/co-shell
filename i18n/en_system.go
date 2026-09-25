@@ -645,6 +645,13 @@ Usage:
 	enMessages[KeySettingUIEnabledStatus] = "UI components & window: %s"
 	enMessages[KeySettingUIContextPruneStatus] = "Component tree context pruning: %s"
 
+	// FEATURE-553: workspace tree exclusion list (Web settings "Workspace" tab)
+	enMessages[KeyCol3WorkspaceTreeTab] = "Workspace"
+	enMessages[KeyCol3WorkspaceTreePathDesc] = "Current workspace: %s"
+	enMessages[KeyCol3WorkspaceTreeExcludesDesc] = "Folders hidden from the workspace tree: a name (matched at any depth) or a relative path (e.g. docs/private)"
+	enMessages[KeyWorkspaceTreeExcludesSaved] = "✅ Workspace tree exclusions saved: %s"
+	enMessages[KeyWorkspaceTreeExcludesInvalid] = "Invalid or duplicate exclusion entries: %s"
+
 	enMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.

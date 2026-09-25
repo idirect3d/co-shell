@@ -1022,6 +1022,13 @@ type Config struct {
 	// whole JSON. On by default.
 	UIContextPrune bool `json:"ui_context_prune"`
 
+	// TreeExcludes lists the workspace folders hidden from the Web UI workspace
+	// tree (FEATURE-553). A plain name ("db") hides every folder with that name
+	// at any depth; a relative path ("docs/private") hides exactly that folder.
+	// Only folders are matched. nil (field absent) falls back to
+	// DefaultTreeExcludes; an empty list hides nothing.
+	TreeExcludes []string `json:"tree_excludes"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
@@ -1145,6 +1152,10 @@ func DefaultConfig() *Config {
 
 		UIEnabled:      true,
 		UIContextPrune: true,
+
+		// FEATURE-553: hide the local store and git metadata by default. A copy
+		// keeps this default list immutable if the caller edits the field.
+		TreeExcludes: append([]string(nil), DefaultTreeExcludes...),
 	}
 }
 
@@ -1197,6 +1208,13 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 	// FEATURE-302: Normalize legacy input mode "enhanced" to "tui"
 	// (config.json old value loads as "tui" without rewriting the file).
 	cfg.LLM.InputMode = NormalizeInputMode(cfg.LLM.InputMode)
+
+	// FEATURE-553: an absent tree_excludes field (nil) keeps the default list,
+	// while an explicit empty list means "hide nothing". Invalid entries in a
+	// hand-edited config are dropped silently instead of breaking the tree.
+	if cfg.TreeExcludes != nil {
+		cfg.TreeExcludes, _ = NormalizeTreeExcludes(cfg.TreeExcludes)
+	}
 
 	cfg.configPath = path
 	return cfg, path, nil

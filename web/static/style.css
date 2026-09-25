@@ -4051,3 +4051,24 @@ select,
   .ui-row > * { flex: 0 0 auto; width: 100%; min-width: 0; }
   .ui-kv { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- FEATURE-553: workspace settings group ---------- */
+/* Workspace path shown as a plain sentence + the editable list of folders
+   hidden from the workspace tree (settings "工作区" tab). */
+.ws-path-line { margin-bottom: 2px; color: var(--fg-dim); word-break: break-all; }
+.ws-excludes-label { margin: 10px 0 4px; color: var(--fg-dim); }
+.ws-excludes-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.ws-exclude-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+}
+.ws-exclude-name { flex: 1; word-break: break-all; }
+.ws-exclude-rm { flex: none; }
+.ws-add { display: flex; align-items: center; gap: 8px; }
+.ws-add-input { flex: 1; }
+.ws-add-btn { flex: none; }

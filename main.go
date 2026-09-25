@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.72.2"
+const version = "0.73.0"
 
-const build = "1113"
+const build = "1117"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1575,6 +1575,10 @@ func main() {
 			// FEATURE-546: the status-bar usage popover reads its history from
 			// the persisted per-call token records.
 			UsageFn: s.ListTokenUsage,
+			// FEATURE-553: the workspace tree hides the folders configured in
+			// the settings panel ("工作区" tab). The sets are read per tree
+			// request, so a settings change applies without a restart.
+			TreeExcludes: cfg.TreeExcludeSets,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

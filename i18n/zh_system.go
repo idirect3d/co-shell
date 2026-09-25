@@ -670,6 +670,13 @@ Usage:
 	zhMessages[KeySettingUIEnabledStatus] = "UI 组件与窗口渲染: %s"
 	zhMessages[KeySettingUIContextPruneStatus] = "组件树上下文裁剪: %s"
 
+	// FEATURE-553: 工作区文件树隐藏文件夹（Web 设置面板「工作区」组）
+	zhMessages[KeyCol3WorkspaceTreeTab] = "工作区"
+	zhMessages[KeyCol3WorkspaceTreePathDesc] = "当前工作空间为 %s"
+	zhMessages[KeyCol3WorkspaceTreeExcludesDesc] = "文件树中隐藏的文件夹：填名称（任意层级匹配）或相对路径（如 docs/private）"
+	zhMessages[KeyWorkspaceTreeExcludesSaved] = "✅ 文件树隐藏列表已保存: %s"
+	zhMessages[KeyWorkspaceTreeExcludesInvalid] = "无效或重复的隐藏项: %s"
+
 	zhMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
 重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须先自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。

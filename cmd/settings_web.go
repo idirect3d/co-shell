@@ -211,6 +211,10 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Title: i18n.T(i18n.KeySettingsGroupMemory), Items: memoryGroup},
 		// FEATURE-464: MCP Server manager group (rendered by a dedicated UI).
 		{Title: i18n.T(i18n.KeySettingsGroupMCP), Kind: "mcp"},
+		// FEATURE-553: workspace group — the current workspace path plus the
+		// editable folder-exclusion list of the Web workspace tree. It sits
+		// above the developer group (user-requested order).
+		h.workspaceSettingsGroup(),
 		{Title: i18n.T(i18n.KeySettingsGroupSearchDebug), Items: developerGroup},
 	}
 }

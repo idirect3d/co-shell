@@ -68,8 +68,8 @@ func TestSettingsJSONFillsDefaults(t *testing.T) {
 	}
 	checked := 0
 	for _, g := range groups {
-		if g.Kind == "mcp" {
-			continue // MCP manager group has no generic items
+		if g.Kind != "" {
+			continue // dedicated panels (mcp, workspace) render through their own UI
 		}
 		for _, it := range g.Items {
 			if it.Default == "" && it.Key != "web-whitelist" {
@@ -90,8 +90,8 @@ func TestSettingsJSONDefaultMatchesValue(t *testing.T) {
 	h := &SettingsHandler{cfg: cfg}
 	groups := h.SettingsJSON()
 	for _, g := range groups {
-		if g.Kind == "mcp" {
-			continue
+		if g.Kind != "" {
+			continue // dedicated panels (mcp, workspace) render through their own UI
 		}
 		for _, it := range g.Items {
 			if it.Default != "" && it.Value != it.Default {
