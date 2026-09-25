@@ -8,7 +8,7 @@
 
 > **版本**: v0.72.2
 
-> **状态**: 🚧 进行中（分支 `FIX-552`）
+> **状态**: ✅ 已完成（v0.72.2 已合并并打 tag）
 > **里程碑**: no-tool-action=prompt 时，若 LLM 未调用任何工具，不再删除最后一轮 LLM 输出，而是保留该输出并直接追加提醒调用任务报告的消息，模拟一问一答，避免 LLM 忽略提示陷入死循环
 > **说明**：当前 no-tool-action=prompt 时，若 LLM 未调用工具，会删掉 LLM 最后一轮输出，再追加一段提醒调用任务报告的消息，容易导致 LLM 忽略后面的提示而陷入死循环。本次改进为：保留最后一轮 LLM 输出，直接追加提醒消息，模拟一问一答。no-tool-action=retry 时处理策略不变。
 
@@ -23,7 +23,7 @@
 
 ### 任务详情
 
-- [ ] **FIX-552 no-tool-action=prompt 保留 LLM 最后一轮输出**
+- [x] **FIX-552 no-tool-action=prompt 保留 LLM 最后一轮输出**
   - 背景（用户提出）：「现在 no-tool-action，选择 prompt 时，如果一轮 LLM 没有调用工具，现在的处理会删掉 LLM 的最后一轮输出，然后在追加一段提醒调用任务报告的消息，这会容易导致 LLM 忽略后面的提示，而陷入死循环。在这里做一个改进，当 no-tool-action，选择 prompt 时，如果 LLM 在返回时没有调用任何工具，那么不要删掉最后一轮 LLM 的输出，直接追加提醒调用任务报告的消息，模拟一问一答。注意：no-tool-action 选择 retry 时，处理策略不变。」
   - 分支：**FIX-552**（基于 main，v0.72.1 已合并并打 tag），版本 v0.72.2
   - 实现概要：
@@ -33,7 +33,7 @@
   - 最终措辞（用户指定）：中文——「当 <environment_details> 中的 <no_tool_action> 为：（1）exit——不调用任何工具（适用于一般问答）或显式调用 attempt_completion 均可退出迭代；（2）retry 或 prompt——必须显式调用 attempt_completion 才能退出迭代。」英文同步。
   - 验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run 'TestNoToolAction|TestBuildEnvironmentDetails_NoToolAction'` 全通过；产物 `work/co-shell-0.72.2.darwin.arm64`、`work/co-shell-hub-0.72.2.darwin.arm64`；提交 `44d8dd1` [BUILD-1112]
 
-- [ ] **FIX-552 补充：恢复 OBJECTIVE 节（任务退出的唯一方式）**
+- [x] **FIX-552 补充：恢复 OBJECTIVE 节（任务退出的唯一方式）**
   - 背景（调查结论）：`agent/system_prompt.go` 中 `case "Objective"` 构建点仍在，但生效节列表已不含 Objective——FEATURE-270（`579d75f`，BUILD-284）把 act/research 的 Sections 从含 Objective 的 `DefaultBuiltInSections()` 换成不含的 `DefaultActSections()`；FEATURE-531（`bdf2604`，v0.64.0）固化为全局 8 节并删除 `DefaultBuiltInSections()`，自此后 OBJECTIVE 节（含「任务退出的唯一方式」、「使用 attempt_completion 前需验证」等规则）再未渲染。
   - 改动：
     - `config/config.go`：`DefaultSections()` 在 `"ResultMode"` 之后插入 `"Objective"`，共 9 节（Identity, ToolUsage, ResultMode, Objective, Capabilities, Rules, Skills, ExternalTools, Environment）。
