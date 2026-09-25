@@ -143,6 +143,18 @@ func (w *Workspace) LLMInteractionLogFilePath(date string) string {
 	return filepath.Join(w.LogDir(), fmt.Sprintf("llm-interaction-%s.log", date))
 }
 
+// ToolCallErrorLogFilePath returns the path to the tool call error log file
+// within the log/ directory. The filename includes the current date.
+func (w *Workspace) ToolCallErrorLogFilePath(date string) string {
+	return filepath.Join(w.LogDir(), fmt.Sprintf("tool-call-error-%s.log", date))
+}
+
+// LLMCallErrorLogFilePath returns the path to the LLM call error log file
+// within the log/ directory. The filename includes the current date.
+func (w *Workspace) LLMCallErrorLogFilePath(date string) string {
+	return filepath.Join(w.LogDir(), fmt.Sprintf("llm-call-error-%s.log", date))
+}
+
 // ensureDirs creates all required subdirectories if they don't exist.
 func (w *Workspace) ensureDirs() error {
 	dirs := []string{

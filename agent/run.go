@@ -247,6 +247,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 					result = formatToolError(tc.Name, err)
 				}
 				log.Error("Agent.Run: tool %s failed: %v", tc.Name, err)
+				// FEATURE-554: record the failure in the optional tool call error log
+				// using the same text the UI shows for the failed tool.
+				log.WriteToolCallError(tc.Name, tc.Arguments, result)
 			}
 
 			// Add tool result to messages

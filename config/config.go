@@ -616,6 +616,17 @@ type LLMConfig struct {
 	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
 	LLMInteractionLog bool `json:"llm_interaction_log"`
 
+	// ToolCallErrorLog: whether to enable the tool call error log (FEATURE-554).
+	// When enabled, tool call failures are appended to
+	// log/tool-call-error-YYYY-MM-DD.log together with the call time, the tool
+	// name, the raw tool call payload and the error text shown in the UI.
+	ToolCallErrorLog bool `json:"tool_call_error_log"`
+
+	// LLMCallErrorLog: whether to enable the LLM call error log (FEATURE-554).
+	// When enabled, LLM call errors and exceptions (mainly errors returned by
+	// the remote API) are appended to log/llm-call-error-YYYY-MM-DD.log.
+	LLMCallErrorLog bool `json:"llm_call_error_log"`
+
 	// DebugMode: when enabled, displays the pending LLM request content on the
 	// prompt line for review/modification before sending. Default: false.
 	DebugMode bool `json:"debug_mode"`

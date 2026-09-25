@@ -753,6 +753,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		log.Error("LLM Chat request failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("request", fmt.Sprintf("POST %s: %v", apiURL, err))
 		return nil, fmt.Errorf("chat request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -761,6 +763,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Error("LLM Chat response read failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("response-read", err.Error())
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
 
@@ -773,6 +777,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	var chatResp chatResponseJSON
 	if err := json.Unmarshal(respBytes, &chatResp); err != nil {
 		log.Error("LLM Chat response parse failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("response-parse", err.Error())
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
 
@@ -796,6 +802,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
 		log.Error("LLM Chat HTTP error: POST %s, status=%d, body=%s", apiURL, resp.StatusCode, string(respBytes))
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("http-status", errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
@@ -920,6 +928,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	resp, err := c.streamClient.Do(httpReq)
 	if err != nil {
 		log.Error("LLM ChatStream request failed: POST %s, error: %v", c.baseURL+"/chat/completions", err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("request", err.Error())
 		return nil, fmt.Errorf("chat stream request failed: %w", err)
 	}
 
@@ -931,6 +941,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		log.Error("LLM ChatStream HTTP error: POST %s, status=%d, body=%s, request=%d bytes, body=%s",
 			c.baseURL+"/chat/completions", resp.StatusCode, string(respBytes), len(bodyBytes), truncateBody(bodyBytes))
 		// The returned error message feeds back to the LLM agent loop; keep it compact.
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("http-status", errMsg)
 		return nil, fmt.Errorf("%s (request=%d bytes, %s)", errMsg, len(bodyBytes), requestSummary(bodyBytes))
 	}
 

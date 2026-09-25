@@ -73,14 +73,14 @@ type responsesReasoningJSON struct {
 
 // responsesRequestJSON is the JSON structure for the Responses API request.
 type responsesRequestJSON struct {
-	Model           string                 `json:"model"`
-	Input           []responsesInputItem   `json:"input"`
-	Tools           []responsesToolJSON    `json:"tools,omitempty"`
+	Model           string                  `json:"model"`
+	Input           []responsesInputItem    `json:"input"`
+	Tools           []responsesToolJSON     `json:"tools,omitempty"`
 	Reasoning       *responsesReasoningJSON `json:"reasoning,omitempty"`
-	MaxOutputTokens int                    `json:"max_output_tokens,omitempty"`
-	Temperature     *float32               `json:"temperature,omitempty"`
-	TopP            float32                `json:"top_p,omitempty"`
-	Stream          bool                   `json:"stream,omitempty"`
+	MaxOutputTokens int                     `json:"max_output_tokens,omitempty"`
+	Temperature     *float32                `json:"temperature,omitempty"`
+	TopP            float32                 `json:"top_p,omitempty"`
+	Stream          bool                    `json:"stream,omitempty"`
 	// BodyAdditions holds custom JSON properties to merge into the request body.
 	BodyAdditions map[string]interface{} `json:"-"`
 }
@@ -105,11 +105,11 @@ type responsesUsageJSON struct {
 
 // responsesResponseJSON is the JSON structure for the Responses API response.
 type responsesResponseJSON struct {
-	ID      string                `json:"id"`
-	Object  string                `json:"object"`
-	Output  []responsesOutputItem `json:"output"`
-	Usage   *responsesUsageJSON   `json:"usage,omitempty"`
-	Error   json.RawMessage       `json:"error,omitempty"`
+	ID     string                `json:"id"`
+	Object string                `json:"object"`
+	Output []responsesOutputItem `json:"output"`
+	Usage  *responsesUsageJSON   `json:"usage,omitempty"`
+	Error  json.RawMessage       `json:"error,omitempty"`
 }
 
 // dumpResponsesErr writes the full request body and server error response to a
@@ -477,6 +477,8 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		log.Error("LLM Responses Chat request failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("request", fmt.Sprintf("POST %s: %v", apiURL, err))
 		return nil, fmt.Errorf("chat request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -484,6 +486,8 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Error("LLM Responses Chat response read failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("response-read", err.Error())
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
 
@@ -493,6 +497,8 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 	var respJSON responsesResponseJSON
 	if err := json.Unmarshal(respBytes, &respJSON); err != nil {
 		log.Error("LLM Responses Chat response parse failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("response-parse", err.Error())
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
 
@@ -511,6 +517,8 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
 		log.Error("LLM Responses Chat HTTP error: POST %s, status=%d, body=%s", apiURL, resp.StatusCode, string(respBytes))
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("http-status", errMsg)
 		dumpResponsesErr("chat", bodyBytes, respBytes)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
@@ -602,6 +610,8 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 	resp, err := c.streamClient.Do(httpReq)
 	if err != nil {
 		log.Error("LLM Responses ChatStream request failed: POST %s, error: %v", apiURL, err)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("request", err.Error())
 		return nil, fmt.Errorf("chat stream request failed: %w", err)
 	}
 
@@ -612,6 +622,8 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 		log.Error("LLM Responses ChatStream HTTP error: POST %s, status=%d, body=%s, request=%d bytes, body=%s",
 			apiURL, resp.StatusCode, string(respBytes), len(bodyBytes), truncateBody(bodyBytes))
 		dumpResponsesErr("stream", bodyBytes, respBytes)
+		// FEATURE-554: also record it in the optional LLM call error log.
+		log.WriteLLMCallError("http-status", errMsg)
 		return nil, fmt.Errorf("%s (request=%d bytes, %s)", errMsg, len(bodyBytes), requestSummary(bodyBytes))
 	}
 
@@ -797,7 +809,7 @@ func (c *responsesClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 
 	var modelsResp struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID           string `json:"id"`
 			Capabilities *struct {
 				Vision bool `json:"vision"`
 			} `json:"capabilities,omitempty"`

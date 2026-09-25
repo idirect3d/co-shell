@@ -270,6 +270,14 @@ const (
 	KeyCol3LLMInteractionLog    = "col3_llm_interaction_log"
 	KeyLLMInteractionLogUpdated = "llm_interaction_log_updated"
 
+	// FEATURE-554: optional error logs (developer settings).
+	KeyCol3ToolCallErrorLog            = "col3_tool_call_error_log"
+	KeyCol3LLMCallErrorLog             = "col3_llm_call_error_log"
+	KeyToolCallErrorLogUpdated         = "tool_call_error_log_updated"
+	KeyLLMCallErrorLogUpdated          = "llm_call_error_log_updated"
+	KeySettingCmdToolCallErrorLogQuery = "setting_cmd_tool_call_error_log_query"
+	KeySettingCmdLLMCallErrorLogQuery  = "setting_cmd_llm_call_error_log_query"
+
 	// Memory
 	KeyMemorySaved   = "memory_saved"
 	KeyMemoryDeleted = "memory_deleted"

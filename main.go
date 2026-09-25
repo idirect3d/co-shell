@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.73.0"
+const version = "0.74.0"
 
-const build = "1117"
+const build = "1118"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1071,6 +1071,15 @@ func main() {
 	}
 	log.SetLLMInteractionEnabled(cfg.LLM.LLMInteractionLog)
 	defer log.CloseLLMInteractionLog()
+
+	// FEATURE-554: optional error logs. The log files are created on the first
+	// record, so a disabled switch never produces a file.
+	log.SetToolCallErrorLogDir(ws.LogDir())
+	log.SetToolCallErrorEnabled(cfg.LLM.ToolCallErrorLog)
+	defer log.CloseToolCallErrorLog()
+	log.SetLLMCallErrorLogDir(ws.LogDir())
+	log.SetLLMCallErrorEnabled(cfg.LLM.LLMCallErrorLog)
+	defer log.CloseLLMCallErrorLog()
 
 	// Apply log level: CLI flag overrides config, config overrides default
 	if flags.logLevel != "" {

@@ -276,6 +276,13 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "llm-log":
 		return h.handleLLMInteractionLogSetting(subcommand, args)
 
+	// Tool call / LLM call error logs (FEATURE-554)
+	case subcommand == "tool-call-error-log":
+		return h.handleToolCallErrorLogSetting(subcommand, args)
+
+	case subcommand == "llm-call-error-log":
+		return h.handleLLMCallErrorLogSetting(subcommand, args)
+
 	// Defaults subcommand: reset to system defaults (preserving LLM, Memory, DB)
 	case subcommand == "defaults":
 		return h.handleSetDefault()
@@ -910,10 +917,21 @@ func (h *SettingsHandler) showSettingsHelp() string {
 	if log.IsLLMInteractionEnabled() {
 		llmInteractionLogStatus = i18n.T(i18n.KeyOn)
 	}
+	// FEATURE-554: optional error logs.
+	toolCallErrorLogStatus := i18n.T(i18n.KeyOff)
+	if log.IsToolCallErrorEnabled() {
+		toolCallErrorLogStatus = i18n.T(i18n.KeyOn)
+	}
+	llmCallErrorLogStatus := i18n.T(i18n.KeyOff)
+	if log.IsLLMCallErrorEnabled() {
+		llmCallErrorLogStatus = i18n.T(i18n.KeyOn)
+	}
 	allGroups = append(allGroups, []settingLine{
 		makeLine("debug", debugStatus, i18n.T(i18n.KeyCol3Debug)),
 		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
 		makeLine("llm-log", llmInteractionLogStatus, i18n.T(i18n.KeyCol3LLMInteractionLog)),
+		makeLine("tool-call-error-log", toolCallErrorLogStatus, i18n.T(i18n.KeyCol3ToolCallErrorLog)),
+		makeLine("llm-call-error-log", llmCallErrorLogStatus, i18n.T(i18n.KeyCol3LLMCallErrorLog)),
 	})
 
 	// Helper to format a setting line with fixed column widths

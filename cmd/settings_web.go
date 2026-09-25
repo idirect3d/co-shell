@@ -199,6 +199,9 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "debug", Value: boolStr(llm.DebugMode), Desc: i18n.T(i18n.KeyCol3Debug), Type: "bool", Default: boolStr(def.DebugMode)},
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}, Default: log.LogLevelString(log.LogLevelInfo)},
 		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool", Default: boolStr(def.LLMInteractionLog)},
+		// FEATURE-554: optional error logs, both off by default.
+		{Key: "tool-call-error-log", Value: boolStr(log.IsToolCallErrorEnabled()), Desc: i18n.T(i18n.KeyCol3ToolCallErrorLog), Type: "bool", Default: boolStr(def.ToolCallErrorLog)},
+		{Key: "llm-call-error-log", Value: boolStr(log.IsLLMCallErrorEnabled()), Desc: i18n.T(i18n.KeyCol3LLMCallErrorLog), Type: "bool", Default: boolStr(def.LLMCallErrorLog)},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string", Default: ""},
 		{Key: "web-input-dir", Value: webInputDirValue(cfg), Desc: i18n.T(i18n.KeyCol3WebInputDir), Type: "string", Default: "input"},
 		{Key: "dynamic-event-queue-size", Value: strconv.Itoa(dynamicQueueSizeValue(cfg)), Desc: i18n.T(i18n.KeyCol3DynamicQueueSize), Type: "number", Default: strconv.Itoa(100)},

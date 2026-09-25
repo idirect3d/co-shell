@@ -4,11 +4,36 @@
 
 ---
 
+## v0.74.0 — 开发者页错误日志开关（tool-call-error-log / llm-call-error-log）
+
+> **版本**: v0.74.0
+
+> **状态**: ✅ 已完成（v0.74.0 已合并并打 tag）
+> **里程碑**: 系统设置-开发者页新增两个默认关闭的开关：① `tool-call-error-log` —— 开启后在 log/ 下按日记录工具调用错误（时间、工具名、原始调用报文、错误信息）；② `llm-call-error-log` —— 开启后在 log/ 下按日记录 LLM 调用错误与异常（远程 API 错误等）
+> **说明**: 现状工具错误仅在前端以红色文字展示、LLM 调用错误仅落常规日志，事后排查缺少结构化留痕。本次新增两个独立开关（默认关闭、关闭时不产生任何文件与写入）：`tool-call-error-log` 写 `log/tool-call-error-YYYY-MM-DD.log`，每条含调用时间、工具名称、原始工具调用报文（JSON/XML 原文）、错误信息（与前端红色文案一致）；`llm-call-error-log` 写 `log/llm-call-error-YYYY-MM-DD.log`，覆盖 HTTP 非 200（含远程 API 错误体）、网络/连接错误（DNS/TLS）、请求超时、流式响应中断（SSE 异常终止）、响应体解析失败。沿用现有 `llm-interaction` 日志的按日切分与开关范式；敏感信息按用户决策保持原样记录（仅落本地）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-554 | 0.74.0 | P2 | 开发者页新增 `tool-call-error-log` / `llm-call-error-log` 两个开关（默认关闭）：`config.Config` 新增两字段并持久化；`cmd/settings_web.go` 开发者组新增两项；Web 保存与 CLI `.set` 均支持；`log` 包新增两个按日日志写入器；`agent` 工具错误路径与 `llm` 客户端错误路径埋点 [BUILD-1118] |
+
+> 当前 BUILD: 1118
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-554 开发者页错误日志开关（tool-call-error-log / llm-call-error-log）**
+  - 背景（用户提出）：「在系统设置-开发者页中增加一个 1、tool-call-error-log 和 2、llm-call-error-log 选项，默认都关闭。1、打开 tool-call-error-log 后，在 log/ 文件夹专门创建一个日志文件记录工具调用报错的信息。需要至少包括：调用时间、工具名称、原始工具调用报文（json/xml）、错误信息（与前端界面显示的红色文字一致）。2、打开 llm-call-error-log 后，在 log/ 文件夹专门创建一个日志文件记录 LLM 调用错误和异常信息（主要是调用远程 API 时返回的各类错误）。」
+  - 交互决策（经 ask_user 确认）：① 版本归属 **v0.74.0**；② 日志文件按日切分 `log/tool-call-error-YYYY-MM-DD.log` 与 `log/llm-call-error-YYYY-MM-DD.log`（与现有 llm-interaction 一致）；③ 工具错误记录范围 = 工具执行返回错误（formatToolError 文案）、工具参数/XML 解析失败、未知/未注册工具、工具执行超时（**不含**用户拒绝或取消）；④ LLM 错误记录范围 = HTTP 非 200（含远程 API 错误体）、网络/连接错误（DNS/TLS）、请求超时、流式响应中断/SSE 异常终止、响应体解析失败；⑤ 敏感信息**保持原样完整记录**（与现有 llm-interaction 一致，仅落本地）。
+  - 分支：**FEATURE-554**（基于 main，v0.73.0 已合并并打 tag），版本 v0.74.0
+  - 实现概要：① `config.Config.LLM` 新增 `ToolCallErrorLog`/`LLMCallErrorLog`（`tool_call_error_log`/`llm_call_error_log`，默认 false）；② 新增 `log/error_log.go`：按需创建、按日轮转的两个写入器（`SetXxxLogDir`/`SetXxxEnabled`/`IsXxxEnabled`/`WriteToolCallError`/`WriteLLMCallError`），关闭时零文件零写入；③ 新增 `workspace` 路径助手（`tool-call-error-YYYY-MM-DD.log`/`llm-call-error-YYYY-MM-DD.log`）；④ `main.go` 启动接线并在退出时关闭；⑤ `cmd` 开发者组新增两项 + `.set` 分发与状态列表 + 新增 6 个 i18n key（中英）；⑥ `agent`（run.go / run_stream.go）在工具失败、参数/XML 解析失败、未知工具、超时等错误点以「与前端红色文案一致」的文本落盘；⑦ `llm`（client.go / responses_client.go）在请求失败、读取失败、解析失败、HTTP 非 200（含 Chat 与 ChatStream）各点落盘。
+  - 验证：`gofmt` + `go build ./... && go vet ./...` 通过；新增 `log/error_log_test.go` 用例全绿（关闭零文件、四要素齐全、追加不覆盖、关闭即停写、开关状态）；运行时用例见 `use-case/FEATURE-554/FEATURE-554-UC-0017.md`。（2026-09-25 运行时实测：两开关开启后故意触发 `read_file` 失败，`log/tool-call-error-2026-09-25.log` 自动创建且四要素齐全、错误信息与前端红线文案同源；开关关闭时 `log/` 下零文件零写入。）
+
 ## v0.73.0 — 工作区文件树隐藏文件夹可配置
 
 > **版本**: v0.73.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（v0.73.0 已合并并打 tag）
 > **里程碑**: Web UI 工作区文件树的「隐藏文件夹」从硬编码改为在系统设置中可配置（新增「工作区」标签）
 > **说明**: 现状是 `web/server.go` 中的 `treeExcludedNames` 硬编码 5 项（.git/node_modules/db/log/tmp），用户无法增删。本次改为：① 删除硬编码；② 工作区 `config.json` 新增 `tree_excludes` 字段（默认 db + .git）；③ 系统设置面板新增「工作区」分类，显示当前工作区绝对路径（只读）+ 可增删的隐藏文件夹列表；④ 匹配规则：无斜杠=文件夹名精确匹配（任意层级），含斜杠=从工作区根起的完整相对路径精确匹配；仅对文件夹生效；⑤ 仅影响 `/api/tree` 工作区树，不影响 `list_files` 工具与环境详情列表。
 
@@ -22,7 +47,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-553 工作区文件树隐藏文件夹可配置**
+- [x] **FEATURE-553 工作区文件树隐藏文件夹可配置**
   - 背景（用户提出）：「web ui 工作区的文件树中的隐藏不显示文件夹，做成一个可配置的机制，可以在系统设置中增加一个标签，比如叫"工作区"，可以先显示一下当前工作空间绝对路径（只读），然后显示一个隐藏文件夹列表，用户可以增加或移除不想在工作区文件列表中显示的文件夹。默认只有db/。删除当前隐藏显示文件列表的硬编码。」
   - 交互决策（经 ask_user 确认）：① 默认隐藏名单 = **db + .git**（log/tmp/node_modules 恢复显示）；② 匹配语义 = 无斜杠按**文件夹名**精确匹配、任意层级生效，含斜杠按**完整相对路径**（如 `docs/private`）精确匹配，**仅文件夹**、同名文件不隐藏；③ 生效范围 = **仅 Web UI 工作区树** `/api/tree`，`list_files` 与环境详情列表不受影响；④ 存储 = **当前工作区 `config.json`**。
   - 分支：**FEATURE-553**（基于 main，v0.72.2 已合并并打 tag），版本 v0.73.0

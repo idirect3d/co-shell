@@ -1449,7 +1449,9 @@ iterationLoop:
 							skipExec = true
 							execErr = rerr
 							result = fmt.Sprintf("Error: %v", rerr)
-							cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
+							uiText := fmt.Sprintf("%s: %s\n", tc.Name, result)
+							cb(NewStreamEvent(EventError, ChannelTool, LevelError, uiText))
+							log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
 						} else {
 							if a.showTool {
 								summary := buildToolSummary(tc.Name, argsMap)
@@ -1484,7 +1486,9 @@ iterationLoop:
 							skipExec = true
 							execErr = perr
 							result = fmt.Sprintf("Error: %v", perr)
-							cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
+							uiText := fmt.Sprintf("%s: %s\n", tc.Name, result)
+							cb(NewStreamEvent(EventError, ChannelTool, LevelError, uiText))
+							log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
 						} else {
 							progressApplied = true
 						}
@@ -1521,7 +1525,10 @@ iterationLoop:
 					}
 					if parseAction == "exit" {
 						// Exit the loop and report error
-						cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr)))
+						// FEATURE-554: also record the failure in the optional error log.
+						uiText := fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr)
+						cb(NewStreamEvent(EventError, ChannelTool, LevelError, uiText))
+						log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
 						// FEATURE-336: show the raw offending content when the switch is on.
 						a.emitParseErrorRaw(cb, tc.Arguments)
 						cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
@@ -1544,7 +1551,10 @@ iterationLoop:
 						// Show the user a concise error notice (UI only — does NOT
 						// enter the LLM context). The invalid call is discarded and
 						// the next iteration resends cleanly.
-						cb(WarnEvent(ChannelTool, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), tc.Name, execErr)))
+						// FEATURE-554: also record the parse failure in the optional error log.
+						uiText := fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), tc.Name, execErr)
+						cb(WarnEvent(ChannelTool, uiText))
+						log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
 						// FEATURE-336: show the raw offending content when the switch is on.
 						a.emitParseErrorRaw(cb, tc.Arguments)
 						continue iterationLoop
@@ -1571,6 +1581,9 @@ iterationLoop:
 						a.emitParseErrorRaw(cb, tc.Arguments)
 					}
 					log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
+					// FEATURE-554: record the failure in the optional tool call error log
+					// using the same text the UI shows for the failed tool.
+					log.WriteToolCallError(tc.Name, tc.Arguments, fmt.Sprintf("%s: %s\n", tc.Name, result))
 				}
 
 				// FIX-316: Must-show tool output gated by showTool (distinct from

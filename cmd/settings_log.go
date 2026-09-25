@@ -84,3 +84,64 @@ func (h *SettingsHandler) handleLLMInteractionLogSetting(subcommand string, args
 	log.Info("LLM interaction log set to %v", enabled)
 	return fmt.Sprintf(i18n.T(i18n.KeyLLMInteractionLogUpdated), args[1]), nil
 }
+
+// parseOnOff parses an on/off switch value ("on"/"1"/"true"/"yes" and
+// "off"/"0"/"false"/"no"). The second result reports whether the value is valid.
+func parseOnOff(value string) (bool, bool) {
+	switch value {
+	case "on", "1", "true", "yes":
+		return true, true
+	case "off", "0", "false", "no":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+// onOffLabel returns the localized on/off label of a switch state.
+func onOffLabel(enabled bool) string {
+	if enabled {
+		return i18n.T(i18n.KeyOn)
+	}
+	return i18n.T(i18n.KeyOff)
+}
+
+// handleToolCallErrorLogSetting handles the tool-call-error-log setting
+// (FEATURE-554): when on, tool call failures are recorded to
+// log/tool-call-error-YYYY-MM-DD.log.
+func (h *SettingsHandler) handleToolCallErrorLogSetting(subcommand string, args []string) (string, error) {
+	if len(args) < 2 {
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmdToolCallErrorLogQuery), onOffLabel(log.IsToolCallErrorEnabled())), nil
+	}
+	enabled, ok := parseOnOff(args[1])
+	if !ok {
+		return "", errors.New(i18n.TF(i18n.KeySettingCmd_524, args[1]))
+	}
+	h.cfg.LLM.ToolCallErrorLog = enabled
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.SetToolCallErrorEnabled(enabled)
+	log.Info("Tool call error log set to %v", enabled)
+	return fmt.Sprintf(i18n.T(i18n.KeyToolCallErrorLogUpdated), onOffLabel(enabled)), nil
+}
+
+// handleLLMCallErrorLogSetting handles the llm-call-error-log setting
+// (FEATURE-554): when on, LLM call errors are recorded to
+// log/llm-call-error-YYYY-MM-DD.log.
+func (h *SettingsHandler) handleLLMCallErrorLogSetting(subcommand string, args []string) (string, error) {
+	if len(args) < 2 {
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmdLLMCallErrorLogQuery), onOffLabel(log.IsLLMCallErrorEnabled())), nil
+	}
+	enabled, ok := parseOnOff(args[1])
+	if !ok {
+		return "", errors.New(i18n.TF(i18n.KeySettingCmd_524, args[1]))
+	}
+	h.cfg.LLM.LLMCallErrorLog = enabled
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.SetLLMCallErrorEnabled(enabled)
+	log.Info("LLM call error log set to %v", enabled)
+	return fmt.Sprintf(i18n.T(i18n.KeyLLMCallErrorLogUpdated), onOffLabel(enabled)), nil
+}
