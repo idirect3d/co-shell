@@ -29,6 +29,8 @@
     - `agent/run_stream.go`：`no-tool-action=prompt` 分支中，在追加 continuePrompt 用户消息之前，先把 assistant 消息（`finalContent` + `finalReasoning`）加入 `a.messages`，形成「一问一答」；`retry` 分支保持不变。
     - 影响面确认：`stripLastAssistantAndContinue`（`agent.go`）在循环检测时会剥离「末尾 assistant（无 tool_calls）+ continue prompt」对，与新行为兼容；`getRecentAssistantHistory`（`loop.go`）会让循环判定模型看到这些 assistant 输出，有利于死循环判定；其余「找最后 user 消息」的逻辑（envelope 注入、retry 计数等）不受影响，因为 continuePrompt 仍是最后 user 消息。
   - 补充优化（用户提出）：系统提示词「任务退出的唯一方式」硬编码假设 `no-tool-action=exit` 行为（"没有调用任何工具，系统将自动停止迭代"），当配置为 prompt/retry 时与实际行为不符，误导 LLM。改进：① `i18n/zh_system.go` + `i18n/en_system.go` 的 `KeySystemPromptObjective` 改为通用描述（说明系统按 no-tool-action 配置处理 0 工具调用：exit 视为完成停止、retry 丢弃重试、prompt 保留输出追加提醒）；② `agent/envelope.go` 新增 `noToolAction()` 方法（默认 exit）+ `buildFullEnvironmentDetails` 注入 `<no_tool_action>` 标签，每条消息动态反映当前配置；③ 新增 `agent/no_tool_action_test.go` 单元测试（5 个用例：默认值/配置值/标签注入/默认标签/动态反映）。
+  - 最终措辞（用户指定）：中文——「当 <environment_details> 中的 <no_tool_action> 为：（1）exit——不调用任何工具（适用于一般问答）或显式调用 attempt_completion 均可退出迭代；（2）retry 或 prompt——必须显式调用 attempt_completion 才能退出迭代。」英文同步。
+  - 验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run 'TestNoToolAction|TestBuildEnvironmentDetails_NoToolAction'` 全通过；产物 `work/co-shell-0.72.2.darwin.arm64`、`work/co-shell-hub-0.72.2.darwin.arm64`；提交 `44d8dd1` [BUILD-1112]
 
 ---
 
