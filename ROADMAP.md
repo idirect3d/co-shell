@@ -4,6 +4,33 @@
 
 ---
 
+## v0.74.1 — 修复 token 用时/速度计时（stamp 生命周期 / 口径统一 / 缺失路径 / 展示时机）
+
+> **版本**: v0.74.1
+
+> **状态**: ✅ 已完成（v0.74.1 已合并并打 tag）
+> **里程碑**: 修正每轮迭代 token 统计行中「用时/速度」的计时错误。四个修复点：① stamp 生命周期——每次 LLM 调用入口清零 `firstTokenTime`/`llmStreamEndTime`，`totalDelta==0` 的早退分支同样清理；② 口径统一——把「一轮调用」的计时 stamp 与 token 用量绑定为同一份数据，速率分子分母不再跨调用错配（消除速率虚高与用时偏短）；④ 补齐缺失路径——非流式回退与 `run.go` 的 `Run` 主循环用 wall-clock 补 stamp，重试场景合并两次调用；⑤ 展示时机——`token_iter` 提前到 LLM 拿到 usage 之后、工具执行之前发出
+> **说明**: 计时链路调查结论：起点 `llmCallStartTime` 在 `stream_response.go` 中于 `ChatStream` 之前设置（不含 `buildContextMessages()`）；首 token 由 content/reasoning/tool_call delta 事件触发；终点由 `StreamEventDone` 触发。工具执行在流结束之后，未计入（符合预期）；工具调用参数生成已计入（`isFirstTokenEvent` 含 ToolCallDelta，FIX-545）。缺陷在于：`GetLLMTiming()` 的 token 分子取自「上次消费以来的累计差值」，而计时分母只覆盖最后一次调用，且走 `continue` 的迭代（retry/prompt/parse-error/tool-loop/context-overflow）不消费计时 → 速率虚高、用时只反映最后一次；stamp 不在每次调用入口清零、`totalDelta==0` 早退不清理 → 出现负 TTFT 与超长用时（实测 `2026-09-23 15:27:00` ttft=-35.648s / out=7200.992s）；`out_dur` 是客户端事件间隔，服务端/代理缓冲或消费端阻塞时会塌缩（实测 `2026-09-24 12:20:45` out=0.027s / 101488 t/s）；非流式回退（`nonStreamingFallback`）与 `run.go` 的 `Run` 完全不写 stamp → token 照记但用时显示 "-"。本次按用户决策**不做**异常值兜底（第③项）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-555 | 0.74.1 | P1 | 修复 token 用时/速度计时：① stamp 生命周期（调用入口清零 + 早退清理）；② 口径统一（单次调用统计替代跨调用差值）；④ 补齐缺失路径（非流式回退与 `Run` 用 wall-clock 补 stamp、重试合并两次调用）；⑤ 展示时机（token_iter 前移到工具执行前） [BUILD-1120] |
+
+> 当前 BUILD: 1120
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-555 token 用时/速度计时修复（①②④⑤）** ✅ 已完成 [BUILD-1120]
+  - 背景（用户提出）：「每轮迭代的 token 使用情况中的速度计算似乎有误差，感觉是计时不对，有的时候明显有较长用时的情况，显示的用时偏短或接近0。仔细调查现在的 token 用时，从什么时候开始，从干什么时候结束，有没有漏掉一些 LLM 输出的环节？或者加入了一些不必要的工具调用用时。还要注意，工具调用的输出也要算进来，但执行不要放。」
+  - 交互决策（经 ask_user 确认）：① 版本归属 **v0.74.1**、编号 **FIX-555**；② 修复范围 = ①②④⑤（**不做** ③ 异常值兜底/回退）；③ 异常值保留原值与现有展示形式，不加以标记。
+  - 分支：**FIX-555**（基于 main，v0.74.0 已合并并打 tag），版本 v0.74.1
+  - 实现概要：① Agent 新增「单次 LLM 调用统计」（start/firstToken/end + 该次调用的 prompt/completion/total），由入参显式的 begin 方法在调用入口初始化、重试时按需延续；② `GetLLMTiming` 改为只读这份单次调用统计，删除 `prevPromptTokens`/`prevTotalTokens` 的跨调用差值口径；③ `totalDelta==0` 早退分支补齐 stamp 清理；④ `nonStreamingFallback` 与 `run.go` 的 `Run` 以 wall-clock 填充 stamp（TTFT=整段墙钟、生成窗口=0），重试合并两次调用的用量与起止；⑤ `token_iter` 的发出点从「迭代末尾（工具执行后）」前移到「LLM 调用返回、拿到 usage 之后」，并移除各返回分支的重复发出。
+  - 权威计时口径（用户原述 2026-09-25）：「每次迭代，即提交一次请求给 LLM，从提交开始，到返回第一个字符开始，这段时间算做**输入处理时长**，作为输入处理速度的分母；从返回第一个字符开始，一直到 LLM 返回本轮所有内容（含 LLM 思考、正文、以及所有工具调用内容）结束所用时长是**输出时长**，作为输出处理速度的分母。」
+  - 验证（2026-09-25，已实现并经用户运行时确认）：`gofmt`（改动文件均干净）+ `go build ./... && go vet ./...` 通过；`go test ./agent/` 计时相关用例 19/19 通过（含 7 条新增 FIX-555 单测：单次调用口径、会话累计不污染、无 usage 清 stamp、begin/resume、非流式只填输入窗口、发出点门控；以及 FIX-545/546 回归）；`go test ./... -short` 仅 `cmd`/`i18n` 5 个**既有**失败（skills 列表、logo 默认值、RULES.md 文案），已用 main 干净工作树复核确认与本次改动无关；运行时用例见 `use-case/FIX-555/FIX-555-UC-0018.md`（28 条；用户于 2026-09-25 15:14 经 Web UI 实测确认通过）。
+  - 已知副作用（经用户确认接受）：① token 行序号改为「LLM 实际看到的最后一条消息」；② 每次 LLM 调用各出一行（含重试/继续轮），会话 Session 累计因此略增；③ 非流式回退 `ft` 为整段墙钟、`out_dur` 显示 "-"（不虚报无法观测的生成窗口）。
+
 ## v0.74.0 — 开发者页错误日志开关（tool-call-error-log / llm-call-error-log）
 
 > **版本**: v0.74.0

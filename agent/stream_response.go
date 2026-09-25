@@ -104,10 +104,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	contextMsgs := a.buildContextMessages()
 	log.Debug("Agent.streamLLMResponse: context messages built, count=%d", len(contextMsgs))
 
-	// Record call start time for performance timing
-	a.mu.Lock()
-	a.llmCallStartTime = time.Now()
-	a.mu.Unlock()
+	// FIX-555: the measurement window is opened by beginLLMCall at the call
+	// site (run_stream.go) so that a retry can resume the interrupted attempt's
+	// start, and so that every request begins from a clean record.
 
 	// FEATURE-343: vision recognition round — the visual model is a dedicated
 	// OCR/vision pass and must NOT receive any tool definitions (OpenAI mode).
@@ -655,6 +654,10 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.iterTokens = event.Usage.TotalTokens
 					a.iterCachedTokens = event.Usage.CachedTokens
 					a.iterCachedReported = event.Usage.CachedReported
+					// FIX-555: the usage above and the stamps taken for this call are the
+					// pairs GetLLMTiming divides; this flag says a rate can be built at
+					// all (a request without usage has nothing to rate).
+					a.callUsageReported = true
 					// FEATURE-546: the stream timestamps are still intact here (they
 					// are only cleared later by GetLLMTiming), so the persisted entry
 					// can carry the real prefill / generation windows. A zero duration

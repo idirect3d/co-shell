@@ -254,12 +254,20 @@ type Agent struct {
 	iterCachedTokens   int
 	iterCachedReported bool // whether the engine reported cache usage at all
 
-	// LLM performance timing (per-call, reset before each ChatStream)
-	llmCallStartTime time.Time // when ChatStream/Chat is initiated
-	firstTokenTime   time.Time // when first content/thinking token arrives
-	llmStreamEndTime time.Time // when stream completes
-	prevPromptTokens int       // prompt tokens from previous call for computing per-call delta
-	prevTotalTokens  int       // total tokens from previous call for computing per-call delta
+	// LLM performance timing (per-call; opened by beginLLMCall, consumed by
+	// GetLLMTiming).
+	//
+	// FIX-555: the usage fields below belong to the SAME request as these stamps.
+	// The previous design differenced session accumulators instead
+	// (totalTokens - prevTotalTokens), so a rate could combine two calls' tokens
+	// with one call's duration: an iteration that ended through a `continue` path
+	// (retry / prompt / parse-error / tool-loop / context overflow) never consumed
+	// the stamps, and the next read then divided the accumulated tokens by the
+	// last call's window — inflated rates and a duration covering only one call.
+	llmCallStartTime  time.Time // request submitted (after context assembly)
+	firstTokenTime    time.Time // first output event consumed (content/reasoning/tool call)
+	llmStreamEndTime  time.Time // stream Done consumed; whole wall clock for non-streaming calls
+	callUsageReported bool      // the engine reported usage for the current call
 
 	// completed is set to true when attempt_completion is called.
 	// RunStream checks this before treating 0-tool-call as final answer.
@@ -717,6 +725,14 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 		a.totalPromptTokens += resp.Usage.PromptTokens
 		a.totalCompletionTokens += resp.Usage.CompletionTokens
 		a.totalTokens += resp.Usage.TotalTokens
+		// FIX-555: this path used to leave the per-call usage untouched, so a
+		// fallback round kept displaying the previous round's token counts (and
+		// its cache rate) while its own timings printed "-".
+		a.iterPromptTokens = resp.Usage.PromptTokens
+		a.iterCompletionTokens = resp.Usage.CompletionTokens
+		a.iterTokens = resp.Usage.TotalTokens
+		a.iterCachedTokens = resp.Usage.CachedTokens
+		a.iterCachedReported = resp.Usage.CachedReported
 		// Persist token usage to database
 		if a.store != nil {
 			entry := &store.TokenUsageEntry{
@@ -738,6 +754,9 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 		log.Debug("Agent.nonStreamingFallback: accumulated token usage: prompt=%d, completion=%d, total=%d",
 			a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
 	}
+
+	// FIX-555: give the status line a usable input window on this path too.
+	a.recordNonStreamingCall(callStart, resp.Usage != nil)
 
 	if a.showLlmThinking && resp.ReasoningContent != "" {
 		cb(NewStreamEvent(EventThinking, ChannelLLM, LevelInfo, resp.ReasoningContent))
@@ -2032,29 +2051,83 @@ func (a *Agent) resolveModelForInfo(vision bool) *config.ModelConfig {
 
 // LLMTiming holds performance timing for the most recent LLM call.
 //
-// Both durations are measured from stream timestamps (call start → first token,
-// first token → stream end), so they never include tool-execution time: tools
-// only start running after the stream has already ended (FIX-545).
+// The windows follow one LLM request and exclude tool execution (tools only
+// start running after the stream has ended — FIX-545):
+//   - FirstTokenLatency: the request was submitted → the first output character
+//     arrived (input-processing window, the denominator of the input rate);
+//   - OutputDuration: the first output character → this round's output ended,
+//     covering thinking, answer text and every tool-call argument.
+//
+// FIX-555: a bogus window can no longer be produced by stale stamps —
+// beginLLMCall clears them per request — and the rates use the tokens of the
+// same call these windows describe.
 type LLMTiming struct {
-	FirstTokenLatency string // time to first token (e.g. "1.2s")
-	InputTPS          string // input tokens per second (prompt_tokens / time_to_first_token)
-	OutputTPS         string // output tokens per second (completion_tokens / generation_time)
-	OutputDuration    string // generation window (first token → stream end, e.g. "15.1s")
+	FirstTokenLatency string // input-processing window (e.g. "1.2s")
+	InputTPS          string // input tokens per second (prompt_tokens / FirstTokenLatency)
+	OutputTPS         string // output tokens per second (completion_tokens / OutputDuration)
+	OutputDuration    string // output window (first character → end of this round's output)
+}
+
+// beginLLMCall opens a fresh measurement window for one LLM request.
+//
+// FIX-555: the stamps used to be cleared only when GetLLMTiming read them, so a
+// request that ended without a first-token event, or without a Done event,
+// inherited the previous request's stamps. Since the inherited firstTokenTime
+// could even precede the new start, the reporter printed a negative TTFT next
+// to a two-hour generation window (observed 2026-09-23 15:27:00:
+// ttft=-35.648s, out=7200.992s). Every request now starts from a clean record.
+//
+// resume is passed by the retry paths (ESC / :debug on-off in run_stream.go):
+// the user interrupted a request and asked for another one, so the aborted
+// attempt's start is kept — the reported window then covers the whole wait
+// instead of only the retry.
+func (a *Agent) beginLLMCall(resume bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !resume || a.llmCallStartTime.IsZero() {
+		a.llmCallStartTime = time.Now()
+	}
+	a.firstTokenTime = time.Time{}
+	a.llmStreamEndTime = time.Time{}
+	a.callUsageReported = false
+}
+
+// recordNonStreamingCall completes the window of a request that produced no
+// incremental stream events (the Chat fallback in streamLLMResponse, and the
+// non-streaming Run loop in run.go).
+//
+// FIX-555: these paths used to leave every stamp zero, so the status line
+// printed "-" for both windows although the usage was recorded. Without
+// incremental events the first output character is not observable, so the whole
+// wall clock is attributed to the input window and the output window is
+// deliberately left unmeasured ("-") instead of being invented. The
+// token_usage table keeps FEATURE-546's convention (both fields = wall clock)
+// for the historical charts, which the usage panel already labels as an
+// approximation that includes the network round trip.
+func (a *Agent) recordNonStreamingCall(start time.Time, usageSeen bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.llmCallStartTime = start
+	a.firstTokenTime = time.Now()
+	a.llmStreamEndTime = a.firstTokenTime
+	a.callUsageReported = usageSeen
 }
 
 // GetLLMTiming computes and returns the performance timing for the current LLM call.
 // Results are reset after reading so subsequent calls get fresh data.
+//
+// FIX-555: the rate numerators are the tokens of THIS call — the same call the
+// windows describe. The old version differenced session accumulators
+// (totalTokens - prevTotalTokens), which spanned every call since the previous
+// read while the windows covered only the last one, so a rate could mix two
+// calls' tokens with one call's duration and read far too fast.
 func (a *Agent) GetLLMTiming() LLMTiming {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Calculate per-call token deltas
-	promptDelta := a.totalPromptTokens - a.prevPromptTokens
-	totalDelta := a.totalTokens - a.prevTotalTokens
-	if totalDelta == 0 {
-		// No new data, return empty timing
-		return LLMTiming{}
-	}
+	promptTokens := a.iterPromptTokens
+	completionTokens := a.iterCompletionTokens
+	reported := a.callUsageReported
 
 	firstLat := 0.0
 	if !a.firstTokenTime.IsZero() && !a.llmCallStartTime.IsZero() {
@@ -2065,24 +2138,39 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 		genDuration = a.llmStreamEndTime.Sub(a.firstTokenTime).Seconds()
 	}
 
+	// Consume the window unconditionally: a second read must never re-report the
+	// same request, and a request that reported no usage must not leave its
+	// stamps behind for the next one (FIX-555: the old early return on "no new
+	// tokens" skipped this reset, which is how a stale firstTokenTime leaked into
+	// the following call).
+	a.llmCallStartTime = time.Time{}
+	a.firstTokenTime = time.Time{}
+	a.llmStreamEndTime = time.Time{}
+	a.callUsageReported = false
+
+	if !reported {
+		// Nothing was reported for this request: there is no rate to show, and
+		// inventing 0 / Inf / NaN would be worse than the empty value.
+		return LLMTiming{}
+	}
+
 	var result LLMTiming
 	if firstLat > 0 {
 		result.FirstTokenLatency = formatDuration(firstLat)
 	} else {
 		result.FirstTokenLatency = "-"
 	}
-	if firstLat > 0 && promptDelta > 0 {
-		result.InputTPS = fmt.Sprintf("%.0f", float64(promptDelta)/firstLat)
+	if firstLat > 0 && promptTokens > 0 {
+		result.InputTPS = fmt.Sprintf("%.0f", float64(promptTokens)/firstLat)
 	} else {
 		result.InputTPS = "-"
 	}
-	compDelta := totalDelta - promptDelta
-	if genDuration > 0 && compDelta > 0 {
-		result.OutputTPS = fmt.Sprintf("%.0f", float64(compDelta)/genDuration)
+	if genDuration > 0 && completionTokens > 0 {
+		result.OutputTPS = fmt.Sprintf("%.0f", float64(completionTokens)/genDuration)
 	} else {
 		result.OutputTPS = "-"
 	}
-	// FIX-545: ship the measured generation window to the frontend instead of
+	// FIX-545: ship the measured output window to the frontend instead of
 	// letting it back out "tokens / tps". Deriving duration from a rounded
 	// integer t/s lost precision, and whenever OutputTPS was "-" the derived
 	// duration collapsed to "-" as well — which is what made the status bar
@@ -2092,14 +2180,6 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 	} else {
 		result.OutputDuration = "-"
 	}
-
-	// Update previous counters
-	a.prevPromptTokens = a.totalPromptTokens
-	a.prevTotalTokens = a.totalTokens
-	a.llmCallStartTime = time.Time{}
-	a.firstTokenTime = time.Time{}
-	a.llmStreamEndTime = time.Time{}
-
 	return result
 }
 

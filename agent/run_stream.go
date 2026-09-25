@@ -83,6 +83,32 @@ func (a *Agent) emitTokenIter(cb StreamCallback, iterPrompt, iterComp, iterTotal
 	cb(ev)
 }
 
+// emitIterTokenStats publishes this iteration's token line, once per LLM call.
+//
+// FIX-555 moved the call site from the end of the iteration (after every tool
+// result had been appended) to the moment the LLM call returned, so the line
+// appears right after the output it describes instead of after a possibly
+// minute-long tool run. Two consequences, both intended:
+//   - the context index it carries is the index of the last message the model
+//     actually saw, not of the last tool result;
+//   - rounds that leave the iteration through a `continue` path (retry /
+//     prompt / parse error / tool loop / context overflow) now get their own
+//     line instead of dropping out of the session totals entirely.
+func (a *Agent) emitIterTokenStats(cb StreamCallback) {
+	tokenUsageMode := "on"
+	if a.cfg != nil {
+		tokenUsageMode = a.cfg.LLM.TokenUsage
+	}
+	if tokenUsageMode == "off" {
+		return
+	}
+	iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+	if iterTotal <= 0 {
+		return
+	}
+	a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, a.GetMaxModelLen(), a.GetLLMTiming())
+}
+
 // abortVisionRecognitionRound finalizes an in-flight FEATURE-343 minimal
 // recognition round that was aborted (ESC cancel or a failed retry): since the
 // placeholder tool result was deferred, the pending vision tool call still
@@ -333,6 +359,10 @@ iterationLoop:
 			}
 		}
 
+		// FIX-555: one measurement window per LLM request. The stamps start here
+		// (not inside streamLLMResponse) so a retry below can resume the
+		// interrupted attempt's start instead of losing it.
+		a.beginLLMCall(false)
 		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, cb)
 
 		// FEATURE-239: Handle user cancel (Ctrl+C) — immediate exit, no confirmation
@@ -380,6 +410,9 @@ iterationLoop:
 				// Retry the LLM call with the same context after toggling debug
 				a.ResetInterrupt()
 				cb(OKEvent(ChannelSystem, i18n.T(i18n.KeyOutputResume)))
+				// FIX-555: resume the measurement window so the reported duration
+				// covers the interrupted attempt as well as this retry.
+				a.beginLLMCall(true)
 				finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 				// HACK: the `_` here is hasToolAttempt; we don't use it on retry paths
 				// because the content is discarded and the stream call will be re-issued.
@@ -408,6 +441,7 @@ iterationLoop:
 			a.ResetInterrupt()
 			cb(OKEvent(ChannelSystem, i18n.T(i18n.KeyOutputResume)))
 
+			a.beginLLMCall(true)
 			finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
 				// Retry failed too - treat it like user cancelled
@@ -504,12 +538,23 @@ iterationLoop:
 			// Attach <environment_details> to the backfilled result.
 			a.injectTimeAndMessageNoToLast()
 
+			// FIX-555: the recognition round is this iteration's LLM call, so it
+			// emits the token line itself before continuing (the normal path below
+			// never runs for it).
+			a.emitIterTokenStats(cb)
+
 			log.Info("Agent.RunStream: FEATURE-343 recognition round completed, backfilled %s result (%d bytes)", toolName, len(recognitionContent))
 			// Continue to the next iteration so the main model can see the
 			// recognition result and act on it; the loop will exit naturally
 			// when the main model reaches a final answer.
 			continue
 		}
+
+		// FIX-555: emit the iteration's token line now that the LLM call has
+		// returned — before any tool runs — instead of at the end of the
+		// iteration, where a long tool execution made it look unrelated to the
+		// wait the user had just experienced.
+		a.emitIterTokenStats(cb)
 
 		// Log the LLM response content and tool calls at DEBUG level for diagnostics.
 		// This helps identify issues like the LLM including historical message prefixes
@@ -1116,19 +1161,9 @@ iterationLoop:
 
 			if a.completed {
 				// Rule 1: attempt_completion was called — exit
-				// Send per-iteration token usage before completing (skip if "off" mode)
-				iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-				maxModelLen := a.GetMaxModelLen()
-				timing := a.GetLLMTiming()
-				if iterTotal > 0 {
-					tokenUsageMode := "on"
-					if a.cfg != nil {
-						tokenUsageMode = a.cfg.LLM.TokenUsage
-					}
-					if tokenUsageMode != "off" {
-						a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen, timing)
-					}
-				}
+				// FIX-555: this iteration's token line was already emitted right
+				// after the LLM call (before any tool ran), so this exit path only
+				// needs the task-level summary.
 
 				// Send task-level token usage before done
 				taskP, taskC, taskT := a.TaskTokenUsage()
@@ -1195,18 +1230,8 @@ iterationLoop:
 					cb(InfoEvent(ChannelSystem, report))
 				}
 				// Treat as final answer — append assistant, send done, return
-				iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-				maxModelLen := a.GetMaxModelLen()
-				timing := a.GetLLMTiming()
-				if iterTotal > 0 {
-					tokenUsageMode := "on"
-					if a.cfg != nil {
-						tokenUsageMode = a.cfg.LLM.TokenUsage
-					}
-					if tokenUsageMode != "off" {
-						a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen, timing)
-					}
-				}
+				// FIX-555: the token line for this iteration was emitted right after
+				// the LLM call.
 				taskP, taskC, taskT := a.TaskTokenUsage()
 				if taskT > 0 {
 					cb(TokenTaskEvent(taskP, taskC, taskT))
@@ -1736,19 +1761,8 @@ iterationLoop:
 
 		// If attempt_completion was called during tool execution, finalize and exit
 		if a.completed {
-			// Send per-iteration token usage before done (skip if "off" mode)
-			iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-			maxModelLen := a.GetMaxModelLen()
-			timing := a.GetLLMTiming()
-			if iterTotal > 0 {
-				tokenUsageMode := "on"
-				if a.cfg != nil {
-					tokenUsageMode = a.cfg.LLM.TokenUsage
-				}
-				if tokenUsageMode != "off" {
-					a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen, timing)
-				}
-			}
+			// FIX-555: this iteration's token line was emitted right after the
+			// LLM call (before the tools ran); only the task summary is left here.
 			// Send task-level token usage before done
 			taskP, taskC, taskT := a.TaskTokenUsage()
 			if taskT > 0 {
@@ -1782,18 +1796,10 @@ iterationLoop:
 		}
 		a.mu.Unlock()
 
-		// Send per-iteration token usage at the end of each iteration (skip if "off" mode)
-		iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-		timing := a.GetLLMTiming()
-		if iterTotal > 0 {
-			tokenUsageMode := "on"
-			if a.cfg != nil {
-				tokenUsageMode = a.cfg.LLM.TokenUsage
-			}
-			if tokenUsageMode != "off" {
-				a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen, timing)
-			}
-		}
+		// FIX-555: the per-iteration token line used to be emitted here, after
+		// every tool result had been appended. It now goes out right after the
+		// LLM call returns (emitIterTokenStats), so a long tool run no longer
+		// separates the numbers from the output they describe.
 
 		// FEATURE-292: Flush task instruction cache at the end of each iteration.
 		// This collects user supplementary inputs from CmdConfirmModify and other

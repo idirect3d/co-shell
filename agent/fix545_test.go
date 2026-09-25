@@ -25,9 +25,13 @@ func seedTiming(a *Agent, prompt, completion int, ttft, genWindow time.Duration)
 	a.llmCallStartTime = start
 	a.firstTokenTime = start.Add(ttft)
 	a.llmStreamEndTime = start.Add(ttft + genWindow)
-	a.totalPromptTokens = prompt
-	a.totalCompletionTokens = completion
-	a.totalTokens = prompt + completion
+	// FIX-555: the rates divide THIS call's usage by THIS call's window, so the
+	// fixture seeds the per-call fields (and the reported flag) instead of the
+	// session accumulators the old implementation differenced.
+	a.iterPromptTokens = prompt
+	a.iterCompletionTokens = completion
+	a.iterTokens = prompt + completion
+	a.callUsageReported = true
 }
 
 // assertCompleteTiming requires all four display fields to carry a real value.

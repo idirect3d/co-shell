@@ -98,6 +98,12 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
 		wallSec := time.Since(callStart).Seconds()
 
+		// FIX-555: record the window for this request. Without incremental events
+		// the first output character is not observable, so the whole wall clock is
+		// the input window and the output window stays unmeasured — see
+		// recordNonStreamingCall.
+		a.recordNonStreamingCall(callStart, resp.Usage != nil)
+
 		if err != nil {
 			log.Error("Agent.Run: LLM call failed at iteration %d: %v", iteration, err)
 			return "", fmt.Errorf("LLM call failed: %w", err)
