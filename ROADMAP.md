@@ -15,8 +15,9 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FIX-552 | 0.72.2 | P1 | no-tool-action=prompt 时保留 LLM 最后一轮输出，直接追加提醒消息，模拟一问一答；retry 策略不变 |
+| FIX-552 | 0.72.2 | P1 | 恢复被 FEATURE-270 丢失的 OBJECTIVE 节（含「任务退出的唯一方式」），默认节列表 8 → 9 节 |
 
-> 当前 BUILD: 1112
+> 当前 BUILD: 1113
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -31,6 +32,15 @@
   - 补充优化（用户提出）：系统提示词「任务退出的唯一方式」硬编码假设 `no-tool-action=exit` 行为（"没有调用任何工具，系统将自动停止迭代"），当配置为 prompt/retry 时与实际行为不符，误导 LLM。改进：① `i18n/zh_system.go` + `i18n/en_system.go` 的 `KeySystemPromptObjective` 改为通用描述（说明系统按 no-tool-action 配置处理 0 工具调用：exit 视为完成停止、retry 丢弃重试、prompt 保留输出追加提醒）；② `agent/envelope.go` 新增 `noToolAction()` 方法（默认 exit）+ `buildFullEnvironmentDetails` 注入 `<no_tool_action>` 标签，每条消息动态反映当前配置；③ 新增 `agent/no_tool_action_test.go` 单元测试（5 个用例：默认值/配置值/标签注入/默认标签/动态反映）。
   - 最终措辞（用户指定）：中文——「当 <environment_details> 中的 <no_tool_action> 为：（1）exit——不调用任何工具（适用于一般问答）或显式调用 attempt_completion 均可退出迭代；（2）retry 或 prompt——必须显式调用 attempt_completion 才能退出迭代。」英文同步。
   - 验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run 'TestNoToolAction|TestBuildEnvironmentDetails_NoToolAction'` 全通过；产物 `work/co-shell-0.72.2.darwin.arm64`、`work/co-shell-hub-0.72.2.darwin.arm64`；提交 `44d8dd1` [BUILD-1112]
+
+- [ ] **FIX-552 补充：恢复 OBJECTIVE 节（任务退出的唯一方式）**
+  - 背景（调查结论）：`agent/system_prompt.go` 中 `case "Objective"` 构建点仍在，但生效节列表已不含 Objective——FEATURE-270（`579d75f`，BUILD-284）把 act/research 的 Sections 从含 Objective 的 `DefaultBuiltInSections()` 换成不含的 `DefaultActSections()`；FEATURE-531（`bdf2604`，v0.64.0）固化为全局 8 节并删除 `DefaultBuiltInSections()`，自此后 OBJECTIVE 节（含「任务退出的唯一方式」、「使用 attempt_completion 前需验证」等规则）再未渲染。
+  - 改动：
+    - `config/config.go`：`DefaultSections()` 在 `"ResultMode"` 之后插入 `"Objective"`，共 9 节（Identity, ToolUsage, ResultMode, Objective, Capabilities, Rules, Skills, ExternalTools, Environment）。
+    - `i18n/zh_system.go` + `i18n/en_system.go`（`KeySystemPromptObjective`）：第 3 条改为明确指向 `<environment_details>` 中的 `<current_dir>` 给出的文件结构；第 5 条删除「你也可以提供一个 CLI 命令来展示任务成果」；第 6 条改为「对需求有疑问或需用户确认时必须调用 ask_user，不要把疑问写进结果正文，结论明确、不以开放式求助收尾」。同时清理英文节末尾多余空行。
+    - 死代码清理：`agent/loop.go` 中 `lastUserInput` 的过期注释（其真实用途是问题求解/循环判定的首末输入记录，与 Objective 节无关）；删除全仓零引用的 `i18n/keys.go` 常量 `KeySystemPromptObjectivePlan`。`{TASK}` 占位符替换机制保留（面向用户自定义节文本的公开模板能力）。
+  - 测试同步：`agent/system_prompt_resultmode_test.go` 节列表断言加入 `"Objective"`，新增 `TestObjectiveSectionRestored`（断言节列表含 Objective 且紧随 ResultMode，且渲染后的系统提示词包含 `OBJECTIVE` 与 `no_tool_action` 退出规则）；`agent/system_prompt_feature531_test.go` 节数 8 → 9 并校验 `Sections[3] == "Objective"`。
+  - 验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -short -run 'Objective|DefaultSections|WorkModesHaveNoSections|ResultMode|Skills'` 全通过；`go test ./agent/ ./config/ ./i18n/ ./cmd/ -short` 的失败集合与改动前 HEAD 基线（临时 worktree 对比）完全一致，均为既有问题（agent: TestLineRendererTokenEvents、TestRetryCountLimit_EnterResets；i18n: TestRulesDirCustomizationNote、TestPerSectionFileNotes、TestRulesNoteMergesRulesFile；cmd: TestSkillHandlerListEmpty、TestSettingsJSONFillsDefaults），与本改动无关；产物 `work/co-shell-0.72.2.darwin.arm64`、`work/co-shell-hub-0.72.2.darwin.arm64` [BUILD-1113]
 
 ---
 

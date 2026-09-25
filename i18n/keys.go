@@ -1271,7 +1271,6 @@ const (
 	KeySystemPromptIdentity         = "system_prompt_identity"
 	KeySystemPromptIdentityPlan     = "system_prompt_identity_plan"
 	KeySystemPromptIdentityResearch = "system_prompt_identity_research"
-	KeySystemPromptObjectivePlan    = "system_prompt_objective_plan"
 	KeyAnonymousUser                = "anonymous_user"
 	KeySystemPromptObjective        = "system_prompt_objective"
 	KeySystemPromptEnvironment      = "system_prompt_environment"

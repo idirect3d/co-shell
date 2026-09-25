@@ -331,8 +331,9 @@ type Agent struct {
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
 	toolCallModeMgr *ToolCallModeMgr
 
-	// lastUserInput stores the raw user instruction (before formatUserMessage formatting)
-	// for use as {TASK} in the system prompt Objective section.
+	// lastUserInput stores the raw user instruction (before formatUserMessage formatting).
+	// It is used as the first input / last input recorded for loop-judgment reporting and
+	// as the fallback user prompt in the problem solver (see problem_solver.go, loop.go).
 	lastUserInput string
 
 	// lastLlmOutput stores the complete content of the most recent LLM response.
