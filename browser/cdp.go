@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // CDPRequest represents a JSON-RPC request to the Chrome DevTools Protocol.
@@ -64,6 +65,10 @@ type CDPClient struct {
 	nextID    int
 	pending   map[int]chan<- CDPResponse
 	pendingMu sync.Mutex
+
+	// events dispatches CDP events (messages without an "id") to the
+	// subscribers registered via Watch.
+	events *EventWatchers
 }
 
 // defaultCDPTimeout is the maximum time to wait for a CDP response.
@@ -86,6 +91,7 @@ func NewCDPClient(wsURL string) (*CDPClient, error) {
 		conn:    conn,
 		nextID:  1,
 		pending: make(map[int]chan<- CDPResponse),
+		events:  newEventWatchers(),
 	}
 
 	// Start a goroutine to read responses from the WebSocket
@@ -105,8 +111,9 @@ func ensureTimeoutContext(ctx context.Context) (context.Context, context.CancelF
 	return ctx, func() {}
 }
 
-// readLoop continuously reads messages from the WebSocket connection
-// and dispatches responses to the appropriate pending channels.
+// readLoop continuously reads messages from the WebSocket connection,
+// dispatching command responses to their pending channels and CDP events
+// (messages carrying "method" but no "id") to event subscribers.
 func (c *CDPClient) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -124,27 +131,51 @@ func (c *CDPClient) readLoop() {
 				delete(c.pending, id)
 			}
 			c.pendingMu.Unlock()
+			c.events.closeAll()
 			return
 		}
 
-		var resp CDPResponse
-		if err := json.Unmarshal(message, &resp); err != nil {
+		var msg cdpMessage
+		if err := json.Unmarshal(message, &msg); err != nil {
 			continue
 		}
 
-		// Dispatch to the pending channel
+		// CDP events carry a "method" and no "id"; responses carry an "id".
+		// A message carrying a "method" is always an event — some proxies attach
+		// a synthetic "id":0, so dispatching by method (not by a missing id)
+		// keeps those events from being treated as responses.
+		if msg.Method != "" {
+			c.events.dispatch(msg.Method, msg.Params)
+			continue
+		}
+		if msg.ID == nil {
+			continue
+		}
+
+		// Dispatch the response to the pending channel
+		id := *msg.ID
 		c.pendingMu.Lock()
-		ch, ok := c.pending[resp.ID]
+		ch, ok := c.pending[id]
 		if ok {
-			delete(c.pending, resp.ID)
+			delete(c.pending, id)
 		}
 		c.pendingMu.Unlock()
 
 		if ok {
-			ch <- resp
+			ch <- CDPResponse{ID: id, Result: msg.Result, Error: msg.Error}
 			close(ch)
 		}
 	}
+}
+
+// cdpMessage is the wire format of any message received from CDP: either a
+// command response (carries "id") or an event (carries "method" only).
+type cdpMessage struct {
+	ID     *int                   `json:"id"`
+	Method string                 `json:"method"`
+	Params map[string]interface{} `json:"params"`
+	Result map[string]interface{} `json:"result"`
+	Error  *CDPError              `json:"error"`
 }
 
 // Call sends a CDP command and waits for the response.
@@ -223,57 +254,39 @@ func (c *CDPClient) Close() error {
 	return nil
 }
 
-// Navigate navigates the page to the given URL.
-// After navigation, it waits for the page to load (up to 10 seconds)
-// so that subsequent calls like CaptureScreenshot or GetCurrentURL
-// can operate on a fully loaded page.
+// Navigate navigates the page to the given URL and waits for the load event
+// (falling back to document.readyState) so that subsequent calls like
+// CaptureScreenshot or GetCurrentURL operate on a fully loaded page.
+//
+// CDP reports navigation failures (DNS/connection errors, blocked schemes) as
+// errorText inside the result instead of a protocol error — those are surfaced
+// as a Go error so callers fail fast instead of waiting for a timeout.
 func (c *CDPClient) Navigate(ctx context.Context, url string) (string, error) {
+	// Subscribe BEFORE navigating: CDP does not replay past events.
+	loadCh, cancel := c.Watch("Page.loadEventFired")
+	defer cancel()
+
+	if err := c.EnablePageEvents(ctx); err != nil {
+		log.Debug("cannot enable Page events before navigate: %v", err)
+	}
+
 	result, err := c.Call(ctx, "Page.navigate", map[string]interface{}{
 		"url": url,
 	})
 	if err != nil {
 		return "", err
 	}
-	frameID, _ := result["frameId"].(string)
 
-	// Wait for the page to finish loading
-	_ = c.WaitForPageLoad(ctx)
+	frameID, _ := result["frameId"].(string)
+	if errText, _ := result["errorText"].(string); errText != "" {
+		return frameID, fmt.Errorf("navigation to %s failed: %s", url, errText)
+	}
+
+	if err := c.waitForLoadEvent(ctx, loadCh, pageLoadTimeout); err != nil {
+		log.Debug("page load not confirmed for %s: %v", url, err)
+	}
 
 	return frameID, nil
-}
-
-// WaitForPageLoad waits for the page to finish loading by polling
-// document.readyState until it reaches "complete". This ensures
-// subsequent calls like CaptureScreenshot or GetCurrentURL don't
-// operate on a partially loaded page.
-// Returns the total wait time, or an error if the page does not
-// load within the timeout.
-func (c *CDPClient) WaitForPageLoad(ctx context.Context) error {
-	timeoutCtx, cancel := ensureTimeoutContext(ctx)
-	defer cancel()
-
-	pollInterval := 200 * time.Millisecond
-	for {
-		select {
-		case <-timeoutCtx.Done():
-			return fmt.Errorf("page load wait timed out: %w", timeoutCtx.Err())
-		default:
-		}
-
-		readyState, err := c.Evaluate(timeoutCtx, "document.readyState")
-		if err != nil {
-			// If evaluate fails (e.g. page is still navigating), just retry
-			time.Sleep(pollInterval)
-			continue
-		}
-
-		state, ok := readyState.(string)
-		if ok && state == "complete" {
-			return nil
-		}
-
-		time.Sleep(pollInterval)
-	}
 }
 
 // CaptureScreenshot captures a screenshot of the current page.
@@ -286,21 +299,25 @@ func (c *CDPClient) CaptureScreenshot(ctx context.Context, quality int, fullPage
 		"quality": quality,
 	}
 	if fullPage {
-		// Get page metrics for full-page screenshot
+		// Get page metrics for full-page screenshot. captureBeyondViewport is
+		// required, otherwise Chrome clamps the capture to the viewport and
+		// fixed headers repeat on every scroll position.
 		metrics, err := c.Call(ctx, "Page.getLayoutMetrics", nil)
-		if err == nil {
-			if contentSize, ok := metrics["contentSize"].(map[string]interface{}); ok {
-				width := contentSize["width"].(float64)
-				height := contentSize["height"].(float64)
-				params["clip"] = map[string]interface{}{
-					"x":      0,
-					"y":      0,
-					"width":  width,
-					"height": height,
-					"scale":  1,
-				}
-			}
+		if err != nil {
+			return "", fmt.Errorf("cannot read layout metrics for full-page screenshot: %w", err)
 		}
+		contentSize, ok := metrics["contentSize"].(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("unexpected layout metrics for full-page screenshot")
+		}
+		params["clip"] = map[string]interface{}{
+			"x":      0,
+			"y":      0,
+			"width":  jsonFloat(contentSize["width"]),
+			"height": jsonFloat(contentSize["height"]),
+			"scale":  1,
+		}
+		params["captureBeyondViewport"] = true
 	}
 
 	result, err := c.Call(ctx, "Page.captureScreenshot", params)
@@ -311,54 +328,17 @@ func (c *CDPClient) CaptureScreenshot(ctx context.Context, quality int, fullPage
 	return data, nil
 }
 
-// Click performs a mouse click at the given coordinates.
+// Click performs a left-button single click at the given coordinates.
+// Use ClickEx for right/middle buttons or double clicks.
 func (c *CDPClient) Click(ctx context.Context, x, y float64) error {
-	// Mouse move to position
-	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
-		"type":       "mousePressed",
-		"x":          x,
-		"y":          y,
-		"button":     "left",
-		"clickCount": 1,
-	})
-	if err != nil {
-		return err
-	}
-
-	// Mouse release
-	_, err = c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
-		"type":       "mouseReleased",
-		"x":          x,
-		"y":          y,
-		"button":     "left",
-		"clickCount": 1,
-	})
-	return err
+	return c.ClickEx(ctx, x, y, MouseButtonLeft, 1)
 }
 
-// Type sends text input to the page. It clears the existing content first
-// if clear is true, then types the text character by character.
+// Type sends text input to the page. Literal text (including CJK and emoji)
+// is inserted with Input.insertText; "\n", "\t" and "{Key}" tokens such as
+// "{Enter}" or "{Ctrl+A}" are translated into real key presses.
 func (c *CDPClient) Type(ctx context.Context, text string) error {
-	for _, ch := range text {
-		_, err := c.Call(ctx, "Input.dispatchKeyEvent", map[string]interface{}{
-			"type":                  "keyDown",
-			"windowsVirtualKeyCode": int(ch),
-			"key":                   string(ch),
-			"text":                  string(ch),
-		})
-		if err != nil {
-			return err
-		}
-		_, err = c.Call(ctx, "Input.dispatchKeyEvent", map[string]interface{}{
-			"type":                  "keyUp",
-			"windowsVirtualKeyCode": int(ch),
-			"key":                   string(ch),
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return c.TypeText(ctx, text)
 }
 
 // Evaluate executes JavaScript in the page context and returns the result as a JSON string.
@@ -415,10 +395,10 @@ func (c *CDPClient) GetOuterHTML(ctx context.Context, nodeID int) (string, error
 	return html, nil
 }
 
-// ScrollBy scrolls the page by the given delta.
+// ScrollBy scrolls the page by the given delta using a mouse wheel event,
+// falling back to window.scrollBy when the wheel event cannot be delivered.
 func (c *CDPClient) ScrollBy(ctx context.Context, deltaX, deltaY float64) error {
-	_, err := c.Evaluate(ctx, fmt.Sprintf("window.scrollBy(%f, %f)", deltaX, deltaY))
-	return err
+	return c.ScrollByWheel(ctx, deltaX, deltaY)
 }
 
 // GetViewportSize returns the current viewport dimensions.
@@ -501,28 +481,65 @@ func (c *CDPClient) GetInteractiveElements(ctx context.Context) (string, error) 
 
 // GoBack navigates back in the browser history.
 func (c *CDPClient) GoBack(ctx context.Context) (string, error) {
-	result, err := c.Call(ctx, "Page.navigateToHistoryEntry", map[string]interface{}{
-		"entryId": -1, // -1 means go back
-	})
-	if err != nil {
-		// Fallback: use JavaScript history.back()
-		_, err = c.Evaluate(ctx, "window.history.back()")
-		if err != nil {
-			return "", fmt.Errorf("cannot go back: %w", err)
-		}
-		return "", nil
-	}
-	frameID, _ := result["frameId"].(string)
-	return frameID, nil
+	return c.navigateHistory(ctx, -1)
 }
 
 // GoForward navigates forward in the browser history.
 func (c *CDPClient) GoForward(ctx context.Context) (string, error) {
-	_, err := c.Evaluate(ctx, "window.history.forward()")
+	return c.navigateHistory(ctx, 1)
+}
+
+// navigateHistory moves `step` entries through the navigation history. It reads
+// the real entry id from Page.getNavigationHistory (the historical -1 pseudo id
+// is rejected by Chrome), navigates to it and waits until the traversal took
+// effect - so a failed navigation surfaces as an error instead of a silent
+// success. It returns the URL of the document reached.
+func (c *CDPClient) navigateHistory(ctx context.Context, step int) (string, error) {
+	history, err := c.Call(ctx, "Page.getNavigationHistory", nil)
 	if err != nil {
-		return "", fmt.Errorf("cannot go forward: %w", err)
+		return "", fmt.Errorf("cannot read navigation history: %w", err)
 	}
-	return "", nil
+
+	entries, _ := history["entries"].([]interface{})
+	targetIndex := int(jsonFloat(history["currentIndex"])) + step
+	if targetIndex < 0 || targetIndex >= len(entries) {
+		if step < 0 {
+			return "", fmt.Errorf("no previous entry in navigation history")
+		}
+		return "", fmt.Errorf("no next entry in navigation history")
+	}
+
+	entry, ok := entries[targetIndex].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected navigation history entry")
+	}
+	entryID := int(jsonFloat(entry["id"]))
+	if entryID == 0 {
+		return "", fmt.Errorf("navigation history entry %d has no id", targetIndex)
+	}
+
+	// Subscribe before navigating: CDP never replays past events.
+	loadCh, cancelLoad := c.Watch("Page.loadEventFired")
+	defer cancelLoad()
+	navCh, cancelNav := c.Watch("Page.frameNavigated")
+	defer cancelNav()
+
+	if _, err := c.Call(ctx, "Page.navigateToHistoryEntry", map[string]interface{}{
+		"entryId": entryID,
+	}); err != nil {
+		return "", fmt.Errorf("cannot navigate to history entry %d: %w", entryID, err)
+	}
+
+	targetURL, _ := entry["url"].(string)
+	if err := c.waitForHistoryNavigation(ctx, loadCh, navCh, targetURL); err != nil {
+		log.Debug("history navigation to entry %d not confirmed: %v", entryID, err)
+	}
+
+	currentURL, err := c.GetCurrentURL(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cannot read URL after navigating to history entry %d: %w", entryID, err)
+	}
+	return currentURL, nil
 }
 
 // GetCurrentURL returns the current page URL.

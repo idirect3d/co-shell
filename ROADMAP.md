@@ -4,6 +4,41 @@
 
 ---
 
+## v0.75.0 — 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化）
+
+> **版本**: v0.75.0
+
+> **状态**: 🚧 进行中
+> **里程碑**: 补齐浏览器自动化的 CDP 能力，使模型能可靠完成真实网页任务。P0 稳定性：事件通道（订阅/分发/WaitEvent）、事件化等待与弹窗自动处理、中文与特殊键输入、完整鼠标事件、元素级 selector 操作，并修 7 个既有缺陷；P1 配置化：浏览器启动参数与代理/UA/语言/视口/证书例外/下载目录可配置，且**配置可记住**（config.json 持久化 + 建连后 apply-on-connect 重放 + 固定 profile）。
+> **说明**: 现状盘点——全仓库仅调用 9 个 CDP 方法（`Page.navigate`/`getLayoutMetrics`/`captureScreenshot`/`navigateToHistoryEntry`、`Runtime.evaluate`、`DOM.getDocument`/`getOuterHTML`、`Input.dispatchMouseEvent`/`dispatchKeyEvent`）；`readLoop` 丢弃全部 CDP 事件（`browser/cdp.go:130-146`）→ 无法精确等待、遇 alert 弹窗会卡到超时；单页单连接无 Target 管理；`browser/chrome.go:85-97` 启动参数硬编码；browser 配置仅 4 键（`config/config.go:515-526`）。「配置记住」分三层：① co-shell 配置持久化到 config.json；② 浏览器会话态沿用 `workspace/browser-data` profile（现状已记住）；③ CDP 会话级覆盖（视口/UA/时区/网络条件等）在建连后自动重放。依赖策略：坚持零依赖手写 CDP，只实现 Agent 有用的域（不引入 cdproto 等第三方协议库）。P2（网络观测 / 多标签 Target / console 采集 / 元素截图 / PDF / 上传 / mock）另立 FEATURE 后续实施。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-556 | 0.75.0 | P1 | 浏览器 CDP 能力补强：① 事件通道（Subscribe/WaitEvent）+ 事件化等待 + 弹窗自动处理；② 交互补全（mouseMoved/右键/双击、`Input.insertText` 中文、特殊键与快捷键、mouseWheel、Hover）；③ 元素级定位（`DOM.querySelector`/`getBoxModel`/`scrollIntoView` + 工具 selector 参数）；④ 修 7 个既有缺陷；⑤ browser-* 配置扩展（chrome-path/extra-args/proxy/user-agent/language/window-size/download-dir/ignore-cert-errors/extensions/profile-dir/persist/viewport/dialog-policy/apply-on-connect）；⑥ apply-on-connect 重放 + 下载落地 + profile 持久化开关 |
+
+> 当前 BUILD: 1121
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-556 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化）**
+  - 背景（用户提出）：「当前 co-shell 已经具备通过 CDP 操作浏览器的能力，但是似乎并没有实现所有 CDP 的功能和特性，仔细查一下 CDP 还有什么功能咱们没有实现，比如配置浏览器等。给出你的建议。」
+  - 交互决策（经 ask_user 确认）：① 版本归属 **v0.75.0**；② 范围 = P0 稳定性 + P1 配置化（P2 关键项另立 FEATURE，不在本轮）；③ 依赖策略 = **坚持零依赖手写 CDP**（只实现 Agent 有用的域）；④ 配置需「记住」= config.json 持久化 + 建连后 apply-on-connect 重放 + 持久 profile 目录。
+  - 分支：**FEATURE-556**（基于 main，v0.74.1 已合并并打 tag），版本 v0.75.0
+  - 实现概要（**Phase 1 = P0 稳定性**，已提交于 FEATURE-556 分支）：
+    - 事件通道 `browser/cdp_events.go`：`CDPClient.Watch/WaitEvent` + `EventWatchers`；readLoop 判定改为「带 method 即事件」（`"id":0` 的事件也分发），连接关闭时 pending 与订阅全部关闭。
+    - 事件化等待 `browser/cdp_wait.go`：`EnablePageEvents`/`waitForLoadEvent`/`waitForReadyState`/`WaitForSelector`/`waitForHistoryNavigation`；load 事件优先、readyState 有界回退；历史导航额外接受 `Page.frameNavigated` + URL 轮询（bfcache 还原不触发 load 事件，避免白等 10s）。
+    - 弹窗处理 `browser/cdp_dialog.go`：`DialogManager` + `DialogPolicy`（accept/dismiss/auto，auto 接受 alert/prompt、拒绝 confirm/beforeunload）；`ChromeManager.attachSession` 建连即订阅，工具返回附带已处理弹窗信息。
+    - 交互补全 `browser/cdp_input.go`：`InsertText`（CJK/emoji）、`TypeText`（`\n`/`\t`/`{Enter}` token 化）、`pressKey`（windowsVirtualKeyCode/nativeVirtualKeyCode/key/code/modifiers）、`NormalizeShortcutModifiers`（darwin 下 Ctrl→Cmd）、`MouseMove/Hover`、`ClickEx`（右键/双击 + buttons 掩码）、`ScrollByWheel`。
+    - 元素级定位 `browser/cdp_dom.go`：`ElementBox`（`DOM.querySelector` → `scrollIntoViewIfNeeded` → `getBoxModel` 包围盒；**视口坐标用于鼠标事件、加滚动偏移得文档坐标用于截图裁剪**）、`CaptureScreenshotClip`。
+    - 工具层：`browser_click`/`browser_type`/`browser_screenshot` 新增可选 `selector`（向后兼容坐标路径），`browser_click` 另加 `button`/`click_count`，`browser_type` 支持 `clear` 与特殊键语法；中英双语工具描述与提示词同步更新。
+    - 缺陷修复：D-001/D-002（GoBack/GoForward 使用合法 entryId、越界明确报错、返回真实 URL）、D-003（readyState 等待有界）、D-004（整页截图缺 metrics 时明确报错 + `captureBeyondViewport`）。
+    - 测试：`browser/cdp_events_test.go`（A-001..A-005，本地 WS 服务器）、`browser/cdp_input_test.go`（A-006/A-007/A-008/A-012）、`browser/cdp_integration_test.go`（B-001..B-016/B-025，真实 headless Chrome，`testing.Short()` + `IsChromeAvailable()` 门控，测试页在 `testdata/browser/`）。
+    - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/`（含真实 Chrome 集成 16 个用例）全绿；`go test ./... -short` 无新增失败（`agent` 包 line_renderer/loop/skill 三处与 i18n 文案相关的失败为分支既有基线问题，与本次改动无关）。
+    - 待办：**Phase 2（P1 配置化）**——browser-* 配置键、启动参数由 `ChromeConfig` 生成、apply-on-connect 重放、profile 持久化与下载落地。任务仍为进行中。
+  - BUILD: [BUILD-1121]
+
 ## v0.74.1 — 修复 token 用时/速度计时（stamp 生命周期 / 口径统一 / 缺失路径 / 展示时机）
 
 > **版本**: v0.74.1

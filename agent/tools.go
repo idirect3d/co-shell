@@ -827,7 +827,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			},
 			{
 				Name:        "browser_screenshot",
-				Description: "Capture a screenshot of the current browser page. The screenshot is automatically sent to the vision model for analysis (vision models only). The `intent` parameter is used as the vision-recognition instruction for the screenshot, so state a specific analysis goal — what information to extract or verify from the page — rather than a vague request. Use this to observe the page content, layout, and elements. Parameters: intent (required), quality (optional, 1-100, default 80), full_page (optional, boolean, default false). For full-page screenshots, set full_page=true.",
+				Description: "Capture a screenshot of the current browser page or of a single element. The screenshot is automatically sent to the vision model for analysis (vision models only). The `intent` parameter is used as the vision-recognition instruction for the screenshot, so state a specific analysis goal — what information to extract or verify from the page — rather than a vague request. Use this to observe the page content, layout, and elements. Parameters: intent (required), quality (optional, 1-100, default 80), full_page (optional, boolean, default false), selector (optional, CSS selector: when set only that element is captured).",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -847,6 +847,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"type":        "boolean",
 							"description": "Whether to capture the full page (true) or just the visible viewport (false, default). Full page captures all scrollable content.",
 						},
+						"selector": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional CSS selector. When set, only the matching element is captured (full_page is ignored); when omitted the whole viewport (or the full page with full_page=true) is captured.",
+						},
 					},
 					"required": []string{"meta", "instruct"},
 				},
@@ -854,7 +858,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			},
 			{
 				Name:        "browser_click",
-				Description: "Click at the specified coordinates (x, y) on the browser page. Use coordinates from browser_get_interactive_elements results (centerX, centerY). After clicking, use browser_screenshot to observe the result.",
+				Description: "Click on the browser page, either at explicit coordinates (x, y) or on an element identified by a CSS selector. When selector is given, the element is scrolled into view and clicked at its centre (which takes precedence over x/y); otherwise x and y are required. Use coordinates from browser_get_interactive_elements results (centerX, centerY). Supports button (left/right/middle) and click_count (2 = double click). After clicking, use browser_screenshot to observe the result.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -870,14 +874,26 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"type":        "number",
 							"description": "The y-coordinate to click at (in pixels from the top edge of the viewport)",
 						},
+						"selector": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional CSS selector. When set, the matching element is scrolled into view and clicked at its centre; x and y are then ignored.",
+						},
+						"button": map[string]interface{}{
+							"type":        "string",
+							"description": "Mouse button: left (default), right or middle.",
+						},
+						"click_count": map[string]interface{}{
+							"type":        "number",
+							"description": "Number of clicks: 1 (default, single click) or 2 (double click).",
+						},
 					},
-					"required": []string{"meta", "x", "y"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserClickTool,
 			},
 			{
 				Name:        "browser_type",
-				Description: "Type text into the currently focused element on the browser page. Use this to fill in form fields, search boxes, or text areas. Optionally clear existing content first by setting clear=true.",
+				Description: "Type text into the focused element, or into an element identified by a CSS selector (which is focused first). Use this to fill in form fields, search boxes, or text areas. Text is inserted with Input.insertText, so any Unicode content (Chinese, emoji) works. Special keys can be embedded as tokens: {Enter}, {Tab}, {Escape}, {Backspace}, {Delete}, {ArrowUp}, {ArrowDown}, {ArrowLeft}, {ArrowRight}, {Home}, {End}, {PageUp}, {PageDown}, and shortcuts such as {Ctrl+A} (Cmd+A on macOS); a newline is typed as Enter. Optionally clear existing content first by setting clear=true.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -892,6 +908,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"clear": map[string]interface{}{
 							"type":        "boolean",
 							"description": "Whether to clear existing content before typing (default: false)",
+						},
+						"selector": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional CSS selector. When set, the matching element is scrolled into view, focused by a click and then typed into.",
 						},
 					},
 					"required": []string{"meta", "text"},
@@ -1015,6 +1035,15 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				},
 				Callback: a.browserCloseTool,
 			},
+		}
+		// FEATURE-556: JavaScript dialogs answered automatically are reported
+		// together with the next browser tool result.
+		for i := range browserTools {
+			inner := browserTools[i].Callback
+			browserTools[i].Callback = func(ctx context.Context, args map[string]interface{}) (string, error) {
+				out, err := inner(ctx, args)
+				return a.appendBrowserDialogNotes(out), err
+			}
 		}
 		tools = append(tools, browserTools...)
 	}

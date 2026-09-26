@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>UC556 Long</title>
+<style>
+  html, body { margin: 0; padding: 0; font-family: sans-serif; }
+  #sticky { position: fixed; top: 0; left: 0; right: 0; height: 40px; background: #333; color: #fff; z-index: 10; }
+  #scroller { height: 200px; overflow: auto; border: 1px solid #999; width: 300px; margin-top: 60px; }
+  #scrollerInner { height: 2000px; background: linear-gradient(#fff, #abc); }
+  .tall { height: 1800px; background: linear-gradient(#eef, #cde); }
+  #deep { margin: 40px; padding: 20px; background: #f90; width: 200px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="sticky">sticky-header</div>
+
+<div id="scroller"><div id="scrollerInner">scroller-content</div></div>
+
+<div class="tall">tall-block</div>
+
+<div id="deep">deep-target</div>
+
+<script>
+  window.__deepClicked = false;
+  document.getElementById('deep').addEventListener('click', function () {
+    window.__deepClicked = true;
+    document.getElementById('deep').textContent = 'clicked';
+  });
+</script>
+</body>
+</html>

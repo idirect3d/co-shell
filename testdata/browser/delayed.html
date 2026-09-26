@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>UC556 Delayed</title>
+</head>
+<body>
+<h1>UC556 delayed</h1>
+<!-- The slow image keeps the load event pending for ~1.2s (served by the test
+     server), so event-driven waiting can be observed. -->
+<img id="slowimg" src="/slow.png" alt="slow">
+<div id="late-slot"></div>
+<script>
+  document.getElementById('slowimg').addEventListener('load', function () {
+    var d = document.createElement('div');
+    d.id = 'late';
+    d.textContent = 'late-content';
+    document.getElementById('late-slot').appendChild(d);
+    window.__lateReady = true;
+  });
+</script>
+</body>
+</html>

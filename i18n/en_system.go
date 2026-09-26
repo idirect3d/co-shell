@@ -864,7 +864,8 @@ Parameters:
 - instruct (required) The explicit instruction for the vision model describing what to analyze/extract from the image(s). Distinct from meta.intent (which is the intent shown to the user).
 
 - quality (optional, default 80) Screenshot quality 1-100
-- full_page (optional, default false) Whether to capture the full page
+- full_page (optional, default false) Whether to capture the full page (ignored when selector is set)
+- selector (optional) CSS selector: when set, only that element's box is captured (element screenshot)
 Usage:
 <{XML_TAG_PREFIX}browser_screenshot>
   <{XML_TAG_PREFIX}meta>
@@ -877,12 +878,15 @@ Usage:
 </{XML_TAG_PREFIX}browser_screenshot>`
 
 	enMessages[KeyToolUsageBrowserClick] = `## browser_click
-Description: Click at the specified coordinates on the page. It is recommended to call browser_get_interactive_elements first to get element coordinates.
+Description: Click an element, located either by coordinates (x/y) or by a CSS selector (selector); prefer selector when possible. With coordinates, call browser_get_interactive_elements first to obtain them.
 Parameters:
 - meta (required) Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
 
-- x (required) X coordinate to click
-- y (required) Y coordinate to click
+- x (optional) X coordinate to click (required when selector is omitted)
+- y (optional) Y coordinate to click (required when selector is omitted)
+- selector (optional) CSS selector: the element is scrolled into view and clicked at its centre (takes precedence over x/y)
+- button (optional, default left) Mouse button: left/right/middle
+- click_count (optional, default 1) Number of clicks; 2 = double click
 Usage:
 <{XML_TAG_PREFIX}browser_click>
   <{XML_TAG_PREFIX}meta>
@@ -894,12 +898,13 @@ Usage:
 </{XML_TAG_PREFIX}browser_click>`
 
 	enMessages[KeyToolUsageBrowserType] = `## browser_type
-Description: Type text into the currently focused input element. Set clear=true to clear existing content before typing.
+Description: Type text into the focused element, or into the element named by selector (which is focused first). Any Unicode content (Chinese, emoji) is supported. Special keys can be written as tokens: {Enter}/{Tab}/{Escape}/{Backspace}/{Delete}/{ArrowUp}/{ArrowDown}/{ArrowLeft}/{ArrowRight}/{Home}/{End}/{PageUp}/{PageDown}, and shortcuts such as {Ctrl+A}/{Ctrl+C}/{Ctrl+V}/{Ctrl+X}/{Ctrl+Z} (mapped to Cmd on macOS). A newline is typed as Enter. Set clear=true to clear existing content first.
 Parameters:
 - meta (required) Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
 
 - text (required) Text to type
 - clear (optional, default false) Whether to clear existing content first
+- selector (optional) CSS selector: the element is scrolled into view, focused by a click, then typed into
 Usage:
 <{XML_TAG_PREFIX}browser_type>
   <{XML_TAG_PREFIX}meta>
@@ -925,6 +930,7 @@ Usage:
   <{XML_TAG_PREFIX}expression>document.title</{XML_TAG_PREFIX}expression>
 </{XML_TAG_PREFIX}browser_evaluate>`
 
+	enMessages[KeyBrowserDialogHandled] = "[browser dialog] %s: %s (%s)"
 	enMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
 Description: Get the rendered DOM HTML of the current page after all JavaScript has executed. The HTML is serialized from Chrome's live DOM tree — it reflects the final rendered state (SPA output, dynamic content, JS modifications), NOT the raw source. No need to download JS/JSON resources separately.
 Parameters:

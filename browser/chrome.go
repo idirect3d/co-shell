@@ -50,6 +50,7 @@ type ChromeManager struct {
 	cdpClient   *CDPClient
 	started     bool
 	userDataDir string // persistent user data directory
+	dialogs     *DialogManager
 }
 
 // NewChromeManager creates a new ChromeManager.
@@ -157,8 +158,7 @@ func (m *ChromeManager) Connect() (*CDPClient, error) {
 		return nil, fmt.Errorf("cannot connect to CDP: %w", err)
 	}
 
-	m.cdpClient = client
-	return client, nil
+	return m.setClient(client), nil
 }
 
 // EnsurePageConnected ensures we have a valid CDP connection with an active page.
@@ -182,8 +182,7 @@ func (m *ChromeManager) EnsurePageConnected(ctx context.Context) (*CDPClient, er
 	if err == nil && wsURL != "" {
 		client, err := NewCDPClient(wsURL)
 		if err == nil {
-			m.cdpClient = client
-			return client, nil
+			return m.setClient(client), nil
 		}
 		log.Debug("Cannot connect to existing page: %v, trying new tab", err)
 	}
@@ -204,8 +203,7 @@ func (m *ChromeManager) EnsurePageConnected(ctx context.Context) (*CDPClient, er
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to CDP via WebSocket: %w", err)
 	}
-	m.cdpClient = client2
-	return client2, nil
+	return m.setClient(client2), nil
 }
 
 // createNewPage creates a new page/tab via Chrome's /json/new HTTP API.
@@ -245,12 +243,16 @@ func (m *ChromeManager) createNewPage(debugURL string) (*CDPClient, error) {
 		return nil, fmt.Errorf("cannot connect to new page: %w", err)
 	}
 
-	m.cdpClient = client
-	return client, nil
+	return m.setClient(client), nil
 }
 
 // Stop terminates the Chrome browser process.
 func (m *ChromeManager) Stop() {
+	if m.dialogs != nil {
+		m.dialogs.Close()
+		m.dialogs = nil
+	}
+
 	if m.cdpClient != nil {
 		m.cdpClient.Close()
 		m.cdpClient = nil
@@ -291,6 +293,46 @@ func (m *ChromeManager) Client() *CDPClient {
 // Port returns the debugging port.
 func (m *ChromeManager) Port() int {
 	return m.port
+}
+
+// setClient stores a freshly connected CDP client and prepares its session:
+// Page domain events are enabled and JavaScript dialogs are answered
+// automatically.
+func (m *ChromeManager) setClient(client *CDPClient) *CDPClient {
+	m.cdpClient = client
+	m.attachSession(client)
+	return client
+}
+
+// attachSession enables Page events and (re)starts dialog handling for a
+// connection. It never fails: a missing Page domain only degrades event
+// driven waiting, which falls back to readyState polling.
+func (m *ChromeManager) attachSession(client *CDPClient) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.EnablePageEvents(ctx); err != nil {
+		log.Debug("cannot enable Page events: %v", err)
+	}
+
+	if m.dialogs != nil {
+		m.dialogs.Close()
+	}
+	m.dialogs = NewDialogManager(client, DialogAuto)
+}
+
+// DialogManager returns the dialog handler of the current session, or nil.
+func (m *ChromeManager) DialogManager() *DialogManager {
+	return m.dialogs
+}
+
+// TakeDialogMessages returns the JavaScript dialogs answered so far for this
+// browser session (and clears them).
+func (m *ChromeManager) TakeDialogMessages() []DialogInfo {
+	if m.dialogs == nil {
+		return nil
+	}
+	return m.dialogs.TakeMessages()
 }
 
 // findChromePath searches for Chrome or Chromium in common installation locations.

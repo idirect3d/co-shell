@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/browser"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -52,6 +53,43 @@ func (a *Agent) ensureBrowserReady(ctx context.Context) error {
 	}
 	_, err := a.chromeMgr.EnsurePageConnected(ctx)
 	return err
+}
+
+// appendBrowserDialogNotes appends the JavaScript dialogs that were answered
+// automatically during this browser tool call (FEATURE-556). Without it the
+// model cannot tell that the page raised, for example, a confirm dialog that
+// was dismissed on its behalf.
+func (a *Agent) appendBrowserDialogNotes(result string) string {
+	if a.chromeMgr == nil {
+		return result
+	}
+	dialogs := a.chromeMgr.TakeDialogMessages()
+	if len(dialogs) == 0 {
+		return result
+	}
+
+	var builder strings.Builder
+	builder.WriteString(result)
+	for _, dialog := range dialogs {
+		builder.WriteString("\n")
+		builder.WriteString(i18n.TF(i18n.KeyBrowserDialogHandled, dialog.Type, dialog.Message, dialog.Handled))
+	}
+	return builder.String()
+}
+
+// browserElementTimeout bounds element lookup for selector-based tools.
+const browserElementTimeout = 5 * time.Second
+
+// browserMouseButton reads the optional mouse button argument (default: left).
+func browserMouseButton(args map[string]interface{}) (string, error) {
+	button, _ := args["button"].(string)
+	return browser.NormalizeMouseButton(button)
+}
+
+// browserSelector reads the optional selector argument.
+func browserSelector(args map[string]interface{}) string {
+	selector, _ := args["selector"].(string)
+	return strings.TrimSpace(selector)
 }
 
 // browserNavigateTool navigates the browser to a given URL.
@@ -102,9 +140,26 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 		fullPage = fp
 	}
 
-	screenshotData, err := cdp.CaptureScreenshot(ctx, quality, fullPage)
-	if err != nil {
-		return "", fmt.Errorf("cannot capture screenshot: %w", err)
+	// FEATURE-556: a selector captures just that element's box; without it the
+	// historical viewport / full-page behaviour is kept.
+	selector := browserSelector(args)
+	var screenshotData string
+	var err error
+	if selector != "" {
+		box, boxErr := cdp.ElementBox(ctx, selector, browserElementTimeout)
+		if boxErr != nil {
+			return "", boxErr
+		}
+		screenshotData, err = cdp.CaptureScreenshotClip(ctx, quality, box.Clip())
+		if err != nil {
+			return "", fmt.Errorf("cannot capture element screenshot: %w", err)
+		}
+		fullPage = false
+	} else {
+		screenshotData, err = cdp.CaptureScreenshot(ctx, quality, fullPage)
+		if err != nil {
+			return "", fmt.Errorf("cannot capture screenshot: %w", err)
+		}
 	}
 
 	currentURL, _ := cdp.GetCurrentURL(ctx)
@@ -130,7 +185,7 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 	a.browserScreenshotData = screenshotData
 	a.mu.Unlock()
 
-	log.Info("Browser screenshot saved to %s (quality=%d, fullPage=%v, size=%d bytes)", screenshotPath, quality, fullPage, len(screenshotBytes))
+	log.Info("Browser screenshot saved to %s (quality=%d, fullPage=%v, selector=%q, size=%d bytes)", screenshotPath, quality, fullPage, selector, len(screenshotBytes))
 
 	// Check vision support before auto-loading to image cache
 	visionSupported := false
@@ -175,17 +230,39 @@ func (a *Agent) browserClickTool(ctx context.Context, args map[string]interface{
 
 	cdp := a.chromeMgr.Client()
 
-	x, okX := args["x"].(float64)
-	y, okY := args["y"].(float64)
-	if !okX || !okY {
-		return "", fmt.Errorf("x and y coordinates are required")
+	button, err := browserMouseButton(args)
+	if err != nil {
+		return "", err
+	}
+	clickCount := 1
+	if cc, ok := args["click_count"].(float64); ok && cc >= 1 {
+		clickCount = int(cc)
 	}
 
-	if err := cdp.Click(ctx, x, y); err != nil {
+	// FEATURE-556: an explicit selector wins over raw coordinates; coordinates
+	// stay supported for backward compatibility.
+	selector := browserSelector(args)
+	var x, y float64
+	if selector != "" {
+		box, boxErr := cdp.ElementBox(ctx, selector, browserElementTimeout)
+		if boxErr != nil {
+			return "", boxErr
+		}
+		x, y = box.Center()
+	} else {
+		var okX, okY bool
+		x, okX = args["x"].(float64)
+		y, okY = args["y"].(float64)
+		if !okX || !okY {
+			return "", fmt.Errorf("either selector or x/y coordinates are required")
+		}
+	}
+
+	if err := cdp.ClickEx(ctx, x, y, button, clickCount); err != nil {
 		return "", fmt.Errorf("cannot click at (%f, %f): %w", x, y, err)
 	}
 
-	log.Info("Browser click at (%f, %f)", x, y)
+	log.Info("Browser click at (%f, %f) (selector=%q, button=%s, clickCount=%d)", x, y, selector, button, clickCount)
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 
 	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_691), x, y, currentURL), nil
@@ -204,6 +281,19 @@ func (a *Agent) browserTypeTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("text is required")
 	}
 
+	// FEATURE-556: an optional selector focuses the target element first.
+	selector := browserSelector(args)
+	if selector != "" {
+		box, boxErr := cdp.ElementBox(ctx, selector, browserElementTimeout)
+		if boxErr != nil {
+			return "", boxErr
+		}
+		cx, cy := box.Center()
+		if err := cdp.ClickEx(ctx, cx, cy, browser.MouseButtonLeft, 1); err != nil {
+			return "", fmt.Errorf("cannot focus %q: %w", selector, err)
+		}
+	}
+
 	clear := false
 	if cl, ok := args["clear"].(bool); ok {
 		clear = cl
@@ -217,7 +307,7 @@ func (a *Agent) browserTypeTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("cannot type text: %w", err)
 	}
 
-	log.Info("Browser type: %q (clear=%v)", text, clear)
+	log.Info("Browser type: %q (clear=%v, selector=%q)", text, clear, selector)
 	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_692), text), nil
 }
 

@@ -2334,9 +2334,13 @@ const (
 	KeyToolUsageBrowserGetHTML                = "tool_usage_browser_get_html"
 	KeyToolUsageBrowserScroll                 = "tool_usage_browser_scroll"
 	KeyToolUsageBrowserGetInteractiveElements = "tool_usage_browser_get_interactive_elements"
-	KeyToolUsageBrowserGoBack                 = "tool_usage_browser_go_back"
-	KeyToolUsageBrowserGoForward              = "tool_usage_browser_go_forward"
-	KeyToolUsageBrowserClose                  = "tool_usage_browser_close"
+
+	// KeyBrowserDialogHandled reports a JavaScript dialog that was answered
+	// automatically on behalf of the agent (FEATURE-556).
+	KeyBrowserDialogHandled      = "browser_dialog_handled"
+	KeyToolUsageBrowserGoBack    = "tool_usage_browser_go_back"
+	KeyToolUsageBrowserGoForward = "tool_usage_browser_go_forward"
+	KeyToolUsageBrowserClose     = "tool_usage_browser_close"
 
 	// Shell session (column labels)
 	KeyCol3ShellSessionEnabled = "col3_shell_session_enabled"

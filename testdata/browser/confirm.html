@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>UC556 Confirm</title>
+</head>
+<body>
+<h1>UC556 confirm</h1>
+<div id="out">pending</div>
+<script>
+  // Answered by the dialog manager: accepts -> "confirmed", dismisses -> "cancelled".
+  document.getElementById('out').textContent = confirm('uc556-confirm') ? 'confirmed' : 'cancelled';
+</script>
+</body>
+</html>

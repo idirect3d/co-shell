@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>UC556 Basic</title>
+<style>
+  html, body { margin: 0; padding: 0; font-family: sans-serif; }
+  #menu { display: inline-block; padding: 10px; background: #eee; }
+  #submenu { display: none; background: #ccc; padding: 10px; }
+  #menu:hover #submenu { display: block; }
+  #card { width: 240px; height: 120px; background: #4a90d9; color: #fff; padding: 0; margin: 10px 0; }
+  #ctx, #dbl { padding: 10px; margin: 5px 0; background: #f5f5f5; width: 200px; }
+</style>
+</head>
+<body>
+<h1 id="title">UC556 basic</h1>
+
+<form id="form" onsubmit="event.preventDefault(); document.getElementById('out').textContent='submitted';">
+  <input id="name" type="text" value="old">
+  <button id="btn" type="submit">Go</button>
+</form>
+
+<div id="out">idle</div>
+
+<div id="menu">menu
+  <div id="submenu">submenu-visible</div>
+</div>
+
+<div id="ctx">right-click-area</div>
+<div id="dbl">double-click-area</div>
+<div id="card">card-content</div>
+
+<script>
+  window.__keys = [];
+  window.__keylog = [];
+  window.__ctxCount = 0;
+  window.__dblCount = 0;
+
+  document.addEventListener('keydown', function (e) {
+    window.__keys.push(e.key);
+    window.__keylog.push({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+  });
+  document.getElementById('ctx').addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    window.__ctxCount++;
+  });
+  document.getElementById('dbl').addEventListener('dblclick', function () {
+    window.__dblCount++;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>UC556 Alert</title>
+</head>
+<body>
+<h1>UC556 alert</h1>
+<div id="ready">ready</div>
+<button id="fire" onclick="alert('second-alert')">fire</button>
+<script>
+  // Fires while the document is still parsing: without a dialog handler the
+  // page (and any CDP command on this page) hangs.
+  alert('hello-uc556');
+</script>
+</body>
+</html>

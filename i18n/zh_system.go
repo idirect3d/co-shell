@@ -877,7 +877,8 @@ Parameters:
 - instruct (必需) 给视觉模型的明确指令，描述要从图像中分析/提取什么。与 meta.intent（展示给用户的意图）不同。
 
 - quality (可选, 默认80) 截图质量 1-100
-- full_page (可选, 默认false) 是否截取完整页面
+- full_page (可选, 默认false) 是否截取完整页面（指定 selector 时忽略）
+- selector (可选) CSS 选择器，指定后仅截取该元素区域（元素截图）
 Usage:
 <{XML_TAG_PREFIX}browser_screenshot>
   <{XML_TAG_PREFIX}meta>
@@ -890,12 +891,15 @@ Usage:
 </{XML_TAG_PREFIX}browser_screenshot>`
 
 	zhMessages[KeyToolUsageBrowserClick] = `## browser_click
-Description: 在指定坐标处点击页面元素。建议先调用 browser_get_interactive_elements 获取元素坐标后再点击。
+Description: 点击页面元素，可用坐标（x/y）或 CSS 选择器（selector）定位，推荐优先用 selector。使用坐标时建议先调用 browser_get_interactive_elements 获取元素坐标。
 Parameters:
 - meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 
-- x (必需) 点击位置的 X 坐标
-- y (必需) 点击位置的 Y 坐标
+- x (可选) 点击位置的 X 坐标（未指定 selector 时必需）
+- y (可选) 点击位置的 Y 坐标（未指定 selector 时必需）
+- selector (可选) CSS 选择器，指定后自动滚动到该元素并点击其中心（优先级高于坐标）
+- button (可选, 默认left) 鼠标按键：left/right/middle
+- click_count (可选, 默认1) 点击次数，2 表示双击
 Usage:
 <{XML_TAG_PREFIX}browser_click>
   <{XML_TAG_PREFIX}meta>
@@ -907,12 +911,13 @@ Usage:
 </{XML_TAG_PREFIX}browser_click>`
 
 	zhMessages[KeyToolUsageBrowserType] = `## browser_type
-Description: 向当前聚焦的输入元素输入文本。如果输入框有旧内容，可设置 clear=true 先清空。
+Description: 向聚焦元素（或 selector 指定的元素）输入文本，支持中文/emoji 等任意 Unicode 内容。特殊键可写作 {Enter}/{Tab}/{Escape}/{Backspace}/{Delete}/{ArrowUp}/{ArrowDown}/{ArrowLeft}/{ArrowRight}/{Home}/{End}/{PageUp}/{PageDown}，快捷键如 {Ctrl+A}/{Ctrl+C}/{Ctrl+V}/{Ctrl+X}/{Ctrl+Z}（macOS 自动映射为 Cmd）。换行符等价于 Enter。如果输入框有旧内容，可设置 clear=true 先清空。
 Parameters:
 - meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 
 - text (必需) 要输入的文本
 - clear (可选, 默认false) 输入前是否先清空已有内容
+- selector (可选) CSS 选择器，指定后先滚动并点击该元素使其获得焦点，再输入文本
 Usage:
 <{XML_TAG_PREFIX}browser_type>
   <{XML_TAG_PREFIX}meta>
@@ -938,6 +943,7 @@ Usage:
   <{XML_TAG_PREFIX}expression>document.title</{XML_TAG_PREFIX}expression>
 </{XML_TAG_PREFIX}browser_evaluate>`
 
+	zhMessages[KeyBrowserDialogHandled] = "[浏览器弹窗] %s：%s（已%s）"
 	zhMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
 Description: 获取当前页面经过所有 JavaScript 渲染后的 DOM HTML。HTML 来自 Chrome 实时 DOM 树的序列化结果 — 反映的是最终渲染状态（SPA输出、动态内容、JS修改），而非原始源码。无需单独下载 JS/JSON 等资源。
 Parameters:
