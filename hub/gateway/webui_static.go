@@ -287,6 +287,11 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel .config-body { flex:1; overflow-y:auto; padding:0 14px 14px; }
   #agentPanel h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
   .field { margin-bottom:14px; }
+  /* FIX-562: a field whose previous sibling is a .hint gets no vertical gap at
+     all (the hint only carries margin-top, the field only margin-bottom), so a
+     block that should read as separate from the run parameters above it needs
+     an explicit top margin. */
+  .field-sep { margin-top:16px; }
   .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:5px; }
   /* FIX-540: editable controls stay at 16px (same reason as .chat-compose
      input) so no hub form ever triggers the mobile focus auto-zoom. */
@@ -492,7 +497,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="hint" id="d-state"></div>
       <!-- FIX-558: the Agent描述 is the last item and read-only: it shows what the
            agent reported when it last registered on the board. -->
-      <div class="field"><label data-i18n="lblAgentDescReported">Agent描述（最近一次注册上报）</label><div class="ro-text" id="d-name" data-i18n="txtNotReported">（未上报）</div><div class="hint" id="d-name-hint" data-i18n="hintAgentDesc">由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。</div></div>
+      <div class="field field-sep"><label data-i18n="lblAgentDescReported">Agent描述（最近一次注册上报）</label><div class="ro-text" id="d-name" data-i18n="txtNotReported">（未上报）</div><div class="hint" id="d-name-hint" data-i18n="hintAgentDesc">由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。</div></div>
     </div>
     <div class="foot"><button class="btn primary" id="d-save"><span data-i18n="btnSaveChanges">保存修改</span></button><div class="hint" id="d-msg"></div></div>
   </div>

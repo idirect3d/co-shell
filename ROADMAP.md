@@ -14,8 +14,9 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FIX-561 | 0.76.4 | P1 | hub 退出流程修复：① `Proxy.Close()` 持锁调用 `AgentConn.Close()`，与 onClose 回调 `dropAgentLink()` 争用同一把 `p.mu` 导致自死锁 —— 改为持锁快照并摘除连接、释放锁后再关闭；② SIGINT/SIGTERM 路径新增 `stopManagedAgents()`，先按与列表关闭同款的 `Manager.Stop` 关停全部运行中的 managed agent，再关闭 TCP/Web 监听退出 |
+| FIX-562 | 0.76.4 | P2 | hub「Agent 设置」表单末尾的只读「Agent描述（最近一次注册上报）」区块与上方状态提示行间距为 0px（紧贴）—— 新增 `.field-sep { margin-top:16px }` 并挂到该字段上 |
 
-> 当前 BUILD: 1133
+> 当前 BUILD: 1134
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -35,6 +36,14 @@
     - `gofmt` 干净；root 与 hub 模块 `go build ./... && go vet ./...` 通过；`hub/gateway` 全量单测 `ok 5.341s`。
     - 产物：`work/co-shell-0.76.4.darwin.arm64`（`--version` → `v0.76.4 [BUILD-1133]`）与 `work/co-shell-hub-0.76.4.darwin.arm64`。
   - 运行时用例：`use-case/FIX-561/FIX-561-UC-0001.md`（A 组 5 条已通过；B 组 7 条待用户实测确认）
+
+- [ ] **FIX-562 hub「Agent 设置」表单 Agent描述 区块间距过小**
+  - 背景（用户反馈）：「修改 agent 参数界面，新修改的放在最下面的 Agent描述这一段，需要和在他上面的其他内容增加间距。现在都贴在一起不好看。」
+  - 根因（浏览器 DOM 实测）：`.field` 只有 `margin-bottom:14px`，而 Agent描述 区块的**上一个兄弟节点是 `.hint`**（`#d-state` 状态行，只有 `margin-top:4px`、无下边距），两者之间没有任何上下边距来源、margin 折叠后为 0。实测：`f-extra`(bottom=462) → `d-state`(top=476，gap=14px) → Agent描述字段(top=491，**gap=0px**)。
+  - 分支/版本：沿用本会话分支 **FIX-561**（会话内一个分支），任务编号 **FIX-562**，归入 **v0.76.4**（与 FIX-561 一并合并发布）
+  - 实现概要：`hub/gateway/webui_static.go` 新增 `.field-sep { margin-top:16px }` CSS 规则，并把该类加到 detail 视图末尾的 Agent描述 字段（`<div class="field field-sep">`）。仅调间距，不限随、不改行为。
+  - 钉住测试：`hub/gateway/fix562_test.go`（分隔规则存在且唯一、margin-top ≥ 14px、仅 Agent描述 字段使用该类、仍位于保存按钮之前）
+  - 运行时用例：`use-case/FIX-562/FIX-562-UC-0001.md`
 
 ## v0.76.3 — hub 列表项删除按钮显示修复（默认隐藏 + 滑动 16px 渐入 + 左边延长 20px）
 
