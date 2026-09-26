@@ -209,9 +209,17 @@ const webIndexHTML = `<!DOCTYPE html>
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
   .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; background:var(--panel); }
+  /* FIX-560: keep the button invisible at rest — otherwise the card's
+     anti-aliased 8px corners let a red hairline show through — and fade it in
+     with the drag (see DELETE_FADE_PX / setDelOpacity in the script). 84px is
+     the 63px revealed area plus 20px of slack on the left so the button's own
+     left edge can never appear at the end of a swipe; that slack hides under
+     the card, hence the equal left padding that keeps the label centred in the
+     part of the button the user actually sees. */
   .agent-del {
-    position:absolute; top:0; right:1px; bottom:0; width:64px; border:none;
+    position:absolute; top:0; right:1px; bottom:0; width:84px; border:none;
     background:var(--err); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
+    padding:0 0 0 20px; opacity:0; transition:opacity .18s ease;
   }
   .agent {
     position:relative; display:flex; align-items:center; gap:8px; padding:8px 10px;
@@ -1172,6 +1180,7 @@ var HUB_LANG = "__HUB_LANG__";
       del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
+      r._del = del; // FIX-560: the swipe code fades this button in and out
       // FEATURE-557: three-state board marker right after the name (same
       // artwork as the co-shell status-bar session icon): bright while the agent
       // is registered and online, grey while it is registered but offline, and
@@ -1419,11 +1428,22 @@ var HUB_LANG = "__HUB_LANG__";
   }
   document.getElementById('d-save').onclick = saveAgentEdit;
 
+  // FIX-560: distance the card must travel before the delete button is fully
+  // opaque; the button fades in gradually over this drag distance.
+  var DELETE_FADE_PX = 16;
+  // setDelOpacity drives the delete button's fade: v is the target opacity
+  // (0..1), 0 while the card rests and 1 once the swipe passed DELETE_FADE_PX.
+  function setDelOpacity(card, v){
+    if (!card._del) return;
+    card._del.style.opacity = v <= 0 ? '0' : (v >= 1 ? '1' : String(v));
+  }
   // setSwipe opens (true) or closes (false) the delete button behind a card.
   function setSwipe(card, open){
     card._open = open;
+    if (card._del) card._del.style.transition = 'opacity .18s ease';
     card.style.transition = 'transform .18s ease';
     card.style.transform = open ? 'translateX(-63px)' : 'translateX(0)';
+    setDelOpacity(card, open ? 1 : 0);
     if (open) openCard = card;
     else if (openCard === card) openCard = null;
   }
@@ -1431,14 +1451,23 @@ var HUB_LANG = "__HUB_LANG__";
   // to reveal its delete button.
   function attachSwipe(card){
     var startX = 0, startY = 0, dx = 0, dragging = false;
-    function begin(x, y){ startX = x; startY = y; dx = 0; dragging = true; card._moved = false; card.style.transition = 'none'; }
+    function begin(x, y){
+      startX = x; startY = y; dx = 0; dragging = true; card._moved = false;
+      card.style.transition = 'none';
+      if (card._del) card._del.style.transition = 'none'; // follow the drag, no lag
+    }
     function move(x, y){
       if (!dragging) return;
       var mx = x - startX, my = y - startY;
-      if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ dragging = false; return; } // vertical scroll
+      if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ // vertical scroll
+        dragging = false;
+        setSwipe(card, !!card._open); // restore the resting/open look, no red left over
+        return;
+      }
       if (Math.abs(mx) > 4) card._moved = true;
       dx = Math.max(-63, Math.min(0, (card._open ? -63 : 0) + mx));
       card.style.transform = 'translateX(' + dx + 'px)';
+      setDelOpacity(card, -dx / DELETE_FADE_PX);
     }
     function end(){
       if (!dragging) return;
