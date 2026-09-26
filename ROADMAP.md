@@ -22,7 +22,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-556 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化）**
+- [ ] **FEATURE-556 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化 + P2 能力补强）**
   - 背景（用户提出）：「当前 co-shell 已经具备通过 CDP 操作浏览器的能力，但是似乎并没有实现所有 CDP 的功能和特性，仔细查一下 CDP 还有什么功能咱们没有实现，比如配置浏览器等。给出你的建议。」
   - 交互决策（经 ask_user 确认）：① 版本归属 **v0.75.0**；② 范围 = P0 稳定性 + P1 配置化（P2 关键项另立 FEATURE，不在本轮）；③ 依赖策略 = **坚持零依赖手写 CDP**（只实现 Agent 有用的域）；④ 配置需「记住」= config.json 持久化 + 建连后 apply-on-connect 重放 + 持久 profile 目录。
   - 分支：**FEATURE-556**（基于 main，v0.74.1 已合并并打 tag），版本 v0.75.0
@@ -46,7 +46,16 @@
     - 测试：`browser/chrome_config_test.go`（A-009 默认 args 逐项等价 / A-010 配置化 args / A-011 apply 序列 + 空配置零调用 / profile 与 dialog-policy）、`config/config_browser_test.go`（默认值等价 + config.json 往返持久化）、`cmd/settings_browser_test.go`（16 键分派一致 + 非法值拒绝）、`browser/cdp_download_integration_test.go`（**B-021** 真实 headless Chrome 下载落地：配置下载目录后经 apply-on-connect 下发 `Browser.setDownloadBehavior`，点击下载链接后文件落地、size>0、内容匹配；目标目录不存在时由浏览器创建）。
     - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/`（含真实 Chrome 集成 17 个用例，含 B-021）全绿（3.75s）；弹窗集成用例 `TestIntegrationAlertAutoHandled`/`TestIntegrationConfirmPolicy` 通过。
     - 待办：R 组（R-008 UA / R-009 视口 / R-010 代理 / R-011 profile 持久化）与 B-017 证书例外的真实 Chrome 端到端验收；委托 co-shell-tester 对弹窗自动应答与自动下载做独立端到端验收。任务仍为进行中。
-  - BUILD: [BUILD-1123]
+  - 实现概要（**Phase 3 = P2 能力补强（6 项 CDP 能力）**，用户决策 2026-09-26，已实现并自测通过，待用户运行时确认）：
+    - 交互决策（经 ask_user 确认，2026-09-26，**取代**第 27 行「P2 关键项另立 FEATURE」的旧决策）：① **不另立 FEATURE、不新建分支**——P3 直接在 **FEATURE-556** 分支实现，成果随 **v0.75.0** 一并发布（`main.go` 版本号保持 `0.75.0`，仅递增 BUILD）；② 范围 = ROADMAP 原文 P2 清单去掉**已在 Phase 1 落地**的「元素截图」（`CaptureScreenshotClip` + `browser_screenshot` selector，B-012 已通过），共 **6 项**；③ **不做**弱网模拟（`Network.emulateNetworkConditions`）；④ 继续**零依赖手写 CDP**，工具与提示词**中英双语**，默认行为不变（未启用时不产生额外 CDP 调用或额外输出）。
+    - 范围（6 项）：① **console 采集**（`Runtime.consoleAPICalled` / `Runtime.exceptionThrown` / `Log.entryAdded`）；② **文件上传**（`DOM.querySelector` → `DOM.setFileInputFiles`）；③ **PDF 导出**（`Page.printToPDF`）；④ **网络观测**（`Network.enable` + `requestWillBeSent` / `responseReceived` / `loadingFailed`）；⑤ **多标签 Target**（`Target.setDiscoverTargets`/`getTargets`/`createTarget`/`closeTarget`/`activateTarget`，切换页面 = 重连目标页 `webSocketDebuggerUrl`）；⑥ **Fetch mock**（`Fetch.enable` + `Fetch.requestPaused` → `continueRequest`/`fulfillRequest`/`failRequest`，含超时兜底 continue）。
+    - 计划落点：CDP 层新增 `browser/cdp_console.go`（有界环形缓冲 + `TakeMessages`）、`browser/cdp_upload.go`、`browser/cdp_pdf.go`、`browser/cdp_network.go`（有界缓冲 + only_failures/limit）、`browser/cdp_target.go`、`browser/cdp_fetch.go`（内存规则表，子串/glob 匹配，无规则不启用）；agent 侧新增 6 个工具 `browser_console`/`browser_upload`/`browser_pdf`/`browser_network`/`browser_tab`/`browser_mock`，按「声明（`agent/tools.go`）+ 用法 key（`agent/toolcall_mode.go`）+ 自动批准策略（`agent/agent.go`）」三处注册，i18n 新增中英键。
+    - 验收：用例 `use-case/FEATURE-556/FEATURE-556-UC-0020.md`（A 单元 / B 真实 Chrome 集成 / C 运行时三组，覆盖 6 项能力的正常·边界·失败路径）；`go build ./... && go vet ./...` 一次通过；新增单测与真实 Chrome 集成用例全绿；`go test ./... -short` 无新增失败；单文件 ≤ 500 行。
+    - 测试：单测 `browser/cdp_p3_console_test.go`（A-013..A-018）、`browser/cdp_p3_media_test.go`（A-019..A-025 上传/PDF）、`browser/cdp_p3_observe_test.go`（A-026..A-032 网络/Target）、`browser/cdp_p3_fetch_test.go`（A-034..A-038）；真实 headless Chrome 集成 `browser/cdp_p3_integration_test.go` + `browser/cdp_p3_integration_tabs_test.go`（B-026..B-035，夹具页在 `browser/cdp_p3_fixtures_test.go`，由 `httptest` 内联提供）。
+    - 集成验收内容（B-026..B-035）：console 各级别 + 未捕获异常 + 404 资源采集、drain 语义与摘要限长/截断；单/多文件上传与工作区路径越界拒绝；PDF 落盘（`%PDF` 头）与 landscape 渲染；网络 200/404/传输层失败区分及 only_failures/limit 非破坏性快照；多标签 open/list/switch/activate/close 与越界·未知 id 报错；Fetch fulfill/fail/off 三态（真实 3x3 与 mock 1x1 图片可区分，未命中请求继续放行）。
+    - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/ -short` 与 `go test ./browser/ -run TestIntegrationP3`（7 个真实 Chrome 集成用例）全绿（约 3.3s）；本次新增/改动文件均 ≤ 500 行（最大 417 行）。
+    - 待办：C 组运行时用例（C-001..C-010）需用户实测确认；确认通过前不标记任务完成、不合并 `main`。
+  - BUILD: [BUILD-1124]
 
 ## v0.74.1 — 修复 token 用时/速度计时（stamp 生命周期 / 口径统一 / 缺失路径 / 展示时机）
 

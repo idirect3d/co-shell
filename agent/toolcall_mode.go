@@ -134,6 +134,12 @@ var toolUsageKeyMap = map[string]string{
 	"browser_get_interactive_elements": i18n.KeyToolUsageBrowserGetInteractiveElements,
 	"browser_go_back":                  i18n.KeyToolUsageBrowserGoBack,
 	"browser_go_forward":               i18n.KeyToolUsageBrowserGoForward,
+	"browser_console":                  i18n.KeyToolUsageBrowserConsole,
+	"browser_upload":                   i18n.KeyToolUsageBrowserUpload,
+	"browser_pdf":                      i18n.KeyToolUsageBrowserPdf,
+	"browser_network":                  i18n.KeyToolUsageBrowserNetwork,
+	"browser_tab":                      i18n.KeyToolUsageBrowserTab,
+	"browser_mock":                     i18n.KeyToolUsageBrowserMock,
 	"browser_close":                    i18n.KeyToolUsageBrowserClose,
 
 	// Vault tools (FEATURE-274)

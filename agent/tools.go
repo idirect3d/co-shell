@@ -1046,6 +1046,8 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			}
 		}
 		tools = append(tools, browserTools...)
+		// FEATURE-556 Phase 3: console, upload, PDF, network, tabs, mocking.
+		tools = append(tools, a.browserToolsP3()...)
 	}
 
 	// Add vault tools if vault store is initialized

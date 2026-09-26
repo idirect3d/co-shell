@@ -347,6 +347,12 @@ func DefaultToolModes() map[string]string {
 		"browser_get_interactive_elements": "auto",
 		"browser_go_back":                  "auto",
 		"browser_go_forward":               "auto",
+		"browser_console":                  "auto",
+		"browser_upload":                   "auto",
+		"browser_pdf":                      "auto",
+		"browser_network":                  "auto",
+		"browser_tab":                      "auto",
+		"browser_mock":                     "auto",
 		"browser_close":                    "auto",
 	}
 }

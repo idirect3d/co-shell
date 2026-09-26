@@ -57,15 +57,28 @@ func jsonFloat(v interface{}) float64 {
 // QuerySelectorNodeID resolves selector to a DOM node id. It returns an error
 // when the selector matches no element.
 func (c *CDPClient) QuerySelectorNodeID(ctx context.Context, selector string) (int, error) {
+	return QuerySelectorNodeID(ctx, c, selector)
+}
+
+// QuerySelectorNodeID resolves selector to a DOM node id on any CDP caller — a
+// *CDPClient as well as the mock callers used by unit tests. It returns an error
+// when the selector is empty or matches no element.
+func QuerySelectorNodeID(ctx context.Context, caller CDPCaller, selector string) (int, error) {
 	if selector == "" {
 		return 0, fmt.Errorf("selector must not be empty")
 	}
-	root, err := c.GetDocument(ctx)
+
+	document, err := caller.Call(ctx, "DOM.getDocument", map[string]interface{}{"depth": 0})
 	if err != nil {
 		return 0, fmt.Errorf("cannot get DOM document: %w", err)
 	}
-	result, err := c.Call(ctx, "DOM.querySelector", map[string]interface{}{
-		"nodeId":   root,
+	root, ok := document["root"].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("cannot get DOM document")
+	}
+
+	result, err := caller.Call(ctx, "DOM.querySelector", map[string]interface{}{
+		"nodeId":   int(jsonFloat(root["nodeId"])),
 		"selector": selector,
 	})
 	if err != nil {

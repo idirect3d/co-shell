@@ -52,6 +52,12 @@ type ChromeManager struct {
 	userDataDir string // persistent user data directory
 	dialogs     *DialogManager
 
+	// FEATURE-556 Phase 3: per-session collectors, created on demand by the
+	// first tool call that needs them.
+	console *ConsoleManager
+	network *NetworkCollector
+	mock    *FetchMock
+
 	// cfg holds the FEATURE-556 launch and session settings.
 	cfg ChromeConfig
 }
@@ -316,6 +322,10 @@ func (m *ChromeManager) attachSession(client *CDPClient) {
 	}
 	m.dialogs = NewDialogManager(client, policy)
 
+	// FEATURE-556 Phase 3: the collectors belong to the previous connection, so
+	// they are stopped here and recreated on demand for this session.
+	m.resetCollectors()
+
 	// FEATURE-556: replay the configured session-level settings (user agent,
 	// headers, viewport, locale, timezone, TLS exceptions, download behaviour)
 	// so a reconnect or a co-shell restart keeps the configured browser state.
@@ -352,6 +362,139 @@ func (m *ChromeManager) TakeDialogMessages() []DialogInfo {
 		return nil
 	}
 	return m.dialogs.TakeMessages()
+}
+
+// EnsureConsoleCapture returns the console collector of this session, creating
+// and enabling it on first use. Console capture stays off until a tool asks for
+// it, so ordinary browsing sends no Runtime.enable/Log.enable call.
+func (m *ChromeManager) EnsureConsoleCapture(ctx context.Context) (*ConsoleManager, error) {
+	if m.cdpClient == nil {
+		return nil, fmt.Errorf("browser is not connected")
+	}
+	if m.console != nil {
+		return m.console, nil
+	}
+	manager, err := NewConsoleManager(ctx, m.cdpClient)
+	m.console = manager
+	return manager, err
+}
+
+// ConsoleManager returns the console collector of this session, or nil when
+// capture was never started.
+func (m *ChromeManager) ConsoleManager() *ConsoleManager {
+	return m.console
+}
+
+// EnsureNetworkCollector returns the network collector of this session,
+// creating and enabling it on first use. CDP does not replay network events, so
+// this must run before the traffic of interest.
+func (m *ChromeManager) EnsureNetworkCollector(ctx context.Context) (*NetworkCollector, error) {
+	if m.cdpClient == nil {
+		return nil, fmt.Errorf("browser is not connected")
+	}
+	if m.network != nil {
+		return m.network, nil
+	}
+	collector, err := NewNetworkCollector(ctx, m.cdpClient)
+	m.network = collector
+	return collector, err
+}
+
+// NetworkCollector returns the network collector of this session, or nil.
+func (m *ChromeManager) NetworkCollector() *NetworkCollector {
+	return m.network
+}
+
+// Mock returns the request mocker of this session, creating it on first use.
+// Nothing is intercepted until a rule is added.
+func (m *ChromeManager) Mock() (*FetchMock, error) {
+	if m.cdpClient == nil {
+		return nil, fmt.Errorf("browser is not connected")
+	}
+	if m.mock == nil {
+		m.mock = NewFetchMock(m.cdpClient)
+	}
+	return m.mock, nil
+}
+
+// resetCollectors stops the per-session collectors; it is called whenever the
+// CDP connection changes.
+func (m *ChromeManager) resetCollectors() {
+	if m.console != nil {
+		m.console.Close()
+		m.console = nil
+	}
+	if m.network != nil {
+		m.network.Close()
+		m.network = nil
+	}
+	if m.mock != nil {
+		m.mock.Close()
+		m.mock = nil
+	}
+}
+
+// DebugURL returns Chrome's HTTP debug endpoint base URL.
+func (m *ChromeManager) DebugURL() string {
+	return fmt.Sprintf("http://localhost:%d", m.port)
+}
+
+// PageTargets returns the page targets of the browser, enriched with the
+// WebSocket debugger URL needed to switch to them.
+func (m *ChromeManager) PageTargets(ctx context.Context) ([]TargetInfo, error) {
+	if m.cdpClient == nil {
+		return nil, fmt.Errorf("browser is not connected")
+	}
+	pages, err := ListPageTargets(ctx, m.cdpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	debugTargets, debugErr := DebugTargets(m.DebugURL())
+	if debugErr != nil {
+		// Listing still works without the HTTP endpoint; only switching needs it.
+		log.Debug("cannot read Chrome debug endpoint: %v", debugErr)
+		return pages, nil
+	}
+	return AttachDebugURLs(pages, debugTargets), nil
+}
+
+// SelectTarget reconnects the session to another page target: a page session is
+// bound to exactly one page, so switching means closing the current connection
+// and connecting to the target's own WebSocket debugger URL.
+func (m *ChromeManager) SelectTarget(wsURL string) error {
+	if wsURL == "" {
+		return fmt.Errorf("target has no webSocketDebuggerUrl")
+	}
+	client, err := NewCDPClient(wsURL)
+	if err != nil {
+		return fmt.Errorf("cannot connect to target: %w", err)
+	}
+
+	previous := m.cdpClient
+	m.setClient(client)
+	if previous != nil {
+		previous.Close()
+	}
+	return nil
+}
+
+// DropConnection closes the current CDP connection without stopping Chrome, so
+// the next browser tool call reconnects to a live page. It is used after
+// closing the page the session was attached to.
+func (m *ChromeManager) DropConnection() {
+	if m == nil {
+		return
+	}
+	if m.cdpClient != nil {
+		m.cdpClient.Close()
+		m.cdpClient = nil
+	}
+	m.resetCollectors()
+	if m.dialogs != nil {
+		m.dialogs.Close()
+		m.dialogs = nil
+	}
 }
 
 // findChromePath searches for Chrome or Chromium in common installation locations.
