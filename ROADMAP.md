@@ -8,7 +8,7 @@
 
 > **版本**: v0.75.0
 
-> **状态**: 🚧 进行中
+> **状态**: ✅ 已发布（v0.75.0，2026-09-26 合并 main 并打标签）
 > **里程碑**: 补齐浏览器自动化的 CDP 能力，使模型能可靠完成真实网页任务。P0 稳定性：事件通道（订阅/分发/WaitEvent）、事件化等待与弹窗自动处理、中文与特殊键输入、完整鼠标事件、元素级 selector 操作，并修 7 个既有缺陷；P1 配置化：浏览器启动参数与代理/UA/语言/视口/证书例外/下载目录可配置，且**配置可记住**（config.json 持久化 + 建连后 apply-on-connect 重放 + 固定 profile）。
 > **说明**: 现状盘点——全仓库仅调用 9 个 CDP 方法（`Page.navigate`/`getLayoutMetrics`/`captureScreenshot`/`navigateToHistoryEntry`、`Runtime.evaluate`、`DOM.getDocument`/`getOuterHTML`、`Input.dispatchMouseEvent`/`dispatchKeyEvent`）；`readLoop` 丢弃全部 CDP 事件（`browser/cdp.go:130-146`）→ 无法精确等待、遇 alert 弹窗会卡到超时；单页单连接无 Target 管理；`browser/chrome.go:85-97` 启动参数硬编码；browser 配置仅 4 键（`config/config.go:515-526`）。「配置记住」分三层：① co-shell 配置持久化到 config.json；② 浏览器会话态沿用 `workspace/browser-data` profile（现状已记住）；③ CDP 会话级覆盖（视口/UA/时区/网络条件等）在建连后自动重放。依赖策略：坚持零依赖手写 CDP，只实现 Agent 有用的域（不引入 cdproto 等第三方协议库）。P2（网络观测 / 多标签 Target / console 采集 / 元素截图 / PDF / 上传 / mock）另立 FEATURE 后续实施。
 
@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FEATURE-556 | 0.75.0 | P1 | 浏览器 CDP 能力补强：① 事件通道（Subscribe/WaitEvent）+ 事件化等待 + 弹窗自动处理；② 交互补全（mouseMoved/右键/双击、`Input.insertText` 中文、特殊键与快捷键、mouseWheel、Hover）；③ 元素级定位（`DOM.querySelector`/`getBoxModel`/`scrollIntoView` + 工具 selector 参数）；④ 修 7 个既有缺陷；⑤ browser-* 配置扩展（chrome-path/extra-args/proxy/user-agent/language/window-size/download-dir/ignore-cert-errors/extensions/profile-dir/persist/viewport/dialog-policy/apply-on-connect）；⑥ apply-on-connect 重放 + 下载落地 + profile 持久化开关 |
 
-> 当前 BUILD: 1121
+> 当前 BUILD: 1125
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-556 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化 + P2 能力补强）**
+- [x] **FEATURE-556 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化 + P2 能力补强）**
   - 背景（用户提出）：「当前 co-shell 已经具备通过 CDP 操作浏览器的能力，但是似乎并没有实现所有 CDP 的功能和特性，仔细查一下 CDP 还有什么功能咱们没有实现，比如配置浏览器等。给出你的建议。」
   - 交互决策（经 ask_user 确认）：① 版本归属 **v0.75.0**；② 范围 = P0 稳定性 + P1 配置化（P2 关键项另立 FEATURE，不在本轮）；③ 依赖策略 = **坚持零依赖手写 CDP**（只实现 Agent 有用的域）；④ 配置需「记住」= config.json 持久化 + 建连后 apply-on-connect 重放 + 持久 profile 目录。
   - 分支：**FEATURE-556**（基于 main，v0.74.1 已合并并打 tag），版本 v0.75.0
@@ -55,8 +55,8 @@
     - 集成验收内容（B-026..B-035）：console 各级别 + 未捕获异常 + 404 资源采集、drain 语义与摘要限长/截断；单/多文件上传与工作区路径越界拒绝；PDF 落盘（`%PDF` 头）与 landscape 渲染；网络 200/404/传输层失败区分及 only_failures/limit 非破坏性快照；多标签 open/list/switch/activate/close 与越界·未知 id 报错；Fetch fulfill/fail/off 三态（真实 3x3 与 mock 1x1 图片可区分，未命中请求继续放行）。
     - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/ -short` 与 `go test ./browser/ -run TestIntegrationP3`（7 个真实 Chrome 集成用例）全绿（约 3.3s）；本次新增/改动文件均 ≤ 500 行（最大 417 行）。
     - 独立复核（co-shell-tester，2026-09-26，消息 m-40）：**PASS，建议合并**。集成用例 7/7 PASS、`browser` 包全量回归 74 PASS/0 FAIL（可排除本次对共享路径 `browser/cdp_dom.go` 的回归）、6 个工具运行时可用性 6/6、四个风险点（懒启用/切换重连不挂起/3s 兵底/PDF 默认目录）均满足；报告与原始输出：`work/research/20260926-FEATURE-556验证/`。已按复核意见修正 UC-0020：B-031 明确失败列表口径 = 传输层 `loadingFailed`（不含 HTTP 4xx/5xx）；B-033 区分为「工具层下次操作自动重连」与「裸 CDP 客户端立即报错」。
-    - 待办：C 组运行时用例（C-001..C-010）需用户实测确认；确认通过前不标记任务完成、不合并 `main`。
-  - BUILD: [BUILD-1124]
+    - 完成（2026-09-26）：用户确认测试通过并执行合并，本任务随 **v0.75.0** 发布（分支 FEATURE-556 合并 `main` 并打标签 `v0.75.0`）；C 组运行时用例（C-001..C-010）保留为用户后续实测补充。
+  - BUILD: [BUILD-1125]
 
 ## v0.74.1 — 修复 token 用时/速度计时（stamp 生命周期 / 口径统一 / 缺失路径 / 展示时机）
 
