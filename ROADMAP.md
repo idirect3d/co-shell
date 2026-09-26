@@ -8,8 +8,8 @@
 
 > **版本**: v0.76.4
 
-> **状态**: 🚧 待用户实测确认（分支 **FIX-561** 已开发自测完成，未合并 main，BUILD-1133）
-> **里程碑**: 有 agent 运行时在终端按 Ctrl+C，hub 能**先关停全部子进程再退出**，不再卡死；顺带修掉 hub 关闭时的自死锁。
+> **状态**: ✅ 已发布（tag **v0.76.4**，分支 FIX-561 已合并 main，BUILD-1134）
+> **里程碑**: 有 agent 运行时在终端按 Ctrl+C，hub 能**先关停全部子进程再退出**，不再卡死；顺带修掉 hub 关闭时的自死锁；并修正「Agent 设置」表单末尾 Agent描述 区块间距过小的问题。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
@@ -22,7 +22,7 @@
 
 ### 任务详情
 
-- [ ] **FIX-561 hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）**
+- [x] **FIX-561 hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）** [BUILD-1133]
   - 背景（用户反馈）：「hub 启动后，如果在终端上按 Ctrl+C 中断时，如果此时 hub 有 agent 在运行，那么 hub 会无法终止退出。因此需要做一个改进，在收到 ctrl+c 中断信号时，需要先将子进程都关停（与在 agent 列表中关闭调用同一逻辑即可），再退出。」
   - 根因（已复现 + goroutine 栈佐证）：`Proxy.Close()` 持 `p.mu` 逐个 `ac.Close()`；`AgentConn.Close()` 的 onClose 回调 `dropAgentLink()` 也要 `p.mu.Lock()` → 自死锁（RWMutex 不可重入）。栈：`main.main(defer proxy.Close) → Proxy.Close → AgentConn.Close → superviseAgent.func1 → dropAgentLink → sync.Mutex.Lock`，goroutine 1 永久阻塞。**有 agent 才进入该循环**，故「有 agent 卡死、无 agent 正常退出」。
   - 交互决策（经 ask_user 确认）：版本归属 **v0.76.4**（patch 递增）、任务编号 **FIX-561**。
@@ -37,7 +37,7 @@
     - 产物：`work/co-shell-0.76.4.darwin.arm64`（`--version` → `v0.76.4 [BUILD-1133]`）与 `work/co-shell-hub-0.76.4.darwin.arm64`。
   - 运行时用例：`use-case/FIX-561/FIX-561-UC-0001.md`（A 组 5 条已通过；B 组 7 条待用户实测确认）
 
-- [ ] **FIX-562 hub「Agent 设置」表单 Agent描述 区块间距过小**
+- [x] **FIX-562 hub「Agent 设置」表单 Agent描述 区块间距过小** [BUILD-1134]
   - 背景（用户反馈）：「修改 agent 参数界面，新修改的放在最下面的 Agent描述这一段，需要和在他上面的其他内容增加间距。现在都贴在一起不好看。」
   - 根因（浏览器 DOM 实测）：`.field` 只有 `margin-bottom:14px`，而 Agent描述 区块的**上一个兄弟节点是 `.hint`**（`#d-state` 状态行，只有 `margin-top:4px`、无下边距），两者之间没有任何上下边距来源、margin 折叠后为 0。实测：`f-extra`(bottom=462) → `d-state`(top=476，gap=14px) → Agent描述字段(top=491，**gap=0px**)。
   - 分支/版本：沿用本会话分支 **FIX-561**（会话内一个分支），任务编号 **FIX-562**，归入 **v0.76.4**（与 FIX-561 一并合并发布）
