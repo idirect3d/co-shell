@@ -36,8 +36,17 @@
     - 缺陷修复：D-001/D-002（GoBack/GoForward 使用合法 entryId、越界明确报错、返回真实 URL）、D-003（readyState 等待有界）、D-004（整页截图缺 metrics 时明确报错 + `captureBeyondViewport`）。
     - 测试：`browser/cdp_events_test.go`（A-001..A-005，本地 WS 服务器）、`browser/cdp_input_test.go`（A-006/A-007/A-008/A-012）、`browser/cdp_integration_test.go`（B-001..B-016/B-025，真实 headless Chrome，`testing.Short()` + `IsChromeAvailable()` 门控，测试页在 `testdata/browser/`）。
     - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/`（含真实 Chrome 集成 16 个用例）全绿；`go test ./... -short` 无新增失败（`agent` 包 line_renderer/loop/skill 三处与 i18n 文案相关的失败为分支既有基线问题，与本次改动无关）。
-    - 待办：**Phase 2（P1 配置化）**——browser-* 配置键、启动参数由 `ChromeConfig` 生成、apply-on-connect 重放、profile 持久化与下载落地。任务仍为进行中。
-  - BUILD: [BUILD-1121]
+  - 实现概要（**Phase 2 = P1 配置化**，已提交于 FEATURE-556 分支，commit b04faa8）：
+    - 配置层 `config/config.go`：browser-* 能力键由 4 个扩到 20 个——新增 `chrome_path`/`extra_args`/`proxy`/`user_agent`/`language`/`timezone`/`extra_http_headers`/`window_size`/`download_dir`/`ignore_cert_errors`/`extensions`/`profile_dir`/`persist`/`viewport`/`dialog_policy`/`apply_on_connect`；默认值等价改造前行为（`window_size=1280,800`、`persist=true`、`dialog_policy=auto`、`apply_on_connect=true`，其余空=不覆盖）。
+    - 启动参数配置化 `browser/chrome_config.go`（新）：`ChromeConfig`/`DefaultChromeConfig()`/`BuildChromeArgs()`，启动参数不再硬编码（`--disable-extensions` 受 `extensions` 控制）；`browser/chrome.go` 新增 `NewChromeManagerWithConfig`。
+    - apply-on-connect 重放 `browser/chrome_apply.go`（新）：`ApplySessionSettings()` 在建连后重放 UA/extra headers/视口/语言/时区/证书例外/`Browser.setDownloadBehavior`（未配置项零调用，“记住”配置）；`ChromeManager.attachSession` 建连即调用并记录 `Browser session settings applied on connect: [...]`。
+    - profile 与下载落地 `agent/agent.go`：persist on → `workspace/browser-data`（或 `browser-profile-dir`），off → 临时干净 profile；下载默认落地 `workspace/download/browser`（或 `browser-download-dir`）。
+    - 弹窗策略扩展 `browser/cdp_dialog.go`：`ParseDialogPolicy` 支持 `auto|accept|dismiss`，建连时选定并由 `DialogManager` 自动应答（auto 接受 alert/prompt、拒绝 confirm/beforeunload）。
+    - 读写入口：`cmd/settings_browser.go`（新，16 键 setter/校验/持久化）、`cmd/settings_agent.go`（`.set` 分派）、`cmd/settings.go`（白名单/状态表/reset）、`cmd/settings_web.go`（Web 设置页 16 条）、`i18n/{keys,zh,en}.go`（中英双语标签）。
+    - 测试：`browser/chrome_config_test.go`（A-009 默认 args 逐项等价 / A-010 配置化 args / A-011 apply 序列 + 空配置零调用 / profile 与 dialog-policy）、`config/config_browser_test.go`（默认值等价 + config.json 往返持久化）、`cmd/settings_browser_test.go`（16 键分派一致 + 非法值拒绝）、`browser/cdp_download_integration_test.go`（**B-021** 真实 headless Chrome 下载落地：配置下载目录后经 apply-on-connect 下发 `Browser.setDownloadBehavior`，点击下载链接后文件落地、size>0、内容匹配；目标目录不存在时由浏览器创建）。
+    - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/`（含真实 Chrome 集成 17 个用例，含 B-021）全绿（3.75s）；弹窗集成用例 `TestIntegrationAlertAutoHandled`/`TestIntegrationConfirmPolicy` 通过。
+    - 待办：R 组（R-008 UA / R-009 视口 / R-010 代理 / R-011 profile 持久化）与 B-017 证书例外的真实 Chrome 端到端验收；委托 co-shell-tester 对弹窗自动应答与自动下载做独立端到端验收。任务仍为进行中。
+  - BUILD: [BUILD-1123]
 
 ## v0.74.1 — 修复 token 用时/速度计时（stamp 生命周期 / 口径统一 / 缺失路径 / 展示时机）
 
