@@ -4,6 +4,41 @@
 
 ---
 
+## v0.76.2 — hub 抽屉文案国际化（分区标题统一为 Agents / Agent 聊天室）
+
+> **版本**: v0.76.2
+
+> **状态**: 🚧 待用户实测确认（分支 **FEATURE-559** 已开发自测完成，未合并 main，BUILD-1130）
+> **里程碑**: hub Web UI 抽屉文案改为按语言渲染——语言选择**跟随操作系统**（`LANG`/`LC_ALL`），可用 `--lang zh|en` 覆盖，默认中文；两个并列分区标题统一命名口径——英文界面 **Agents / Chats**（`Chat` 由单数改复数），中文界面 **Agents / Agent 聊天室**；抽屉内其余可见文案（按钮、提示、tooltip、空态）一并纳入 i18n，消除「标题英文、正文中文」的混用。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-559 | 0.76.2 | P2 | hub 抽屉文案国际化：① hub 侧新增语言解析（`--lang` > `LANG`/`LC_ALL` > 默认 zh），由 `handleIndex` 注入页面；② 静态页引入轻量 i18n 字典与取词函数，覆盖抽屉内全部可见文案；③ 分区标题命名统一：英文 **Agents / Chats**、中文 **Agents / Agent 聊天室** |
+
+> 当前 BUILD: 1130
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-559 hub 抽屉文案国际化（分区标题统一为 Agents / Agent 聊天室）**
+  - 背景（用户提出）：「hub 中包含两个抽屉，Agents 和 Chat，命名上是不是有些不一致？一个有 s 一个没有，这样合适吗？」→ 结论：确实不一致（并列分区应同形态），且同一抽屉内「标题英文 + 正文中文」的语言混用更影响观感；决策：**按中文/国际化进行优化，英文名都用复数形式**。
+  - 交互决策（经 ask_user 确认）：① 改造范围 = **抽屉内所有可见文案**（分区标题 + 按钮 + 提示/tooltip）全部纳入 i18n；② 语言来源 = **跟随操作系统语言**，可用 `--lang` 配置（与 co-shell 现有策略一致）；③ 中文分区标题 = **Agents / Agent 聊天室**（中英之间加空格）；④ 复数化范围 = **仅两个分区标题**（英文 Agents / Chats）；⑤ 版本归属 **v0.76.2**（patch 递增）、任务编号 **FEATURE-559**。
+  - 分支：**FEATURE-559**（基于 main，v0.76.1 已发布），版本 v0.76.2
+  - 实现概要：
+    - 新增 `hub/gateway/lang.go`：语言解析 `DetectLang(flag)`，优先级 `--lang` > `LANG` > `LC_ALL` > 默认 `zh`；未知/空值逐级回退（不报错），支持 `en_US.UTF-8` 等带修饰后缀的取值。
+    - `cmd/co-shell-hub/main.go`：新增 `--lang` 参数与 `config.Lang` 配置项（配置项保留在 `hub-gateway.json`），帮助文案同步；`cmd/co-shell-hub/main.go` 与 `main.go` 版本号/build 同步递增为 **0.76.2 / 1130**。
+    - `hub/gateway/webui.go`：`WebUIConfig` 新增 `Lang`；`WebUI` 持有解析后的语言；`handleIndex` 将静态页中的 `__HUB_LANG__` 占位符替换为当前语言（首屏即正确，无闪烁）。
+    - `hub/gateway/webui_static.go`：引入轻量 i18n —— 英文词典 `EN`（按语义 key）+ `t(key, zh)` 取词 + `applyI18n()`（处理 `data-i18n` / `data-i18n-title` / `data-i18n-ph`）；**中文为源语言**（标记内联中文兼作兵底），EN 词典只存英文；抽屉内全部可见文案（分区标题/按钮/表单标签/placeholder/hint/tooltip/alert/确认态徽章）均改为取词，主区空态文案一并纳入。
+    - 分区标题：标记内联 `Agents` / `Agent 聊天室`；英文词典 `paneAgents: 'Agents'`、`paneChats: 'Chats'`（并列分区统一为复数形态）。
+  - 验证：
+    - `gofmt` 改动文件干净；root `go build ./... && go vet ./...` 与 hub 模块 `go build ./... && go vet ./...` 均通过；`hub/gateway` 全量单测（4.79s）通过。
+    - 新增 `hub/gateway/feature559_test.go` 覆盖 A 组：A-001 flag 优先、A-002/A-003 环境变量与未知值回退、A-004 首页注入语言且无占位符残留、A-005 英文词典覆盖页面所有 key 且无空值、A-006 标题取值（中 Agent 聊天室 / 英 Chats）、A-007 无未经取词的中文字面量（剥除注释后逐行断言）、A-009 后端错误串保持英文原文（按决策不纳入）、A-010 co-shell 与 co-shell-hub 版本/build 一致。
+    - 真实二进制冒烟（独立 TCP/Web 端口 + 独立 registry/board）：`LANG=zh_CN.UTF-8` → 首页 `var HUB_LANG = "zh"`；`-lang en` → `"en"`；`/api/hub-info` = `{"version":"0.76.2","build":"1130"}`。
+    - 浏览器实测渲染（调度浏览器读取 DOM）：中文实例 = 标题 **Agents / Agent 聊天室**，新建/设置/钉住（不自动收起）/输入消息…/发送/返回会话列表 均为中文；英文实例 = 标题 **Agents / Chats**，New/Settings/Pin (no auto-collapse)/Type a message…/Send/Back to the conversation list 均为英文；两实例 `document.documentElement.lang` 分别为 `zh`/`en`，无 JS 报错。
+    - 产物：`work/co-shell-0.76.2.darwin.arm64`（`--version` → `v0.76.2 [BUILD-1130]`）与 `work/co-shell-hub-0.76.2.darwin.arm64`。运行时用例 `use-case/FEATURE-559/FEATURE-559-UC-0001.md`（A 组 10 条已通过；B 组 12 条 + C 组 4 条待用户实测确认）。
+  - 运行时用例：`use-case/FEATURE-559/FEATURE-559-UC-0001.md`（待用户确认）
+
 ## v0.76.1 — hub Agent 管理界面调整（创建去描述录入 + 注册描述只读展示）
 
 > **版本**: v0.76.1
