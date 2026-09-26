@@ -75,9 +75,9 @@
 | B-028 | 文件上传（单/多文件与失败路径） | 打开 `upload.html`；① 上传 `testdata/browser/files/uc556-upload.txt`；② 上传两个文件；③ 上传不存在的路径 | ① 页面 `input.files[0].name` 等于目标文件名（经 `browser_evaluate` 断言）；② `input.files.length==2`；③ 工具返回明确错误（双语）且 `input.files.length` 不变 |
 | B-029 | PDF 导出 | 打开 `basic.html`：① 默认参数导出；② 指定 `path` + `landscape=true` 导出 | ① 默认落 `<workspace>/download/browser/` 下，文件存在、size>0、前 4 字节为 `%PDF`；② 指定路径文件存在且 size>0；返回文本含落盘路径与字节数 |
 | B-030 | 网络观测（成功 + 失败） | 打开含 `/ok.png`（200）与 `/missing.png`（404）的页面，并触发一次指向不存在主机的请求；调用 `browser_network` | 条目含 200（mimeType `image/png`）与 404（`failed=false` 但 status=404，或被明确标记为失败——按实现对「HTTP 错误码」与「传输层失败」区分记录）；不存在主机的请求记录为 `failed=true` 且含失败原因 |
-| B-031 | 网络过滤与限量 | 同上页面：① `only_failures=true`；② `limit=1` | ① 只返回失败条目（无 200 条目）；② 返回条目数 ≤ 1 |
+| B-031 | 网络过滤与限量 | 同上页面：① `only_failures=true`；② `limit=1` | ① 只返回失败条目（无 200 条目；口径为传输层失败 loadingFailed，不含 HTTP 4xx/5xx 响应）；② 返回条目数 ≤ 1 |
 | B-032 | 多标签 open/list/switch/close | ① `browser_tab{action:"open", url:<about:blank 或 basic.html>}`；② `list`；③ `switch` 到新标签后 `browser_evaluate` 断言 URL/内容；④ `close` 新标签；⑤ 再次 `list` | ① 返回新 targetId；② 列表含 ≥2 个 page 且「当前」标记唯一指向原页；③ 切换后 evaluate 在新页执行（URL 为新页），旧连接已关闭（后续 evaluate 不报错、指向新页）；④ 关闭成功；⑤ 列表恢复为 1 个 page |
-| B-033 | 多标签边界路径 | ① `switch` 用越界 `index`；② `switch` 用不存在的 `target_id`；③ `close` 当前页后调用 `list` 与 `browser_evaluate` | ①② 返回明确错误（双语，含可用范围/可用 id 提示），当前页不变；③ 不 panic：`list` 正常返回剩余页面并提示需重新选页，`evaluate` 给出明确错误（而不是挂起或返回旧页数据） |
+| B-033 | 多标签边界路径 | ① `switch` 用越界 `index`；② `switch` 用不存在的 `target_id`；③ `close` 当前页后调用 `list` 与 `browser_evaluate` | ①② 返回明确错误（双语，含可用范围/可用 id 提示），当前页不变；③ 不 panic：`list` 正常返回剩余页面并提示需重新选页；`evaluate` 不挂起——**工具层**下次操作自动重连到剩余可用标签，**裸 CDP 客户端**在已关闭连接上立即报错（集成测试 `TestIntegrationP3Tabs` 即断言后者） |
 | B-034 | Fetch mock 命中（fulfill） | 打开 `mock.html` 前 `browser_mock{action:"add", match:"*/mock-target.png", status:200, body:"MOCK-BODY-556"}`，再打开页面；用 `browser_evaluate` 读取图片 `naturalWidth` 或改为 fetch 该 URL 读文本 | 请求被 fulfill：页面拿到 mock 内容（文本等于 `MOCK-BODY-556`，或图片尺寸等于 mock 数据尺寸），且**不**命中真实静态文件（可通过 mock body 内容区分） |
 | B-035 | Fetch mock 未命中 / fail / 恢复默认 | ① 仅对 `*/mock-target.png` 加规则时加载页面中的其他资源（未命中）；② 新增 `fail{errorReason:Failed}` 规则后重新加载命中资源；③ `browser_mock{action:"off"}` 后再加载 | ① 未命中请求正常 continue（页面其他资源正常加载，无卡顿）；② 命中资源加载失败（`loadingFailed` 记录，图片 `naturalWidth==0`）；③ `off` 后恢复真实文件内容；**全程页面无因暂停而卡死**（超时兜底生效） |
 

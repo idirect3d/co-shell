@@ -54,6 +54,7 @@
     - 测试：单测 `browser/cdp_p3_console_test.go`（A-013..A-018）、`browser/cdp_p3_media_test.go`（A-019..A-025 上传/PDF）、`browser/cdp_p3_observe_test.go`（A-026..A-032 网络/Target）、`browser/cdp_p3_fetch_test.go`（A-034..A-038）；真实 headless Chrome 集成 `browser/cdp_p3_integration_test.go` + `browser/cdp_p3_integration_tabs_test.go`（B-026..B-035，夹具页在 `browser/cdp_p3_fixtures_test.go`，由 `httptest` 内联提供）。
     - 集成验收内容（B-026..B-035）：console 各级别 + 未捕获异常 + 404 资源采集、drain 语义与摘要限长/截断；单/多文件上传与工作区路径越界拒绝；PDF 落盘（`%PDF` 头）与 landscape 渲染；网络 200/404/传输层失败区分及 only_failures/limit 非破坏性快照；多标签 open/list/switch/activate/close 与越界·未知 id 报错；Fetch fulfill/fail/off 三态（真实 3x3 与 mock 1x1 图片可区分，未命中请求继续放行）。
     - 验证证据：`go build ./...` + `go vet ./...` 通过；`go test ./browser/ -short` 与 `go test ./browser/ -run TestIntegrationP3`（7 个真实 Chrome 集成用例）全绿（约 3.3s）；本次新增/改动文件均 ≤ 500 行（最大 417 行）。
+    - 独立复核（co-shell-tester，2026-09-26，消息 m-40）：**PASS，建议合并**。集成用例 7/7 PASS、`browser` 包全量回归 74 PASS/0 FAIL（可排除本次对共享路径 `browser/cdp_dom.go` 的回归）、6 个工具运行时可用性 6/6、四个风险点（懒启用/切换重连不挂起/3s 兵底/PDF 默认目录）均满足；报告与原始输出：`work/research/20260926-FEATURE-556验证/`。已按复核意见修正 UC-0020：B-031 明确失败列表口径 = 传输层 `loadingFailed`（不含 HTTP 4xx/5xx）；B-033 区分为「工具层下次操作自动重连」与「裸 CDP 客户端立即报错」。
     - 待办：C 组运行时用例（C-001..C-010）需用户实测确认；确认通过前不标记任务完成、不合并 `main`。
   - BUILD: [BUILD-1124]
 
