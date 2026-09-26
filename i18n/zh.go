@@ -1898,6 +1898,24 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescBrowserPort:     "Chrome DevTools Protocol调试端口",
 	KeySettingsDescBrowserHeadless: "是否以无头模式运行Chrome（无窗口）",
 
+	// FEATURE-556 Phase 2: browser configuration labels.
+	KeyCol3BrowserChromePath:       "Chrome路径(留空自动探测)",
+	KeyCol3BrowserExtraArgs:        "额外启动参数(空格分隔)",
+	KeyCol3BrowserProxy:            "代理(如 http://127.0.0.1:1080)",
+	KeyCol3BrowserUserAgent:        "User-Agent 覆盖",
+	KeyCol3BrowserLanguage:         "语言(如 zh-CN)",
+	KeyCol3BrowserTimezone:         "时区(如 Asia/Shanghai)",
+	KeyCol3BrowserExtraHeaders:     "额外请求头(Name: Value，逗号分隔)",
+	KeyCol3BrowserWindowSize:       "窗口大小(默认 1280,800)",
+	KeyCol3BrowserDownloadDir:      "下载目录(默认 workspace/download/browser)",
+	KeyCol3BrowserIgnoreCertErrors: "忽略证书错误(on|off)",
+	KeyCol3BrowserExtensions:       "启用扩展(on|off)",
+	KeyCol3BrowserProfileDir:       "Profile目录(默认 workspace/browser-data)",
+	KeyCol3BrowserPersist:          "保持Profile(on|off)",
+	KeyCol3BrowserViewport:         "视口(如 1440x900)",
+	KeyCol3BrowserDialogPolicy:     "弹窗策略(auto|accept|dismiss)",
+	KeyCol3BrowserApplyOnConnect:   "建连后重放配置(on|off)",
+
 	// Confirm-tool mode descriptions (FEATURE-200)
 	KeyModeConfirmDesc:  "需要人工确认",
 	KeyModeAutoDesc:     "自动批准执行",

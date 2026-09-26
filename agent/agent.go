@@ -2008,10 +2008,43 @@ func (a *Agent) EnsureBrowserStarted() error {
 		port = 9222
 	}
 
-	// Use a persistent browser data directory under the workspace, so
-	// Chrome state (cookies, sessions, downloads) survives co-shell restarts.
-	// This also makes it possible to trace back issues from browser data.
-	browserDataDir := filepath.Join(a.workspacePath, "browser-data")
+	// FEATURE-556: browser settings come from config, and workspace-relative
+	// paths are resolved here because only the agent knows the workspace root.
+	// Persistence off forces a clean temporary profile (handled by ChromeManager).
+	profileDir := ""
+	if a.cfg.LLM.BrowserPersist {
+		profileDir = a.cfg.LLM.BrowserProfileDir
+		switch {
+		case profileDir == "":
+			profileDir = filepath.Join(a.workspacePath, "browser-data")
+		case !filepath.IsAbs(profileDir):
+			profileDir = filepath.Join(a.workspacePath, profileDir)
+		}
+	}
+	downloadDir := a.cfg.LLM.BrowserDownloadDir
+	if downloadDir == "" {
+		downloadDir = filepath.Join(a.workspacePath, "download", "browser")
+	} else if !filepath.IsAbs(downloadDir) {
+		downloadDir = filepath.Join(a.workspacePath, downloadDir)
+	}
+	browserCfg := browser.ChromeConfig{
+		ChromePath:       a.cfg.LLM.BrowserChromePath,
+		ExtraArgs:        a.cfg.LLM.BrowserExtraArgs,
+		Proxy:            a.cfg.LLM.BrowserProxy,
+		UserAgent:        a.cfg.LLM.BrowserUserAgent,
+		Language:         a.cfg.LLM.BrowserLanguage,
+		Timezone:         a.cfg.LLM.BrowserTimezone,
+		ExtraHTTPHeaders: a.cfg.LLM.BrowserExtraHTTPHeaders,
+		WindowSize:       a.cfg.LLM.BrowserWindowSize,
+		DownloadDir:      downloadDir,
+		IgnoreCertErrors: a.cfg.LLM.BrowserIgnoreCertErrors,
+		Extensions:       a.cfg.LLM.BrowserExtensions,
+		ProfileDir:       profileDir,
+		Persist:          a.cfg.LLM.BrowserPersist,
+		Viewport:         a.cfg.LLM.BrowserViewport,
+		DialogPolicy:     a.cfg.LLM.BrowserDialogPolicy,
+		ApplyOnConnect:   a.cfg.LLM.BrowserApplyOnConnect,
+	}
 
 	// Step 1: Try to reuse an already-running Chrome instance on the same port.
 	// This avoids creating a new browser window when co-shell restarts or when
@@ -2020,14 +2053,14 @@ func (a *Agent) EnsureBrowserStarted() error {
 	if browser.IsEndpointAvailable(debugURL) {
 		// Existing Chrome detected — create a ChromeManager without starting a new process.
 		log.Info("Browser detected on port %d, reusing existing instance", port)
-		mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless, browserDataDir)
+		mgr := browser.NewChromeManagerWithConfig(port, a.cfg.LLM.BrowserHeadless, browserCfg)
 		mgr.SetStarted() // Mark as started so Start() won't launch a new process
 		a.chromeMgr = mgr
 		return nil
 	}
 
 	// Step 2: No existing Chrome — start a new one.
-	mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless, browserDataDir)
+	mgr := browser.NewChromeManagerWithConfig(port, a.cfg.LLM.BrowserHeadless, browserCfg)
 	if _, err := mgr.Start(); err != nil {
 		return fmt.Errorf("cannot start browser: %w", err)
 	}

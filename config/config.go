@@ -525,6 +525,45 @@ type LLMConfig struct {
 	// Default: 10240 (10KB)
 	BrowserMaxHTMLSize int `json:"browser_max_html_size"`
 
+	// --- FEATURE-556 Phase 2: browser configuration ---
+	// These keys default to the pre-FEATURE-556 behaviour. An empty value means
+	// "do not override", in which case no extra Chrome launch argument and no
+	// extra CDP call is produced.
+
+	// BrowserChromePath: explicit Chrome/Chromium executable path.
+	// Empty means auto-detect from the well-known installation paths.
+	BrowserChromePath string `json:"browser_chrome_path"`
+	// BrowserExtraArgs: extra Chrome launch arguments appended verbatim.
+	BrowserExtraArgs []string `json:"browser_extra_args"`
+	// BrowserProxy: proxy server URL (e.g. "http://127.0.0.1:1080").
+	BrowserProxy string `json:"browser_proxy"`
+	// BrowserUserAgent: user agent override.
+	BrowserUserAgent string `json:"browser_user_agent"`
+	// BrowserLanguage: browser locale (e.g. "zh-CN").
+	BrowserLanguage string `json:"browser_language"`
+	// BrowserTimezone: IANA timezone id (e.g. "Asia/Shanghai").
+	BrowserTimezone string `json:"browser_timezone"`
+	// BrowserExtraHTTPHeaders: extra request headers, "Name: Value" entries.
+	BrowserExtraHTTPHeaders []string `json:"browser_extra_http_headers"`
+	// BrowserWindowSize: launch window size, "WIDTH,HEIGHT" (default "1280,800").
+	BrowserWindowSize string `json:"browser_window_size"`
+	// BrowserDownloadDir: download directory. Empty uses workspace/download/browser.
+	BrowserDownloadDir string `json:"browser_download_dir"`
+	// BrowserIgnoreCertErrors: skip TLS certificate validation errors.
+	BrowserIgnoreCertErrors bool `json:"browser_ignore_cert_errors"`
+	// BrowserExtensions: keep browser extensions enabled (default false = disabled).
+	BrowserExtensions bool `json:"browser_extensions"`
+	// BrowserProfileDir: Chrome user data directory. Empty uses workspace/browser-data.
+	BrowserProfileDir string `json:"browser_profile_dir"`
+	// BrowserPersist: keep the browser profile across restarts (default true).
+	BrowserPersist bool `json:"browser_persist"`
+	// BrowserViewport: emulated viewport, "WIDTHxHEIGHT" (e.g. "1440x900").
+	BrowserViewport string `json:"browser_viewport"`
+	// BrowserDialogPolicy: JavaScript dialog policy: auto|accept|dismiss (default "auto").
+	BrowserDialogPolicy string `json:"browser_dialog_policy"`
+	// BrowserApplyOnConnect: replay session settings on every CDP connection.
+	BrowserApplyOnConnect bool `json:"browser_apply_on_connect"`
+
 	// ReadFileMaxSize: maximum total bytes returned by read_file.
 	// When the output content exceeds this limit, it is truncated and a notice
 	// is prepended. 0 means no limit.
@@ -1136,9 +1175,16 @@ func DefaultConfig() *Config {
 			BrowserEnabled:              true,
 			BrowserPort:                 9222,
 			BrowserHeadless:             true,
-			XMLTagPrefix:                "cs:",
-			XMLStreamValidate:           true,
-			ProblemSolverEnabled:        true,
+
+			// FEATURE-556 Phase 2: browser configuration defaults.
+			BrowserWindowSize:     "1280,800",
+			BrowserPersist:        true,
+			BrowserDialogPolicy:   "auto",
+			BrowserApplyOnConnect: true,
+
+			XMLTagPrefix:         "cs:",
+			XMLStreamValidate:    true,
+			ProblemSolverEnabled: true,
 			Supervisor: SupervisorConfig{
 				Enabled:       false,
 				EntryObject:   true,

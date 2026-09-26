@@ -204,6 +204,14 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
 		subcommand == "browser-headless", subcommand == "browser-max-html-size",
+		subcommand == "browser-chrome-path", subcommand == "browser-extra-args",
+		subcommand == "browser-proxy", subcommand == "browser-user-agent",
+		subcommand == "browser-language", subcommand == "browser-timezone",
+		subcommand == "browser-extra-http-headers", subcommand == "browser-window-size",
+		subcommand == "browser-download-dir", subcommand == "browser-ignore-cert-errors",
+		subcommand == "browser-extensions", subcommand == "browser-profile-dir",
+		subcommand == "browser-persist", subcommand == "browser-viewport",
+		subcommand == "browser-dialog-policy", subcommand == "browser-apply-on-connect",
 		subcommand == "read-file-max-size",
 		subcommand == "excel-max-cells", subcommand == "excel-max-sessions",
 		subcommand == "docx-max-sessions", subcommand == "docx-max-read-paras",
@@ -725,6 +733,22 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
 		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
 		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), i18n.T(i18n.KeySettingCmd_308)),
+		makeLine("browser-chrome-path", browserDisplayValue(cfg.LLM.BrowserChromePath), i18n.T(i18n.KeyCol3BrowserChromePath)),
+		makeLine("browser-extra-args", browserListDisplay(cfg.LLM.BrowserExtraArgs), i18n.T(i18n.KeyCol3BrowserExtraArgs)),
+		makeLine("browser-proxy", browserDisplayValue(cfg.LLM.BrowserProxy), i18n.T(i18n.KeyCol3BrowserProxy)),
+		makeLine("browser-user-agent", browserDisplayValue(cfg.LLM.BrowserUserAgent), i18n.T(i18n.KeyCol3BrowserUserAgent)),
+		makeLine("browser-language", browserDisplayValue(cfg.LLM.BrowserLanguage), i18n.T(i18n.KeyCol3BrowserLanguage)),
+		makeLine("browser-timezone", browserDisplayValue(cfg.LLM.BrowserTimezone), i18n.T(i18n.KeyCol3BrowserTimezone)),
+		makeLine("browser-extra-http-headers", browserListDisplay(cfg.LLM.BrowserExtraHTTPHeaders), i18n.T(i18n.KeyCol3BrowserExtraHeaders)),
+		makeLine("browser-window-size", browserDisplayValue(cfg.LLM.BrowserWindowSize), i18n.T(i18n.KeyCol3BrowserWindowSize)),
+		makeLine("browser-download-dir", browserDisplayValue(cfg.LLM.BrowserDownloadDir), i18n.T(i18n.KeyCol3BrowserDownloadDir)),
+		makeLine("browser-ignore-cert-errors", browserOnOff(cfg.LLM.BrowserIgnoreCertErrors), i18n.T(i18n.KeyCol3BrowserIgnoreCertErrors)),
+		makeLine("browser-extensions", browserOnOff(cfg.LLM.BrowserExtensions), i18n.T(i18n.KeyCol3BrowserExtensions)),
+		makeLine("browser-profile-dir", browserDisplayValue(cfg.LLM.BrowserProfileDir), i18n.T(i18n.KeyCol3BrowserProfileDir)),
+		makeLine("browser-persist", browserOnOff(cfg.LLM.BrowserPersist), i18n.T(i18n.KeyCol3BrowserPersist)),
+		makeLine("browser-viewport", browserDisplayValue(cfg.LLM.BrowserViewport), i18n.T(i18n.KeyCol3BrowserViewport)),
+		makeLine("browser-dialog-policy", browserDisplayValue(cfg.LLM.BrowserDialogPolicy), i18n.T(i18n.KeyCol3BrowserDialogPolicy)),
+		makeLine("browser-apply-on-connect", browserOnOff(cfg.LLM.BrowserApplyOnConnect), i18n.T(i18n.KeyCol3BrowserApplyOnConnect)),
 		makeLine("excel-max-sessions", fmt.Sprintf("%d", cfg.LLM.ExcelMaxSessions), i18n.T(i18n.KeySettingCmd_309)),
 		makeLine("excel-max-cells", fmt.Sprintf("%d", cfg.LLM.ExcelMaxCells), i18n.T(i18n.KeySettingCmd_310)),
 		makeLine("docx-max-sessions", fmt.Sprintf("%d", cfg.LLM.DocxMaxSessions), i18n.T(i18n.KeySettingCmd_311)),
@@ -1041,6 +1065,22 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.BrowserPort = def.LLM.BrowserPort
 	h.cfg.LLM.BrowserHeadless = def.LLM.BrowserHeadless
 	h.cfg.LLM.BrowserMaxHTMLSize = def.LLM.BrowserMaxHTMLSize
+	h.cfg.LLM.BrowserChromePath = def.LLM.BrowserChromePath
+	h.cfg.LLM.BrowserExtraArgs = def.LLM.BrowserExtraArgs
+	h.cfg.LLM.BrowserProxy = def.LLM.BrowserProxy
+	h.cfg.LLM.BrowserUserAgent = def.LLM.BrowserUserAgent
+	h.cfg.LLM.BrowserLanguage = def.LLM.BrowserLanguage
+	h.cfg.LLM.BrowserTimezone = def.LLM.BrowserTimezone
+	h.cfg.LLM.BrowserExtraHTTPHeaders = def.LLM.BrowserExtraHTTPHeaders
+	h.cfg.LLM.BrowserWindowSize = def.LLM.BrowserWindowSize
+	h.cfg.LLM.BrowserDownloadDir = def.LLM.BrowserDownloadDir
+	h.cfg.LLM.BrowserIgnoreCertErrors = def.LLM.BrowserIgnoreCertErrors
+	h.cfg.LLM.BrowserExtensions = def.LLM.BrowserExtensions
+	h.cfg.LLM.BrowserProfileDir = def.LLM.BrowserProfileDir
+	h.cfg.LLM.BrowserPersist = def.LLM.BrowserPersist
+	h.cfg.LLM.BrowserViewport = def.LLM.BrowserViewport
+	h.cfg.LLM.BrowserDialogPolicy = def.LLM.BrowserDialogPolicy
+	h.cfg.LLM.BrowserApplyOnConnect = def.LLM.BrowserApplyOnConnect
 	h.cfg.LLM.ExcelMaxSessions = def.LLM.ExcelMaxSessions
 	h.cfg.LLM.ExcelMaxCells = def.LLM.ExcelMaxCells
 	h.cfg.LLM.DocxMaxSessions = def.LLM.DocxMaxSessions

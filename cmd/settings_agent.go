@@ -618,6 +618,15 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Parse-error-action set to %s", val)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_150), val), nil
 
+	// FEATURE-556 Phase 2: browser configuration keys (see settings_browser.go).
+	case "browser-chrome-path", "browser-extra-args", "browser-proxy",
+		"browser-user-agent", "browser-language", "browser-timezone",
+		"browser-extra-http-headers", "browser-window-size",
+		"browser-download-dir", "browser-ignore-cert-errors",
+		"browser-extensions", "browser-profile-dir", "browser-persist",
+		"browser-viewport", "browser-dialog-policy", "browser-apply-on-connect":
+		return h.handleBrowserSetting(subcommand, args)
+
 	case "browser-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOff)

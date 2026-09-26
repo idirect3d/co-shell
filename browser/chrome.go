@@ -51,23 +51,33 @@ type ChromeManager struct {
 	started     bool
 	userDataDir string // persistent user data directory
 	dialogs     *DialogManager
+
+	// cfg holds the FEATURE-556 launch and session settings.
+	cfg ChromeConfig
 }
 
-// NewChromeManager creates a new ChromeManager.
+// NewChromeManager creates a new ChromeManager with the default configuration.
 // userDataDir is the directory for Chrome's user data storage.
 // If empty, a temporary directory under /tmp is used.
 func NewChromeManager(port int, headless bool, userDataDir ...string) *ChromeManager {
+	cfg := DefaultChromeConfig()
+	if len(userDataDir) > 0 && userDataDir[0] != "" {
+		cfg.ProfileDir = userDataDir[0]
+	}
+	return NewChromeManagerWithConfig(port, headless, cfg)
+}
+
+// NewChromeManagerWithConfig creates a new ChromeManager from an explicit
+// browser configuration (FEATURE-556 Phase 2).
+func NewChromeManagerWithConfig(port int, headless bool, cfg ChromeConfig) *ChromeManager {
 	if port <= 0 {
 		port = 9222
 	}
-	cm := &ChromeManager{
+	return &ChromeManager{
 		port:     port,
 		headless: headless,
+		cfg:      cfg,
 	}
-	if len(userDataDir) > 0 && userDataDir[0] != "" {
-		cm.userDataDir = userDataDir[0]
-	}
-	return cm
 }
 
 // Start launches a Chrome/Chromium browser instance with remote debugging enabled.
@@ -78,41 +88,22 @@ func (m *ChromeManager) Start() (string, error) {
 		return fmt.Sprintf("http://localhost:%d", m.port), nil
 	}
 
-	chromePath := findChromePath()
+	chromePath := m.cfg.ChromePath
+	if chromePath == "" {
+		chromePath = findChromePath()
+	}
 	if chromePath == "" {
 		return "", fmt.Errorf("cannot find Chrome/Chromium installation")
 	}
 
-	args := []string{
-		fmt.Sprintf("--remote-debugging-port=%d", m.port),
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-background-networking",
-		"--disable-sync",
-		"--disable-translate",
-		"--disable-extensions",
-		"--disable-default-apps",
-		"--mute-audio",
-		"--disable-features=TranslateUI",
-		"--window-size=1280,800",
-	}
-
-	if m.headless {
-		args = append(args, "--headless=new")
-	}
-
-	// Use a persistent user data directory in the workspace, so browser state
-	// (downloads, cookies, sessions) survives co-shell restarts. This also
-	// makes it possible to trace back issues from browser data.
-	// Falls back to /tmp if no user data directory is configured.
-	userDataDir := m.userDataDir
-	if userDataDir == "" {
-		userDataDir = fmt.Sprintf("/tmp/co-shell-chrome-%d", time.Now().Unix())
-	}
+	// Use a persistent user data directory when persistence is enabled, so
+	// browser state (cookies, sessions) survives co-shell restarts; otherwise
+	// a fresh temporary directory keeps every run clean (FEATURE-556).
+	userDataDir := m.resolveUserDataDir()
 	os.MkdirAll(userDataDir, 0755)
-	args = append(args, fmt.Sprintf("--user-data-dir=%s", userDataDir))
+	m.userDataDir = userDataDir
 
-	args = append(args, "about:blank")
+	args := BuildChromeArgs(m.cfg, m.port, m.headless, userDataDir)
 
 	m.cmd = exec.Command(chromePath, args...)
 
@@ -304,9 +295,10 @@ func (m *ChromeManager) setClient(client *CDPClient) *CDPClient {
 	return client
 }
 
-// attachSession enables Page events and (re)starts dialog handling for a
-// connection. It never fails: a missing Page domain only degrades event
-// driven waiting, which falls back to readyState polling.
+// attachSession enables Page events, (re)starts dialog handling and replays the
+// configured session-level settings for a connection. It never fails: a missing
+// Page domain only degrades event driven waiting, which falls back to
+// readyState polling.
 func (m *ChromeManager) attachSession(client *CDPClient) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -318,7 +310,34 @@ func (m *ChromeManager) attachSession(client *CDPClient) {
 	if m.dialogs != nil {
 		m.dialogs.Close()
 	}
-	m.dialogs = NewDialogManager(client, DialogAuto)
+	policy, ok := ParseDialogPolicy(m.cfg.DialogPolicy)
+	if !ok {
+		log.Debug("unknown dialog policy %q, falling back to %q", m.cfg.DialogPolicy, policy)
+	}
+	m.dialogs = NewDialogManager(client, policy)
+
+	// FEATURE-556: replay the configured session-level settings (user agent,
+	// headers, viewport, locale, timezone, TLS exceptions, download behaviour)
+	// so a reconnect or a co-shell restart keeps the configured browser state.
+	// Nothing is sent when no such setting is configured.
+	if m.cfg.ApplyOnConnect {
+		applied, err := ApplySessionSettings(ctx, client, m.cfg)
+		if err != nil {
+			log.Warn("cannot apply browser session settings (applied=%v): %v", applied, err)
+		} else if len(applied) > 0 {
+			log.Info("Browser session settings applied on connect: %v", applied)
+		}
+	}
+}
+
+// resolveUserDataDir returns Chrome's user data directory: the configured
+// profile when persistence is on, otherwise a fresh temporary directory so that
+// every run starts from a clean state (FEATURE-556 Phase 2).
+func (m *ChromeManager) resolveUserDataDir() string {
+	if m.cfg.Persist && m.cfg.ProfileDir != "" {
+		return m.cfg.ProfileDir
+	}
+	return fmt.Sprintf("/tmp/co-shell-chrome-%d", time.Now().UnixNano())
 }
 
 // DialogManager returns the dialog handler of the current session, or nil.
