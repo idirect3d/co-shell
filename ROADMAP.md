@@ -4,6 +4,38 @@
 
 ---
 
+## v0.76.4 — hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）
+
+> **版本**: v0.76.4
+
+> **状态**: 🚧 待用户实测确认（分支 **FIX-561** 已开发自测完成，未合并 main，BUILD-1133）
+> **里程碑**: 有 agent 运行时在终端按 Ctrl+C，hub 能**先关停全部子进程再退出**，不再卡死；顺带修掉 hub 关闭时的自死锁。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-561 | 0.76.4 | P1 | hub 退出流程修复：① `Proxy.Close()` 持锁调用 `AgentConn.Close()`，与 onClose 回调 `dropAgentLink()` 争用同一把 `p.mu` 导致自死锁 —— 改为持锁快照并摘除连接、释放锁后再关闭；② SIGINT/SIGTERM 路径新增 `stopManagedAgents()`，先按与列表关闭同款的 `Manager.Stop` 关停全部运行中的 managed agent，再关闭 TCP/Web 监听退出 |
+
+> 当前 BUILD: 1133
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-561 hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）**
+  - 背景（用户反馈）：「hub 启动后，如果在终端上按 Ctrl+C 中断时，如果此时 hub 有 agent 在运行，那么 hub 会无法终止退出。因此需要做一个改进，在收到 ctrl+c 中断信号时，需要先将子进程都关停（与在 agent 列表中关闭调用同一逻辑即可），再退出。」
+  - 根因（已复现 + goroutine 栈佐证）：`Proxy.Close()` 持 `p.mu` 逐个 `ac.Close()`；`AgentConn.Close()` 的 onClose 回调 `dropAgentLink()` 也要 `p.mu.Lock()` → 自死锁（RWMutex 不可重入）。栈：`main.main(defer proxy.Close) → Proxy.Close → AgentConn.Close → superviseAgent.func1 → dropAgentLink → sync.Mutex.Lock`，goroutine 1 永久阻塞。**有 agent 才进入该循环**，故「有 agent 卡死、无 agent 正常退出」。
+  - 交互决策（经 ask_user 确认）：版本归属 **v0.76.4**（patch 递增）、任务编号 **FIX-561**。
+  - 分支：**FIX-561**（基于 main，v0.76.3 已发布），版本 v0.76.4
+  - 实现概要：
+    - `hub/gateway/proxy.go`：`Proxy.Close()` 改为持锁时快照 `p.agents` 并清空注册表，**释放锁后**再逐个 `ac.Close()`（此时回调因连接已摘除而自然 no-op），消除自死锁。
+    - `cmd/co-shell-hub/main.go`：SIGINT/SIGTERM 分支先调用新增的 `stopManagedAgents(mgr)`（与「列表关闭 agent」同一 `Manager.Stop`：cancel + Kill，逐个打日志），再 `tcpSrv.Close()` / `webUI.Close()`；**只停进程、不删注册项**。
+  - 验证：
+    - 复现（修复前）：独立 hub 实例 + 1 个 running agent，SIGINT 后 6 秒仍存活；SIGQUIT 栈定位到上述自死锁。
+    - 修复后同一流程：`hub alive: no`；日志 `hub-gateway: shutting down` → `hub-gateway: stopped managed agent f561`；子进程同步消失（`child alive: no`，端口释放）。
+    - `gofmt` 干净；root 与 hub 模块 `go build ./... && go vet ./...` 通过；`hub/gateway` 全量单测 `ok 5.341s`。
+    - 产物：`work/co-shell-0.76.4.darwin.arm64`（`--version` → `v0.76.4 [BUILD-1133]`）与 `work/co-shell-hub-0.76.4.darwin.arm64`。
+  - 运行时用例：`use-case/FIX-561/FIX-561-UC-0001.md`（A 组 5 条已通过；B 组 7 条待用户实测确认）
+
 ## v0.76.3 — hub 列表项删除按钮显示修复（默认隐藏 + 滑动 16px 渐入 + 左边延长 20px）
 
 > **版本**: v0.76.3

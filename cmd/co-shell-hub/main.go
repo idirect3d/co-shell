@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.76.3"
-	hubBuild   = "1132"
+	hubVersion = "0.76.4"
+	hubBuild   = "1133"
 )
 
 // config is the JSON config file shape.
@@ -283,8 +283,28 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	log.Println("hub-gateway: shutting down")
+	// FIX-561: stop the managed agents first — the same path the Web UI takes
+	// when an agent is closed from the list — so Ctrl+C never leaves co-shell
+	// subprocesses running behind the hub.
+	stopManagedAgents(mgr)
 	tcpSrv.Close()
 	webUI.Close()
+}
+
+// stopManagedAgents terminates every running managed agent the way the Web UI's
+// close action does (Manager.Stop), logging each one. Registry entries are kept:
+// shutting the hub down stops processes, it does not delete configured agents.
+func stopManagedAgents(mgr *gateway.Manager) {
+	for _, spec := range mgr.Agents() {
+		if spec.Type != gateway.AgentTypeManaged || !mgr.IsRunning(spec.ID) {
+			continue
+		}
+		if err := mgr.Stop(spec.ID); err != nil {
+			log.Printf("hub-gateway: stop agent %s: %v", spec.ID, err)
+			continue
+		}
+		log.Printf("hub-gateway: stopped managed agent %s", spec.ID)
+	}
 }
 
 // defaultCoShellPath returns the co-shell executable next to this binary.
