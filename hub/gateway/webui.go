@@ -20,6 +20,10 @@ type WebUIConfig struct {
 	// Whitelist restricts browser access to the given IPs/CIDR networks.
 	// Empty means loopback only (default localhost access).
 	Whitelist []string `json:"whitelist,omitempty"`
+	// Lang is the Web UI language ("zh"/"en", FEATURE-559). Empty means
+	// auto-detect: --lang > LANG / LC_ALL > zh. Unsupported values fall back
+	// to the same chain.
+	Lang string `json:"lang,omitempty"`
 }
 
 // WebUI serves the hub's Web UI: an HTTP server that serves the embedded
@@ -35,6 +39,7 @@ type WebUI struct {
 	ctx          context.Context
 	version      string
 	build        string
+	lang         Lang
 
 	// board is the agent message board (FEATURE-530). It is optional: when
 	// nil the board endpoints simply return empty results.
@@ -59,6 +64,7 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 		ctx:          ctx,
 		version:      version,
 		build:        build,
+		lang:         DetectLang(cfg.Lang),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.handleIndex)
@@ -184,7 +190,9 @@ func (w *WebUI) Close() error {
 // handleIndex serves the embedded iframe-shell frontend HTML.
 func (w *WebUI) handleIndex(rw http.ResponseWriter, _ *http.Request) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = rw.Write([]byte(webIndexHTML))
+	// FEATURE-559: substitute the resolved UI language so the page renders in the
+	// right language on first paint (no flash of the fallback text).
+	_, _ = rw.Write([]byte(strings.Replace(webIndexHTML, hubLangPlaceholder, string(w.lang), 1)))
 }
 
 // handleHubInfo returns this hub's version/build for the logo badge.

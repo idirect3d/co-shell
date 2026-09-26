@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.76.1"
-	hubBuild   = "1129"
+	hubVersion = "0.76.2"
+	hubBuild   = "1130"
 )
 
 // config is the JSON config file shape.
@@ -65,6 +65,9 @@ type config struct {
 	// BoardDBPath is the message board database (bbolt). Default:
 	// hub-board.db next to the agent registry (FEATURE-530).
 	BoardDBPath string `json:"board_db_path,omitempty"`
+	// Lang is the Web UI language ("zh"/"en", FEATURE-559). Empty means
+	// auto-detect: --lang > LANG / LC_ALL > zh.
+	Lang string `json:"lang,omitempty"`
 	// Serve suppresses auto-opening the browser (headless/server mode).
 	Serve bool `json:"serve,omitempty"`
 }
@@ -74,6 +77,7 @@ func main() {
 	tcpAddr := flag.String("tcp-addr", "", "TCP listen address (default 127.0.0.1:12801)")
 	apiKey := flag.String("api-key", "", "API key required by TCP clients")
 	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
+	lang := flag.String("lang", "", "Web UI language (zh/en, default auto-detect)")
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
 	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
 	boardDB := flag.String("board-db", "", "message board database file (default: hub-board.db next to the registry)")
@@ -101,6 +105,9 @@ func main() {
 	}
 	if *webAddr != "" {
 		cfg.WebAddr = *webAddr
+	}
+	if *lang != "" {
+		cfg.Lang = *lang
 	}
 	if *whitelist != "" {
 		cfg.Whitelist = splitList(*whitelist)
@@ -231,7 +238,7 @@ func main() {
 	log.Printf("hub-gateway: TCP service on %s (api-key=%v)", cfg.TCPAddr, cfg.APIKey != "")
 
 	// Start the Web UI server (chat + agent management).
-	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
+	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist, Lang: cfg.Lang}
 	// Load the remote-access settings (TLS/whitelist/access key). The settings
 	// file follows the same search order as the config.
 	if cfg.SettingsPath == "" {
@@ -398,6 +405,7 @@ Flags:
   --api-key KEY        API key required by TCP clients
   --web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
   --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
+  --lang CODE          Web UI language: zh/en (default: auto-detect from LANG/LC_ALL, fallback zh)
   --registry PATH      Agent registry file (default: ./hub-agents.json)
   --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
   --base-port N        First port for auto-allocating managed agents (default 28256)

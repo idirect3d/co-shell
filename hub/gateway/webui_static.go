@@ -407,14 +407,14 @@ const webIndexHTML = `<!DOCTYPE html>
 </svg>
 <div id="stage">
   <div class="empty" id="empty">
-    <img class="logo" id="emptyRun" src="/favicon.svg" alt="co-shell-hub" title="创建或添加 Agent">
-    <div>暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。</div>
+    <img class="logo" id="emptyRun" src="/favicon.svg" alt="co-shell-hub" data-i18n-title="emptyCreateTitle" title="创建或添加 Agent">
+    <div data-i18n="emptyHint">暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。</div>
   </div>
 </div>
 
 <!-- Hub badge over the co-shell logo area; toggles the agent drawer. -->
-<div id="hubBadge" title="co-shell-hub · 点击展开 Agent 列表">
-  <svg class="ico mark" aria-hidden="true"><use href="#i-hub-mark"/></svg><span class="name">co-shell-hub</span><span class="ver" id="hubVer"></span><span class="pin" id="panelPin" title="钉住（不自动收起）"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg></span>
+<div id="hubBadge" data-i18n-title="badgeTitle" title="co-shell-hub · 点击展开 Agent 列表">
+  <svg class="ico mark" aria-hidden="true"><use href="#i-hub-mark"/></svg><span class="name">co-shell-hub</span><span class="ver" id="hubVer"></span><span class="pin" id="panelPin" data-i18n-title="pinTitle" title="钉住（不自动收起）"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg></span>
 </div>
 
 <!-- Left edge hot-zone (reveals the drawer on hover). -->
@@ -426,89 +426,89 @@ const webIndexHTML = `<!DOCTYPE html>
 <!-- Left drawer (FEATURE-515): two dockable sections, Agents / Chat. -->
 <div id="agentPanel">
   <!-- Agents section head (click expands Agents; the pin keeps the drawer open). -->
-  <div class="pane-head" id="agentsHead">Agents<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
+  <div class="pane-head" id="agentsHead"><span data-i18n="paneAgents">Agents</span><span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body" id="agentsBody">
   <!-- View 1: agent list. -->
   <div class="view" id="viewList">
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg>设置</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="btnNew">新建</span></button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg><span data-i18n="btnSettings">设置</span></button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
-    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>新建 Agent<span class="close" id="configClose" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
+    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表" data-i18n-title="backToAgents"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span data-i18n="viewNewAgent">新建 Agent</span><span class="close" id="configClose" data-i18n-title="btnCollapse" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
     <div class="config-body">
-      <h3>添加 Agent</h3>
+      <h3 data-i18n="h3AddAgent">添加 Agent</h3>
       <div class="seg" id="modeSeg">
-        <button class="seg-btn active" data-mode="local">本地</button>
-        <button class="seg-btn" data-mode="remote">远程</button>
+        <button class="seg-btn active" data-mode="local" data-i18n="segLocal">本地</button>
+        <button class="seg-btn" data-mode="remote" data-i18n="segRemote">远程</button>
       </div>
       <!-- Local mode: hub launches a co-shell --serve subprocess. -->
       <div id="localFields">
-        <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
-        <div class="field"><label>端口号（自动分配，可修改）</label><input id="m-port" placeholder="自动分配"></div>
-        <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
-        <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
-        <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
-        <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
-        <div class="field"><label>补充运行参数</label><input id="m-extra" placeholder="如 --accept-license --serve" value="--accept-license"></div>
+        <div class="field"><label><span class="req">*</span><span data-i18n="lblWorkspace">Workspace 路径</span></label><input id="m-ws" data-i18n-ph="phWorkspace" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+        <div class="field"><label data-i18n="lblPortAuto">端口号（自动分配，可修改）</label><input id="m-port" data-i18n-ph="phPortAuto" placeholder="自动分配"></div>
+        <div class="field"><label data-i18n="lblIDDefaultWs">ID（默认取 workspace 末段）</label><input id="m-id" data-i18n-ph="phAutoGen" placeholder="自动生成"></div>
+        <div class="field"><label data-i18n="lblCoShellBin">co-shell 可执行程序</label><select id="m-coshell"></select></div>
+        <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblSharedConfig">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint" data-i18n="hintSharedConfig">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
+        <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblYolo">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
+        <div class="field"><label data-i18n="lblExtraArgs">补充运行参数</label><input id="m-extra" data-i18n-ph="phExtraArgs" placeholder="如 --accept-license --serve" value="--accept-license"></div>
         <div class="hint" id="m-ver"></div>
       </div>
       <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
       <div id="remoteFields" style="display:none">
-        <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
-        <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
-        <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
-        <div class="field"><label>Agent描述（由对方设置）</label><input id="e-name" placeholder="（未设置）" readonly></div>
-        <div class="hint">外部 Agent 的 Agent描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。</div>
+        <div class="field"><label><span class="req">*</span><span data-i18n="lblHost">主机地址</span></label><input id="e-host" data-i18n-ph="phHost" placeholder="IP 或主机名，如 192.168.1.5"></div>
+        <div class="field"><label><span class="req">*</span><span data-i18n="lblPort">端口号</span></label><input id="e-port" data-i18n-ph="phPortRecommend" placeholder="自动推荐，可修改"></div>
+        <div class="field"><label data-i18n="lblIDDefaultHostPort">ID（默认 host-port）</label><input id="e-id" data-i18n-ph="phAutoGen" placeholder="自动生成"></div>
+        <div class="field"><label data-i18n="lblAgentDescRemote">Agent描述（由对方设置）</label><input id="e-name" data-i18n-ph="phNotSet" placeholder="（未设置）" readonly></div>
+        <div class="hint" data-i18n="hintRemoteDesc">外部 Agent 的 Agent描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。</div>
         <div class="hint" id="e-ver"></div>
       </div>
     </div>
-    <div class="foot"><button class="btn primary" id="cfg-submit">创建本地 Agent</button></div>
+    <div class="foot"><button class="btn primary" id="cfg-submit"><span data-i18n="btnCreateLocal">创建本地 Agent</span></button></div>
   </div>
   <!-- View 3: agent settings — editable (FEATURE-520). The field set mirrors
        the create form; a field that does not apply to the agent's type is
        greyed out (managed: 主机地址; external: Workspace / co-shell /
        共享配置 / 补充运行参数). The ID is immutable. -->
   <div class="view hidden" id="viewDetail">
-    <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
+    <div class="head"><button class="back" id="detailBack" data-i18n-title="backToAgents" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle" data-i18n="titleAgentSettings">Agent 设置</span></div>
     <div class="config-body">
-      <div class="field"><label>ID（不可修改）</label><input id="d-id" readonly></div>
-      <div class="field"><label>类型</label><input id="d-type" readonly></div>
-      <div class="field" id="f-ws"><label>Workspace 路径</label><input id="d-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
-      <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
-      <div class="field" id="f-port"><label id="d-port-label">端口号</label><input id="d-port" placeholder="如 28256"></div>
-      <div class="field" id="f-coshell"><label>co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
-      <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
-      <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
-      <div class="field" id="f-extra"><label>补充运行参数</label><input id="d-extra" placeholder="如 --accept-license"></div>
+      <div class="field"><label data-i18n="lblIDReadonly">ID（不可修改）</label><input id="d-id" readonly></div>
+      <div class="field"><label data-i18n="lblType">类型</label><input id="d-type" readonly></div>
+      <div class="field" id="f-ws"><label data-i18n="lblWorkspace">Workspace 路径</label><input id="d-ws" data-i18n-ph="phWorkspace" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+      <div class="field" id="f-host"><label data-i18n="lblHost">主机地址</label><input id="d-host" data-i18n-ph="phHost" placeholder="IP 或主机名，如 192.168.1.5"></div>
+      <div class="field" id="f-port"><label id="d-port-label" data-i18n="lblPort">端口号</label><input id="d-port" data-i18n-ph="phPortExample" placeholder="如 28256"></div>
+      <div class="field" id="f-coshell"><label data-i18n="lblCoShellBin">co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
+      <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label" data-i18n="lblSharedConfig">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint" data-i18n="hintSharedConfig">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
+      <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label" data-i18n="lblYolo">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
+      <div class="field" id="f-extra"><label data-i18n="lblExtraArgs">补充运行参数</label><input id="d-extra" data-i18n-ph="phExtraArgsDetail" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
       <!-- FIX-558: the Agent描述 is the last item and read-only: it shows what the
            agent reported when it last registered on the board. -->
-      <div class="field"><label>Agent描述（最近一次注册上报）</label><div class="ro-text" id="d-name">（未上报）</div><div class="hint" id="d-name-hint">由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。</div></div>
+      <div class="field"><label data-i18n="lblAgentDescReported">Agent描述（最近一次注册上报）</label><div class="ro-text" id="d-name" data-i18n="txtNotReported">（未上报）</div><div class="hint" id="d-name-hint" data-i18n="hintAgentDesc">由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。</div></div>
     </div>
-    <div class="foot"><button class="btn primary" id="d-save">保存修改</button><div class="hint" id="d-msg"></div></div>
+    <div class="foot"><button class="btn primary" id="d-save"><span data-i18n="btnSaveChanges">保存修改</span></button><div class="hint" id="d-msg"></div></div>
   </div>
   <!-- View 4: remote-access settings (TLS/whitelist/access key). -->
   <div class="view hidden" id="viewSettings">
-    <div class="head"><button class="back" id="settingsBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>设置<span class="close" id="settingsClose" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
+    <div class="head"><button class="back" id="settingsBack" data-i18n-title="backToAgents" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span data-i18n="btnSettings">设置</span><span class="close" id="settingsClose" data-i18n-title="btnCollapse" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
     <div class="config-body">
-      <h3>HTTPS 访问</h3>
-      <div class="field"><div class="switch-row"><span class="switch-label">启用 HTTPS（配置证书后仅用 https 访问）</span><label class="switch"><input type="checkbox" id="s-tls"><span class="slider"></span></label></div></div>
-      <div class="field"><label>证书文件路径（PEM）</label><input id="s-cert" placeholder="如 /path/to/cert.pem，留空自动生成自签名证书"></div>
-      <div class="field"><label>私钥文件路径（PEM）</label><input id="s-keyfile" placeholder="如 /path/to/key.pem"></div>
-      <div class="field"><button class="btn" id="s-gencert" style="width:100%">生成自签名证书</button><div class="hint">生成后需重启 hub 生效。</div></div>
-      <h3>访问控制</h3>
-      <div class="field"><label>白名单（IP 或 CIDR，逗号分隔，空=仅本机）</label><input id="s-whitelist" placeholder="如 192.168.1.100,192.168.1.0/24"></div>
-      <div class="field"><label>访问验证 KEY（白名单外主机需在请求头 X-Access-Key 提供）</label><input id="s-accesskey" type="password" placeholder="留空表示不修改当前 KEY"><button class="btn" id="s-genkey" style="margin-top:6px;width:100%">重新生成安全 KEY</button></div>
-      <div class="field"><div class="switch-row"><span class="switch-label">全部访问都需要 KEY</span><label class="switch"><input type="checkbox" id="s-reqkey"><span class="slider"></span></label></div><div class="hint">开启后即使 IP 在白名单内也需提供访问 KEY。</div></div>
+      <h3 data-i18n="h3Https">HTTPS 访问</h3>
+      <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblEnableHttps">启用 HTTPS（配置证书后仅用 https 访问）</span><label class="switch"><input type="checkbox" id="s-tls"><span class="slider"></span></label></div></div>
+      <div class="field"><label data-i18n="lblCertPath">证书文件路径（PEM）</label><input id="s-cert" data-i18n-ph="phCertPath" placeholder="如 /path/to/cert.pem，留空自动生成自签名证书"></div>
+      <div class="field"><label data-i18n="lblKeyPath">私钥文件路径（PEM）</label><input id="s-keyfile" data-i18n-ph="phKeyPath" placeholder="如 /path/to/key.pem"></div>
+      <div class="field"><button class="btn" id="s-gencert" style="width:100%"><span data-i18n="btnGenCert">生成自签名证书</span></button><div class="hint" data-i18n="hintGenCert">生成后需重启 hub 生效。</div></div>
+      <h3 data-i18n="h3AccessControl">访问控制</h3>
+      <div class="field"><label data-i18n="lblWhitelist">白名单（IP 或 CIDR，逗号分隔，空=仅本机）</label><input id="s-whitelist" data-i18n-ph="phWhitelist" placeholder="如 192.168.1.100,192.168.1.0/24"></div>
+      <div class="field"><label data-i18n="lblAccessKey">访问验证 KEY（白名单外主机需在请求头 X-Access-Key 提供）</label><input id="s-accesskey" type="password" data-i18n-ph="phAccessKeyKeep" placeholder="留空表示不修改当前 KEY"><button class="btn" id="s-genkey" style="margin-top:6px;width:100%"><span data-i18n="btnGenKey">重新生成安全 KEY</span></button></div>
+      <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblAllNeedKey">全部访问都需要 KEY</span><label class="switch"><input type="checkbox" id="s-reqkey"><span class="slider"></span></label></div><div class="hint" data-i18n="hintAllNeedKey">开启后即使 IP 在白名单内也需提供访问 KEY。</div></div>
       <div class="hint" id="s-status"></div>
     </div>
-    <div class="foot"><button class="btn primary" id="s-save">保存设置</button></div>
+    <div class="foot"><button class="btn primary" id="s-save"><span data-i18n="btnSaveSettings">保存设置</span></button></div>
   </div>
   </div><!-- /#agentsBody -->
   <!-- Chat section (FEATURE-530/FEATURE-537): two levels — the conversation
        list, then the conversation detail sliding in over it. -->
-  <div class="pane-head collapsed" id="chatHead">Chat<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
+  <div class="pane-head collapsed" id="chatHead"><span data-i18n="paneChats">Agent 聊天室</span><span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body collapsed" id="chatBody">
     <!-- Level 1: conversation list (WeChat-style rows). -->
     <div class="chat-view" id="chatListView">
@@ -517,21 +517,202 @@ const webIndexHTML = `<!DOCTYPE html>
     <!-- Level 2: conversation detail (bubbles + composer), slid in over the list. -->
     <div class="chat-view hidden" id="chatDetailView">
       <div class="chat-head">
-        <button class="back" id="chatBack" title="返回会话列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
-        <span class="title" id="chatTitle">会话</span>
+        <button class="back" id="chatBack" data-i18n-title="backToConversations" title="返回会话列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
+        <span class="title" id="chatTitle" data-i18n="titleConversations">会话</span>
         <span class="sub" id="chatSub"></span>
       </div>
       <div class="board-msgs" id="boardMsgs"></div>
       <div class="chat-err" id="chatErr"></div>
       <form class="chat-compose" id="chatForm">
-        <input id="chatInput" type="text" placeholder="输入消息…" autocomplete="off" maxlength="8192">
-        <button class="btn primary" type="submit" id="chatSend">发送</button>
+        <input id="chatInput" type="text" data-i18n-ph="phChatInput" placeholder="输入消息…" autocomplete="off" maxlength="8192">
+        <button class="btn primary" type="submit" id="chatSend"><span data-i18n="btnSend">发送</span></button>
       </form>
     </div>
   </div>
 </div>
 <script>
+/* FEATURE-559: the UI language is resolved by the server (--lang > LANG/LC_ALL > zh)
+   and substituted for the placeholder below when this page is served. */
+var HUB_LANG = "__HUB_LANG__";
+</script>
+<script>
 (function(){
+  // ---- FEATURE-559: UI language (zh source, en optional) ----
+  // zh is the source language: the markup and the literals below already carry
+  // the Chinese text, which doubles as the fallback when a key is missing. EN
+  // holds the English strings, keyed by the ids used in data-i18n*/t() calls.
+  var LANG = (HUB_LANG === 'en') ? 'en' : 'zh';
+  var EN = {
+    // --- drawer / page chrome ---
+    emptyCreateTitle: 'Create or add an Agent',
+    emptyHint: 'No agents yet. Click the "Run" arrow above, or the co-shell-hub badge at the top left and then "Manage", to create or add an agent.',
+    badgeTitle: 'co-shell-hub · click to open the agent list',
+    pinTitle: 'Pin (no auto-collapse)',
+    paneAgents: 'Agents',
+    paneChats: 'Chats',
+    // --- agents list ---
+    btnNew: 'New',
+    btnSettings: 'Settings',
+    backToAgents: 'Back to the agent list',
+    viewNewAgent: 'New Agent',
+    btnCollapse: 'Collapse',
+    // --- create form ---
+    h3AddAgent: 'Add an Agent',
+    segLocal: 'Local',
+    segRemote: 'Remote',
+    lblWorkspace: 'Workspace path',
+    phWorkspace: 'e.g. ~/.co-shell/agents/agent-1',
+    lblPortAuto: 'Port (auto-assigned, editable)',
+    phPortAuto: 'auto-assigned',
+    lblIDDefaultWs: 'ID (defaults to the last workspace segment)',
+    phAutoGen: 'auto-generated',
+    lblCoShellBin: 'co-shell executable',
+    lblSharedConfig: 'Shared config',
+    hintSharedConfig: 'On: use ~/.co-shell/config.json (shared); Off: use {workspace}/config.json (copied from ~/.co-shell/config.json when absent; an empty file is created when neither exists). Takes effect after the agent restarts.',
+    lblYolo: 'YOLO mode',
+    lblExtraArgs: 'Extra run arguments',
+    phExtraArgs: 'e.g. --accept-license --serve',
+    lblHost: 'Host address',
+    phHost: 'IP or hostname, e.g. 192.168.1.5',
+    lblPort: 'Port',
+    phPortRecommend: 'auto-suggested, editable',
+    lblIDDefaultHostPort: 'ID (defaults to host-port)',
+    lblAgentDescRemote: 'Agent description (set by the peer)',
+    phNotSet: '(not set)',
+    hintRemoteDesc: 'The description of an external agent is edited by that agent in its own co-shell under "Identity & Personality"; read-only here.',
+    btnCreateLocal: 'Create a local Agent',
+    // --- agent settings ---
+    titleAgentSettings: 'Agent settings',
+    lblIDReadonly: 'ID (immutable)',
+    lblType: 'Type',
+    phPortExample: 'e.g. 28256',
+    lblAgentDescReported: 'Agent description (last reported on registration)',
+    txtNotReported: '(not reported)',
+    hintAgentDesc: 'Set by the agent in its own co-shell under "Identity & Personality"; the hub only shows what was reported at the last registration.',
+    btnSaveChanges: 'Save changes',
+    phExtraArgsDetail: 'e.g. --accept-license',
+    // --- drawer settings (TLS / access control) ---
+    h3Https: 'HTTPS access',
+    lblEnableHttps: 'Enable HTTPS (after certificates are configured, access via https only)',
+    lblCertPath: 'Certificate file path (PEM)',
+    phCertPath: 'e.g. /path/to/cert.pem; leave empty to generate a self-signed certificate',
+    lblKeyPath: 'Private key file path (PEM)',
+    phKeyPath: 'e.g. /path/to/key.pem',
+    btnGenCert: 'Generate a self-signed certificate',
+    hintGenCert: 'Restart the hub for it to take effect.',
+    h3AccessControl: 'Access control',
+    lblWhitelist: 'Whitelist (IP or CIDR, comma-separated, empty = loopback only)',
+    phWhitelist: 'e.g. 192.168.1.100,192.168.1.0/24',
+    lblAccessKey: 'Access key (hosts outside the whitelist must send it in the X-Access-Key header)',
+    phAccessKeyKeep: 'leave empty to keep the current key',
+    btnGenKey: 'Regenerate the access key',
+    lblAllNeedKey: 'Require the key for all access',
+    hintAllNeedKey: 'When on, the access key is required even from whitelisted IPs.',
+    btnSaveSettings: 'Save settings',
+    // --- chat pane ---
+    backToConversations: 'Back to the conversation list',
+    titleConversations: 'Conversation',
+    phChatInput: 'Type a message…',
+    btnSend: 'Send',
+    // --- dynamic (rendered from JS) ---
+    titlePinned: 'Pinned (click to unpin)',
+    titleUnpinned: 'Pin (no auto-collapse)',
+    statusConnected: 'Connected',
+    statusDisconnected: 'Disconnected · click to reconnect',
+    whoMe: 'Me',
+    whoAll: 'All',
+    badgeHandled: 'Handled',
+    badgeDeclined: 'Declined',
+    badgeNeedInfo: 'Need info',
+    badgeNoReply: 'No reply',
+    badgeWaiting: 'Waiting %ss',
+    badgeWindow: 'Window %ss',
+    replyTo: 'Reply to %s',
+    convAll: 'All (broadcast)',
+    emptyConversations: 'No conversations',
+    loadingMessages: 'Loading…',
+    errLoadMessages: 'Failed to load messages',
+    msgCount: '%s total',
+    emptyMessages: 'No messages in this conversation',
+    errSend: 'Failed to send',
+    btnDelete: 'Delete',
+    boardOnline: 'Board enabled · online',
+    boardOffline: 'Board enabled · offline',
+    tipStop: 'Stop',
+    tipStart: 'Start',
+    tipEditConfig: 'Edit settings',
+    yoloOffHint: 'YOLO mode (You Only Live Once): when on, every tool call of this agent is auto-approved instead of asking one by one (equivalent to the --yolo startup flag). Off by default; takes effect after the agent restarts.',
+    yoloOnHint: '⚠️ Risk notice: YOLO is on, so this agent no longer asks before each tool call and may delete/overwrite files or run system commands on its own. Use it only in a controlled environment; takes effect after the agent restarts.',
+    srcHubDir: 'hub directory',
+    srcCwd: 'current directory',
+    notExecutable: 'not executable',
+    optDefaultHubConfig: 'default (use the hub settings)',
+    optLatest: 'use the latest version (scanned at startup)',
+    optCurrentSuffix: '%s  (current)',
+    hintAutoScan: 'The highest co-shell version is scanned at startup',
+    errReadVersion: 'Cannot read the version',
+    errCannotConnect: 'Cannot connect',
+    optNoCoShell: 'No co-shell found; put it in the hub directory, the current directory, or on PATH',
+    detailEditSuffix: '%s · edit',
+    typeLocal: 'Local',
+    typeRemote: 'Remote',
+    stateRunning: 'Running (changes apply after a restart)',
+    stateStopped: 'Stopped',
+    lblPortWs: 'Port (with the host address it forms the WS URL)',
+    lblPortRestart: 'Port (editable; applies after a restart)',
+    errReadDesc: 'Cannot read the agent description: %s',
+    alertBadPort: 'Enter a valid port (1-65535).',
+    alertNoHost: 'Enter the host address',
+    alertNoWs: 'Enter the Workspace path',
+    alertSaveFailed: 'Save failed: %s',
+    msgSaved: 'Saved.',
+    alertStartFailed: 'Start failed: %s',
+    alertStopFailed: 'Stop failed: %s',
+    alertDeleteFailed: 'Delete failed: %s',
+    settingsNeedsKey: 'An access key is required to view the settings',
+    phKeySet: 'set (leave empty to keep it)',
+    phKeyNotSet: 'not set',
+    errSaveSettings: 'Save failed: %s',
+    statusSettingsSaved: 'Saved. HTTPS/whitelist/key changes take full effect after the hub restarts.',
+    statusCertSelected: 'Self-signed certificate selected. After saving and restarting the hub, the certificate is generated at the path above and HTTPS is enabled.',
+    phKeyGenerated: 'a new key was generated; save to apply',
+    statusKeyGenerated: 'A new access key was generated (64 hex chars). Click Save settings to apply.',
+    btnCreateLocalMode: 'Create a local Agent',
+    btnAddRemoteMode: 'Add a remote Agent',
+    alertNoCoShell: 'No usable co-shell found, so a local Agent cannot be created.\n\nInstall the co-shell executable in the current directory or add it to PATH, then reopen this panel.',
+    alertBadPortCreate: 'Enter a valid port (1-65535), or leave it empty to let the system assign one.',
+    alertPortUsed: 'Port %s is already in use, so it cannot be created.\n\nStop the service using it or pick another port (clear the port to let the system assign one again).',
+    alertCreateFailed: 'Create failed: %s',
+    alertCreateStartedFailed: 'Created, but the automatic start failed: %s',
+    alertNoHostPort: 'Enter the host address and port',
+    alertAddFailed: 'Add failed: %s',
+  };
+  // t(key, zh) resolves a string for the active language; zh is the fallback.
+  function t(key, zh){ return (LANG === 'en' && EN[key] != null) ? EN[key] : zh; }
+  // applyI18n translates the static markup (text / title / placeholder). It runs
+  // for en only: the markup already carries the zh source text.
+  function applyI18n(root){
+    if (LANG !== 'en') return;
+    root = root || document;
+    var i, els, el, v;
+    els = root.querySelectorAll('[data-i18n]');
+    for (i = 0; i < els.length; i++){
+      el = els[i]; v = EN[el.getAttribute('data-i18n')];
+      if (v != null) el.textContent = v;
+    }
+    els = root.querySelectorAll('[data-i18n-title]');
+    for (i = 0; i < els.length; i++){
+      el = els[i]; v = EN[el.getAttribute('data-i18n-title')];
+      if (v != null) el.setAttribute('title', v);
+    }
+    els = root.querySelectorAll('[data-i18n-ph]');
+    for (i = 0; i < els.length; i++){
+      el = els[i]; v = EN[el.getAttribute('data-i18n-ph')];
+      if (v != null) el.setAttribute('placeholder', v);
+    }
+  }
+  applyI18n(document);
+  document.documentElement.lang = LANG;
   var stageEl = document.getElementById('stage');
   var emptyEl = document.getElementById('empty');
   var badge = document.getElementById('hubBadge');
@@ -652,7 +833,7 @@ const webIndexHTML = `<!DOCTYPE html>
     e.stopPropagation(); // the head itself is clickable (section toggle)
     pinned = !pinned;
     pinEl.classList.toggle('pinned', pinned);
-    pinEl.title = pinned ? '已钉住（点击取消）' : '钉住（不自动收起）';
+    pinEl.title = pinned ? t('titlePinned', '已钉住（点击取消）') : t('titleUnpinned', '钉住（不自动收起）');
     if (pinned) clearTimeout(hideTimer);
   };
   // The config view's close/back buttons return to the agent list view.
@@ -713,7 +894,7 @@ const webIndexHTML = `<!DOCTYPE html>
   function setConn(on){
     connected = on;
     markEl.classList.toggle('off', !on);
-    markEl.title = on ? '已连接' : '连接断开 · 点击重连';
+    markEl.title = on ? t('statusConnected', '已连接') : t('statusDisconnected', '连接断开 · 点击重连');
   }
   // startPolling begins the periodic agent-list refresh (used on load and on
   // manual reconnect).
@@ -784,8 +965,8 @@ const webIndexHTML = `<!DOCTYPE html>
   // agentName maps a sender id to its display name: the hub UI posts as "user"
   // (rendered as 我), "*" is the broadcast target, agents resolve via roster.
   function agentName(id){
-    if (id === 'user') return '我';
-    if (id === '*') return '全部';
+    if (id === 'user') return t('whoMe', '我');
+    if (id === '*') return t('whoAll', '全部');
     return displayName(rosterById[id]) || id;
   }
   function initialOf(name){
@@ -804,9 +985,9 @@ const webIndexHTML = `<!DOCTYPE html>
   // stateBadge (not badge) because "badge" already names the hub logo bar
   // element in this scope.
   function stateBadge(state){
-    if (state === 'handled') return '<span class="board-badge handled">已受理</span>';
-    if (state === 'declined') return '<span class="board-badge declined">已拒绝</span>';
-    if (state === 'need_info') return '<span class="board-badge need_info">待补充</span>';
+    if (state === 'handled') return '<span class="board-badge handled">' + t('badgeHandled', '已受理') + '</span>';
+    if (state === 'declined') return '<span class="board-badge declined">' + t('badgeDeclined', '已拒绝') + '</span>';
+    if (state === 'need_info') return '<span class="board-badge need_info">' + t('badgeNeedInfo', '待补充') + '</span>';
     return '';
   }
   function fmtTime(ts){
@@ -815,7 +996,7 @@ const webIndexHTML = `<!DOCTYPE html>
     return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
   function convTitle(c){
-    if (c.key === '*') return '全部（公告）';
+    if (c.key === '*') return t('convAll', '全部（公告）');
     var names = (c.participants || []).filter(function(p){ return p !== '*'; }).map(agentName);
     return names.length ? names.join(' · ') : c.key;
   }
@@ -842,7 +1023,7 @@ const webIndexHTML = `<!DOCTYPE html>
   // renderConvs draws level 1: avatar + title + last message + time. Tapping a
   // row opens the conversation detail (level 2).
   function renderConvs(convs){
-    if (!convs.length){ boardConvsEl.innerHTML = '<div class="hint">暂无会话</div>'; return; }
+    if (!convs.length){ boardConvsEl.innerHTML = '<div class="hint">' + t('emptyConversations', '暂无会话') + '</div>'; return; }
     boardConvsEl.innerHTML = convs.map(function(c){
       var title = convTitle(c);
       var last = c.last_from ? (agentName(c.last_from) + '：' + (c.last_content || '')) : (c.last_content || '');
@@ -868,24 +1049,24 @@ const webIndexHTML = `<!DOCTYPE html>
     chatSubEl.textContent = '';
     setChatErr('');
     if (chatInputEl) chatInputEl.value = '';
-    boardMsgsEl.innerHTML = '<div class="hint">加载中…</div>';
+    boardMsgsEl.innerHTML = '<div class="hint">' + t('loadingMessages', '加载中…') + '</div>';
     showChatView('detail');
     loadMessages(key);
   }
   function loadMessages(key){
     api('GET', '/api/board/conversations/' + encodeURIComponent(key) + '/messages?limit=100', null, function(st, j){
-      if (st !== 200 || !j){ setChatErr('加载消息失败'); return; }
+      if (st !== 200 || !j){ setChatErr(t('errLoadMessages', '加载消息失败')); return; }
       renderMessages(j.messages || [], j.pending || []);
     });
   }
   // renderMessages draws level 2 bubbles: sender + time + body, with the human
   // user's own posts (from "user") aligned to the right, WeChat style.
   function renderMessages(msgs, pending){
-    chatSubEl.textContent = msgs.length ? ('共 ' + msgs.length + ' 条') : '';
+    chatSubEl.textContent = msgs.length ? t('msgCount', '共 %s 条').replace('%s', msgs.length) : '';
     var sig = msgs.map(function(m){ return m.id + '|' + (m.state || '') + '|' + (m.no_reply ? 'n' : ''); }).join(',') + '/' + pending.length;
     if (sig === lastMsgSig) return; // unchanged: keep the DOM and the scroll stable
     lastMsgSig = sig;
-    if (!msgs.length){ boardMsgsEl.innerHTML = '<div class="hint">该会话暂无消息</div>'; return; }
+    if (!msgs.length){ boardMsgsEl.innerHTML = '<div class="hint">' + t('emptyMessages', '该会话暂无消息') + '</div>'; return; }
     var wait = {};
     pending.forEach(function(a){ wait[a.message_id] = a.deadline; });
     var now = Math.floor(Date.now() / 1000);
@@ -895,12 +1076,12 @@ const webIndexHTML = `<!DOCTYPE html>
       var to = (m.to && m.to.length) ? m.to.map(agentName).join('、') : '';
       var extra = '';
       if (m.state) extra += stateBadge(m.state);
-      else if (m.no_reply) extra += '<span class="board-badge waiting">免回复</span>';
-      else if (wait[m.id]) extra += '<span class="board-badge waiting">等待 ' + Math.max(0, wait[m.id] - now) + 's</span>';
-      else if (m.timeout > 0) extra += '<span class="board-badge waiting">窗口 ' + m.timeout + 's</span>';
+      else if (m.no_reply) extra += '<span class="board-badge waiting">' + t('badgeNoReply', '免回复') + '</span>';
+      else if (wait[m.id]) extra += '<span class="board-badge waiting">' + t('badgeWaiting', '等待 %ss').replace('%s', Math.max(0, wait[m.id] - now)) + '</span>';
+      else if (m.timeout > 0) extra += '<span class="board-badge waiting">' + t('badgeWindow', '窗口 %ss').replace('%s', m.timeout) + '</span>';
       var foot = '';
       if (to) foot += '<div class="chat-reply">→ ' + esc(to) + '</div>';
-      if (m.reply_to) foot += '<div class="chat-reply">回复 ' + esc(m.reply_to) + '</div>';
+      if (m.reply_to) foot += '<div class="chat-reply">' + t('replyTo', '回复 %s').replace('%s', esc(m.reply_to)) + '</div>';
       return '<div class="chat-row' + (mine ? ' me' : '') + '">'
         + '<div class="av" style="background:' + avatarColor(m.from) + '">' + esc(initialOf(name)) + '</div>'
         + '<div class="col"><div class="who"><span>' + esc(name) + '</span>' + extra + '<span>' + esc(fmtTime(m.ts)) + '</span></div>'
@@ -920,7 +1101,7 @@ const webIndexHTML = `<!DOCTYPE html>
     setChatErr('');
     api('POST', '/api/board/conversations/' + encodeURIComponent(boardConvKey) + '/messages', { content: text }, function(st, j){
       btn.disabled = false;
-      if (st !== 200){ setChatErr((j && j.error) || '发送失败'); return; }
+      if (st !== 200){ setChatErr((j && j.error) || t('errSend', '发送失败')); return; }
       chatInputEl.value = '';
       lastMsgSig = '';
       loadBoard(); // refresh both the list summary and the open messages
@@ -987,7 +1168,7 @@ const webIndexHTML = `<!DOCTYPE html>
       wrap.className = 'agent-wrap';
       var del = document.createElement('button');
       del.className = 'agent-del';
-      del.textContent = '删除';
+      del.textContent = t('btnDelete', '删除');
       del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
@@ -999,12 +1180,12 @@ const webIndexHTML = `<!DOCTYPE html>
       if (a.board_state === 'online' || a.board_state === 'offline') {
         var off = a.board_state === 'offline';
         bmark = '<span class="bmark' + (off ? ' off' : '') + '" title="' +
-          (off ? '已启用公告板·离线' : '已启用公告板·在线') +
+          (off ? t('boardOffline', '已启用公告板·离线') : t('boardOnline', '已启用公告板·在线')) +
           '"><svg class="ico ico-inline" aria-hidden="true" focusable="false"><use href="#i-board"/></svg></span>';
       }
       r.innerHTML = '<span class="st ' + st + '"></span><span class="nmwrap"><span class="nm" title="' + esc(a.id || '') + '">' + esc(displayName(a)) + '</span>' + bmark + '</span>' +
-        (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
-        '<span class="chev" title="修改配置">›</span>';
+        (managed ? '<label class="switch" title="' + (on ? t('tipStop', '停止') : t('tipStart', '启动')) + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
+        '<span class="chev" title="' + t('tipEditConfig', '修改配置') + '">›</span>';
       // Clicking the card switches the main view to this agent; clicking the
       // trailing chevron opens its read-only detail view.
       r.addEventListener('click', function(e){
@@ -1055,8 +1236,8 @@ const webIndexHTML = `<!DOCTYPE html>
   // FEATURE-528: YOLO mode switch. While the switch is off the hint explains
   // what YOLO means; once it is on the hint states the risk instead, so
   // enabling it is always an explicit, informed choice.
-  var YOLO_OFF_HINT = 'YOLO 模式（You Only Live Once）：开启后该 agent 的所有工具调用自动批准，不再逐个询问（等效于启动参数 --yolo）。默认关闭，需重启 agent 后生效。';
-  var YOLO_ON_HINT = '⚠️ 风险提示：已开启 YOLO，该 agent 的工具调用将不再逐个确认，可能自动执行删除/覆盖文件、运行系统命令等高风险操作。请仅在受控环境中使用；需重启 agent 后生效。';
+  var YOLO_OFF_HINT = t('yoloOffHint', 'YOLO 模式（You Only Live Once）：开启后该 agent 的所有工具调用自动批准，不再逐个询问（等效于启动参数 --yolo）。默认关闭，需重启 agent 后生效。');
+  var YOLO_ON_HINT = t('yoloOnHint', '⚠️ 风险提示：已开启 YOLO，该 agent 的工具调用将不再逐个确认，可能自动执行删除/覆盖文件、运行系统命令等高风险操作。请仅在受控环境中使用；需重启 agent 后生效。');
   function syncYoloHint(input, hint){
     if (!input || !hint) return;
     hint.textContent = input.checked ? YOLO_ON_HINT : YOLO_OFF_HINT;
@@ -1072,15 +1253,15 @@ const webIndexHTML = `<!DOCTYPE html>
   // coShellSourceLabel maps a detection source to the label shown in the
   // dropdown, so copies found in different places can be told apart (FIX-521).
   function coShellSourceLabel(src){
-    if (src === 'hubdir') return 'hub 同目录';
-    if (src === 'cwd') return '当前目录';
+    if (src === 'hubdir') return t('srcHubDir', 'hub 同目录');
+    if (src === 'cwd') return t('srcCwd', '当前目录');
     if (src === 'path') return 'PATH';
     return src || '';
   }
   // coShellOptionText renders one candidate as "<path>（<来源>）  (vX.Y.Z)".
   function coShellOptionText(c){
     var label = coShellSourceLabel(c.source);
-    return c.path + (label ? '（' + label + '）' : '') + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+    return c.path + (label ? '（' + label + '）' : '') + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [' + t('notExecutable', '不可执行') + ']');
   }
   // loadCoShellOptions re-scans on every entry into the edit form (FIX-525):
   // the previous implementation short-circuited on the cached list, so a
@@ -1098,12 +1279,12 @@ const webIndexHTML = `<!DOCTYPE html>
     var sel = document.getElementById('d-coshell');
     sel.innerHTML = '';
     var def = document.createElement('option');
-    def.value = ''; def.textContent = '默认（沿用 hub 配置）';
+    def.value = ''; def.textContent = t('optDefaultHubConfig', '默认（沿用 hub 配置）');
     sel.appendChild(def);
     // FEATURE-527: "latest" is resolved on every start (hub dir first, then
     // the highest version across the current dir and PATH).
     var latest = document.createElement('option');
-    latest.value = 'latest'; latest.textContent = '使用最新版本（启动时自动搜索）';
+    latest.value = 'latest'; latest.textContent = t('optLatest', '使用最新版本（启动时自动搜索）');
     sel.appendChild(latest);
     // FEATURE-527: "latest" is always offered above, so it counts as found
     // and is never re-added as a trailing "current value" entry below.
@@ -1119,7 +1300,7 @@ const webIndexHTML = `<!DOCTYPE html>
     // selectable, so opening the form never silently resets the value.
     if (current && !found){
       var extra = document.createElement('option');
-      extra.value = current; extra.textContent = current + '  （当前值）';
+      extra.value = current; extra.textContent = t('optCurrentSuffix', '%s  （当前值）').replace('%s', current);
       sel.appendChild(extra);
     }
     sel.value = current || '';
@@ -1130,7 +1311,7 @@ const webIndexHTML = `<!DOCTYPE html>
     if (!path){ el.textContent = ''; el.className = 'hint'; return; }
     // FEATURE-527: "latest" has no path to query — it is resolved at start.
     if (path === 'latest'){
-      el.textContent = '启动时自动搜索最高版本 co-shell';
+      el.textContent = t('hintAutoScan', '启动时自动搜索最高版本 co-shell');
       el.className = 'hint';
       return;
     }
@@ -1139,7 +1320,7 @@ const webIndexHTML = `<!DOCTYPE html>
         el.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
         el.className = 'hint ver-ok';
       } else {
-        el.textContent = (j && j.error) || '无法读取版本';
+        el.textContent = (j && j.error) || t('errReadVersion', '无法读取版本');
         el.className = 'hint ver-err';
       }
     });
@@ -1149,10 +1330,10 @@ const webIndexHTML = `<!DOCTYPE html>
     editID = a.id;
     var external = a.type === 'external';
     var parts = wsURLParts(a.ws_url);
-    document.getElementById('detailTitle').textContent = (a.id || '') + ' · 修改';
+    document.getElementById('detailTitle').textContent = t('detailEditSuffix', '%s · 修改').replace('%s', a.id || '');
     document.getElementById('d-id').value = a.id || '';
     loadAgentIdentity(a.id, external);
-    document.getElementById('d-type').value = external ? '远程' : '本地';
+    document.getElementById('d-type').value = external ? t('typeRemote', '远程') : t('typeLocal', '本地');
     document.getElementById('d-ws').value = a.workspace || '';
     document.getElementById('d-host').value = parts.host;
     document.getElementById('d-port').value = external ? parts.port : (a.port || '');
@@ -1161,7 +1342,7 @@ const webIndexHTML = `<!DOCTYPE html>
     var yoloInput = document.getElementById('d-yolo');
     yoloInput.checked = !!a.yolo;
     syncYoloHint(yoloInput, document.getElementById('d-yolo-hint'));
-    document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中（修改需重启后生效）' : '已停止';
+    document.getElementById('d-state').textContent = (a.running || a.connected) ? t('stateRunning', '运行中（修改需重启后生效）') : t('stateStopped', '已停止');
     document.getElementById('d-msg').textContent = '';
     // Local-only fields are greyed out for a remote agent, and vice versa.
     setFieldEnabled('d-ws', !external);
@@ -1171,7 +1352,7 @@ const webIndexHTML = `<!DOCTYPE html>
     setFieldEnabled('d-shared', !external);
     setFieldEnabled('d-extra', !external);
     setFieldEnabled('d-yolo', !external);
-    document.getElementById('d-port-label').textContent = external ? '端口号（与主机地址组成 WS 地址）' : '端口号（可修改，需重启后生效）';
+    document.getElementById('d-port-label').textContent = external ? t('lblPortWs', '端口号（与主机地址组成 WS 地址）') : t('lblPortRestart', '端口号（可修改，需重启后生效）');
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
   }
@@ -1181,14 +1362,14 @@ const webIndexHTML = `<!DOCTYPE html>
   function loadAgentIdentity(id, external){
     var el = document.getElementById('d-name');
     var hint = document.getElementById('d-name-hint');
-    el.textContent = '（未上报）';
+    el.textContent = t('txtNotReported', '（未上报）');
     hint.textContent = external
-      ? '外部 Agent 的描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。'
-      : '由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。';
+      ? t('hintRemoteDesc', '外部 Agent 的描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。')
+      : t('hintAgentDesc', '由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。');
     api('GET', '/api/agents/' + encodeURIComponent(id) + '/identity', null, function(st, j){
       if (editID !== id) return; // the form switched to another agent meanwhile
-      if (st !== 200){ hint.textContent = '无法读取 Agent描述: ' + ((j && j.error) || st); return; }
-      el.textContent = (j && j.agent_description) || '（未上报）';
+      if (st !== 200){ hint.textContent = t('errReadDesc', '无法读取 Agent描述: %s').replace('%s', (j && j.error) || st); return; }
+      el.textContent = (j && j.agent_description) || t('txtNotReported', '（未上报）');
     });
   }
   // saveAgentEdit PUTs the edited fields back to the hub. A running managed
@@ -1201,17 +1382,17 @@ const webIndexHTML = `<!DOCTYPE html>
     var external = a.type === 'external';
     var port = parseInt(document.getElementById('d-port').value.trim(), 10);
     if (!port || isNaN(port) || port < 1 || port > 65535){
-      alert('请填写有效的端口号（1-65535）。');
+      alert(t('alertBadPort', '请填写有效的端口号（1-65535）。'));
       return;
     }
     var body = {};
     if (external){
       var host = normalizeHost(document.getElementById('d-host').value.trim());
-      if (!host){ alert('请填写主机地址'); return; }
+      if (!host){ alert(t('alertNoHost', '请填写主机地址')); return; }
       body.ws_url = 'ws://' + host + ':' + port + '/ws';
     } else {
       var ws = document.getElementById('d-ws').value.trim();
-      if (!ws){ alert('请填写 Workspace 路径'); return; }
+      if (!ws){ alert(t('alertNoWs', '请填写 Workspace 路径')); return; }
       body.workspace = ws;
       body.port = port;
       body.use_shared_config = document.getElementById('d-shared').checked;
@@ -1226,12 +1407,12 @@ const webIndexHTML = `<!DOCTYPE html>
       var msg = document.getElementById('d-msg');
       if (st >= 400){
         msg.textContent = '';
-        alert('保存失败: ' + ((j && j.error) || st));
+        alert(t('alertSaveFailed', '保存失败: %s').replace('%s', (j && j.error) || st));
         return;
       }
       // FIX-558: the Agent描述 is read-only on the hub (the agent owns it), so
       // saving the run parameters is the whole operation.
-      msg.textContent = '已保存。';
+      msg.textContent = t('msgSaved', '已保存。');
       msg.className = 'hint ver-ok';
       refresh();
     });
@@ -1281,7 +1462,7 @@ const webIndexHTML = `<!DOCTYPE html>
   // switch is reverted to the stopped state.
   function startAgent(id, sw){
     api('POST', '/api/agents/' + encodeURIComponent(id) + '/start', null, function(st, j){
-      if (st >= 400){ alert('启动失败: ' + (j.error || st)); sw.checked = false; refresh(); return; }
+      if (st >= 400){ alert(t('alertStartFailed', '启动失败: %s').replace('%s', j.error || st)); sw.checked = false; refresh(); return; }
       current = id;
       renderList();
       closePanel();
@@ -1295,14 +1476,14 @@ const webIndexHTML = `<!DOCTYPE html>
   // stopAgent stops a managed agent; on failure the switch is reverted to on.
   function stopAgent(id, sw){
     api('POST', '/api/agents/' + encodeURIComponent(id) + '/stop', null, function(st, j){
-      if (st >= 400){ alert('停止失败: ' + (j.error || st)); sw.checked = true; refresh(); return; }
+      if (st >= 400){ alert(t('alertStopFailed', '停止失败: %s').replace('%s', j.error || st)); sw.checked = true; refresh(); return; }
       refresh();
     });
   }
 
   function closeAgent(id){
     api('DELETE', '/api/agents/' + encodeURIComponent(id), null, function(st, j){
-      if (st >= 400) alert('删除失败: ' + (j.error || st));
+      if (st >= 400) alert(t('alertDeleteFailed', '删除失败: %s').replace('%s', j.error || st));
       refresh();
     });
   }
@@ -1329,7 +1510,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var settingsDir = '.'; // directory holding hub-settings.json (from GET /api/settings)
   function loadSettings(){
     api('GET', '/api/settings', null, function(st, j){
-      if (st === 401){ sStatus.textContent = '需要访问 KEY 才能查看设置'; return; }
+      if (st === 401){ sStatus.textContent = t('settingsNeedsKey', '需要访问 KEY 才能查看设置'); return; }
       var s = (j && j.settings) || {};
       if (s.settings_dir) settingsDir = s.settings_dir;
       document.getElementById('s-tls').checked = !!s.tls_enabled;
@@ -1337,7 +1518,7 @@ const webIndexHTML = `<!DOCTYPE html>
       document.getElementById('s-keyfile').value = s.key_file || '';
       document.getElementById('s-whitelist').value = (s.whitelist || []).join(', ');
       document.getElementById('s-accesskey').value = '';
-      document.getElementById('s-accesskey').placeholder = s.access_key ? '已设置（留空不修改）' : '未设置';
+      document.getElementById('s-accesskey').placeholder = s.access_key ? t('phKeySet', '已设置（留空不修改）') : t('phKeyNotSet', '未设置');
       document.getElementById('s-reqkey').checked = !!s.require_key;
       sStatus.textContent = '';
     });
@@ -1352,8 +1533,8 @@ const webIndexHTML = `<!DOCTYPE html>
       require_key: document.getElementById('s-reqkey').checked
     };
     api('PUT', '/api/settings', body, function(st, j){
-      if (st >= 400){ sStatus.textContent = '保存失败: ' + ((j && j.error) || st); return; }
-      sStatus.textContent = '已保存。HTTPS/白名单/KEY 变更需重启 hub 后完全生效。';
+      if (st >= 400){ sStatus.textContent = t('errSaveSettings', '保存失败: %s').replace('%s', (j && j.error) || st); return; }
+      sStatus.textContent = t('statusSettingsSaved', '已保存。HTTPS/白名单/KEY 变更需重启 hub 后完全生效。');
       loadSettings();
     });
   }
@@ -1367,7 +1548,7 @@ const webIndexHTML = `<!DOCTYPE html>
     document.getElementById('s-cert').value = certPath;
     document.getElementById('s-keyfile').value = keyPath;
     document.getElementById('s-tls').checked = true;
-    sStatus.textContent = '已选择自签名证书。保存并重启 hub 后，证书将生成到上述路径并启用 HTTPS。';
+    sStatus.textContent = t('statusCertSelected', '已选择自签名证书。保存并重启 hub 后，证书将生成到上述路径并启用 HTTPS。');
   };
   // Regenerate a random secure access key into the input (saved on 保存设置).
   document.getElementById('s-genkey').onclick = function(){
@@ -1379,8 +1560,8 @@ const webIndexHTML = `<!DOCTYPE html>
     var keyInput = document.getElementById('s-accesskey');
     keyInput.type = 'text';
     keyInput.value = hex;
-    keyInput.placeholder = '已生成新 KEY，保存后生效';
-    sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
+    keyInput.placeholder = t('phKeyGenerated', '已生成新 KEY，保存后生效');
+    sStatus.textContent = t('statusKeyGenerated', '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。');
   };
   // FEATURE-499: clicking the scrim (outside the agent list) auto-collapses
   // the drawer, unless it is pinned. The pin still controls auto-collapse on
@@ -1411,7 +1592,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var remoteFields = document.getElementById('remoteFields');
   var cfgSubmit = document.getElementById('cfg-submit');
   function updateSubmitLabel(){
-    cfgSubmit.textContent = mode === 'local' ? '创建本地 Agent' : '添加远程 Agent';
+    cfgSubmit.textContent = mode === 'local' ? t('btnCreateLocalMode', '创建本地 Agent') : t('btnAddRemoteMode', '添加远程 Agent');
   }
   document.querySelectorAll('#modeSeg .seg-btn').forEach(function(btn){
     btn.onclick = function(){
@@ -1448,12 +1629,12 @@ const webIndexHTML = `<!DOCTYPE html>
       // selected (a miss is reported when the agent starts).
       var latestOpt = document.createElement('option');
       latestOpt.value = 'latest';
-      latestOpt.textContent = '使用最新版本（启动时自动搜索）';
+      latestOpt.textContent = t('optLatest', '使用最新版本（启动时自动搜索）');
       coshellSel.appendChild(latestOpt);
       if (!shells.length){
         var noneOpt = document.createElement('option');
         noneOpt.value = '';
-        noneOpt.textContent = '未找到 co-shell，请放到 hub 同目录、当前目录或 PATH';
+        noneOpt.textContent = t('optNoCoShell', '未找到 co-shell，请放到 hub 同目录、当前目录或 PATH');
         coshellSel.appendChild(noneOpt);
         coshellSel.value = 'latest';
       } else {
@@ -1479,7 +1660,7 @@ const webIndexHTML = `<!DOCTYPE html>
     if (!path){ mVerEl.textContent = ''; mVerEl.className = 'hint'; return; }
     // FEATURE-527: "latest" is resolved when the agent starts.
     if (path === 'latest'){
-      mVerEl.textContent = '启动时自动搜索最高版本 co-shell';
+      mVerEl.textContent = t('hintAutoScan', '启动时自动搜索最高版本 co-shell');
       mVerEl.className = 'hint';
       return;
     }
@@ -1488,7 +1669,7 @@ const webIndexHTML = `<!DOCTYPE html>
         mVerEl.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
         mVerEl.className = 'hint ver-ok';
       } else {
-        mVerEl.textContent = (j && j.error) || '无法读取版本';
+        mVerEl.textContent = (j && j.error) || t('errReadVersion', '无法读取版本');
         mVerEl.className = 'hint ver-err';
       }
     });
@@ -1519,7 +1700,7 @@ const webIndexHTML = `<!DOCTYPE html>
           ' <svg class="ico ico-inline" aria-hidden="true"><use href="#i-check"/></svg>';
         eVerEl.className = 'hint ver-ok';
       } else {
-        eVerEl.textContent = (j && j.error) || '无法连接';
+        eVerEl.textContent = (j && j.error) || t('errCannotConnect', '无法连接');
         eVerEl.className = 'hint ver-err';
       }
     });
@@ -1553,15 +1734,15 @@ const webIndexHTML = `<!DOCTYPE html>
   };
   function createLocalAgent(){
     var ws = document.getElementById('m-ws').value.trim();
-    if (!ws){ alert('请填写 Workspace 路径'); return; }
+    if (!ws){ alert(t('alertNoWs', '请填写 Workspace 路径')); return; }
     if (!coshellSel.value){
-      alert('未找到可用的 co-shell，无法创建本地 Agent。\n\n请将 co-shell 可执行文件安装到当前目录或加入 PATH，然后重新打开此界面。');
+      alert(t('alertNoCoShell', '未找到可用的 co-shell，无法创建本地 Agent。\n\n请将 co-shell 可执行文件安装到当前目录或加入 PATH，然后重新打开此界面。'));
       return;
     }
     var id = document.getElementById('m-id').value.trim() || ws.split(/[\\\/]/).pop();
     var port = parseInt(document.getElementById('m-port').value.trim(), 10);
     if (!port || isNaN(port) || port < 1 || port > 65535){
-      alert('请填写有效的端口号（1-65535），或留空由系统自动分配。');
+      alert(t('alertBadPortCreate', '请填写有效的端口号（1-65535），或留空由系统自动分配。'));
       return;
     }
     api('POST', '/api/agents', {
@@ -1576,9 +1757,9 @@ const webIndexHTML = `<!DOCTYPE html>
       if (st >= 400){
         var msg = (j && j.error) || st;
         if (/port .* in use|already in use/i.test(msg)){
-          alert('端口 ' + port + ' 已被占用，无法创建。\n\n请先关闭占用该端口的服务，或改用其他端口（可清空端口号让系统重新自动分配）。');
+          alert(t('alertPortUsed', '端口 %s 已被占用，无法创建。\n\n请先关闭占用该端口的服务，或改用其他端口（可清空端口号让系统重新自动分配）。').replace('%s', port));
         } else {
-          alert('创建失败: ' + msg);
+          alert(t('alertCreateFailed', '创建失败: %s').replace('%s', msg));
         }
         refresh();
         return;
@@ -1589,7 +1770,7 @@ const webIndexHTML = `<!DOCTYPE html>
       syncYoloHint(newYolo, document.getElementById('m-yolo-hint'));
       var nid = (j && j.id) || id;
       api('POST', '/api/agents/' + encodeURIComponent(nid) + '/start', null, function(st2, j2){
-        if (st2 >= 400) alert('创建成功，但自动启动失败: ' + ((j2 && j2.error) || st2));
+        if (st2 >= 400) alert(t('alertCreateStartedFailed', '创建成功，但自动启动失败: %s').replace('%s', (j2 && j2.error) || st2));
         current = nid;
         renderList();
         closePanel();
@@ -1609,11 +1790,11 @@ const webIndexHTML = `<!DOCTYPE html>
       if (!port) port = host.slice(ci + 1);
       host = host.slice(0, ci);
     }
-    if (!host || !port){ alert('请填写主机地址和端口号'); return; }
+    if (!host || !port){ alert(t('alertNoHostPort', '请填写主机地址和端口号')); return; }
     var url = 'ws://' + host + ':' + port + '/ws';
     var id = eIdEl.value.trim() || (host + '-' + port);
     api('POST', '/api/agents/external', { id: id, ws_url: url }, function(st, j){
-      if (st >= 400) alert('添加失败: ' + (j.error || st));
+      if (st >= 400) alert(t('alertAddFailed', '添加失败: %s').replace('%s', j.error || st));
       else { eHostEl.value=''; ePortEl.value=''; eIdEl.value=''; }
       refresh();
     });
