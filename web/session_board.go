@@ -42,26 +42,21 @@ import (
 // caching, board_sent acknowledgements, and busy/idle dispatch of the messages
 // the hub delivers.
 
-// initBoard wires the message aggregator and announces this agent to the hub.
-// It is a no-op when the board switch is off. The announced name and 职责 are
-// read from IDENTITY.md (FEATURE-538), never from the hub registry.
+// initBoard wires the message aggregator and keeps the hub informed about this
+// agent's board state. The runtime is built even while the switch is off:
+// turning it on mid-session must work without restarting the session
+// (FEATURE-557). The announced name and 职责 are read from IDENTITY.md
+// (FEATURE-538), never from the hub registry.
 func (s *WebSession) initBoard() {
-	if !s.ag.BoardEnabled() {
-		return
-	}
-	name, duty := s.currentIdentity()
 	s.boardAgg = agent.NewBoardAggregator(agent.BoardAggregateWindow, s.flushBoardMessages)
 	// The hub dials in, so a hub restart or a dropped socket means a brand new
-	// client connection. Re-announce on every connect, otherwise the hub keeps
-	// this agent marked offline with a frozen roster revision (UC-0006).
+	// client connection. Announce the current state on every connect, otherwise
+	// the hub keeps a stale roster entry (UC-0006, FEATURE-557).
 	s.srv.SetConnectHook(func() {
-		n, d := s.currentIdentity()
-		go s.registerBoard(n, d)
+		go s.announceBoardState()
 	})
-	go s.registerBoard(name, duty)
-	// Re-announce periodically: the hub keeps the roster and can only see agents
-	// that talk to it, so a lost registration must not stay lost (FEATURE-530).
-	go s.boardHeartbeat()
+	// Announce once now, then whenever the board switch flips.
+	go s.watchBoardSwitch()
 	// Push an immediate update when IDENTITY.md changes on disk (FEATURE-538).
 	go s.watchBoardIdentity()
 }
@@ -72,21 +67,72 @@ func (s *WebSession) currentIdentity() (string, string) {
 	return s.ag.IdentityName(), s.ag.IdentityDescription()
 }
 
-// registerBoard sends one board_register frame (non-LLM). The WS connection may
-// not be registered yet when the session starts, so it retries briefly.
-func (s *WebSession) registerBoard(name, duty string) {
-	payload, err := json.Marshal(map[string]interface{}{
-		"type": "board_register",
-		"name": name,
-		"duty": duty,
-	})
+// boardStateFrame builds the frame that tells the hub whether this agent is on
+// the board right now: board_register (with the IDENTITY.md name and 职责) while
+// the switch is on, board_unregister while it is off. The unregister frame is
+// what turns a stale "online" roster entry into "not registered" once the
+// switch is turned off (FEATURE-557).
+func boardStateFrame(enabled bool, name, duty string) ([]byte, string) {
+	payload := map[string]interface{}{}
+	frameType := "board_unregister"
+	if enabled {
+		frameType = "board_register"
+		payload["name"] = name
+		payload["duty"] = duty
+	}
+	payload["type"] = frameType
+	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Warn("session: board register marshal: %v", err)
+		log.Warn("session: board state marshal (%s): %v", frameType, err)
+		return nil, frameType
+	}
+	return data, frameType
+}
+
+// announceBoardState tells the hub whether this agent is on the board right now.
+func (s *WebSession) announceBoardState() {
+	name, duty := s.currentIdentity()
+	data, frameType := boardStateFrame(s.ag.BoardEnabled(), name, duty)
+	if data == nil {
 		return
 	}
+	s.sendBoardFrame(data, frameType)
+}
+
+// boardSwitchInterval is how often this agent compares its board-enabled switch
+// with the value it last announced. The switch has several writers (the :config
+// command, the settings page, a hand-edited config.json), so the session polls
+// the effective value instead of hooking every writer (FEATURE-557).
+const boardSwitchInterval = 2 * time.Second
+
+// watchBoardSwitch announces the board state once at startup and again every
+// time the board-enabled switch flips.
+func (s *WebSession) watchBoardSwitch() {
+	last := s.ag.BoardEnabled()
+	s.announceBoardState()
+	t := time.NewTicker(boardSwitchInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.closed:
+			return
+		case <-t.C:
+			cur := s.ag.BoardEnabled()
+			if cur == last {
+				continue
+			}
+			last = cur
+			s.announceBoardState()
+		}
+	}
+}
+
+// sendBoardFrame sends one board frame (non-LLM). The WS connection may not be
+// registered yet when the session starts, so it retries briefly.
+func (s *WebSession) sendBoardFrame(payload []byte, what string) {
 	for attempt := 0; attempt < 20; attempt++ {
 		if err := s.srv.sendRaw(payload); err == nil {
-			log.Info("session: board registration sent (name=%q)", name)
+			log.Info("session: board %s sent", what)
 			return
 		}
 		select {
@@ -95,30 +141,7 @@ func (s *WebSession) registerBoard(name, duty string) {
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
-	log.Warn("session: board registration failed (hub link unavailable)")
-}
-
-// boardHeartbeatInterval is how often this agent re-announces itself.
-const boardHeartbeatInterval = 60 * time.Second
-
-// boardHeartbeat re-announces this agent periodically (reading IDENTITY.md
-// afresh, so an edit that was somehow missed still reaches the hub). The hub
-// keeps the roster and can only see agents that talk to it, so a registration
-// that got lost (the agent's WS socket was replaced by another serve-mode
-// client) would otherwise keep this agent invisible until the next reconnect
-// (FEATURE-530).
-func (s *WebSession) boardHeartbeat() {
-	t := time.NewTicker(boardHeartbeatInterval)
-	defer t.Stop()
-	for {
-		select {
-		case <-s.closed:
-			return
-		case <-t.C:
-			name, duty := s.currentIdentity()
-			s.registerBoard(name, duty)
-		}
-	}
+	log.Warn("session: board %s failed (hub link unavailable)", what)
 }
 
 // boardIdentityInterval is how often this agent looks for external edits to its
@@ -144,6 +167,9 @@ func (s *WebSession) watchBoardIdentity() {
 		case <-s.closed:
 			return
 		case <-t.C:
+			if !s.ag.BoardEnabled() {
+				continue
+			}
 			fi, err := os.Stat(path)
 			if err != nil {
 				continue

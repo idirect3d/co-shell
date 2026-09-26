@@ -218,6 +218,16 @@ type agentView struct {
 	ExtraArgs       string `json:"extra_args,omitempty"`
 	// YOLO reports whether the agent is started with --yolo (FEATURE-528).
 	YOLO bool `json:"yolo"`
+	// BoardEnabled reports whether the agent is registered on the hub message
+	// board (FEATURE-557). Registration only happens while the agent's
+	// board-enabled switch is on, so a roster entry marks a board-enabled
+	// agent; an external agent's config file is not reachable from the hub.
+	// BoardEnabled is kept for older UIs: it is true unless BoardState is
+	// "unregistered".
+	BoardEnabled bool `json:"board_enabled"`
+	// BoardState is the three-state board indicator (FEATURE-557):
+	// "unregistered", "online" or "offline".
+	BoardState string `json:"board_state"`
 }
 
 // handleListAgents returns the registry agents with their running/connected
@@ -254,6 +264,20 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 		} else if s.WSURL != "" {
 			if ver, b, err := remoteVersion(wsURLToBase(s.WSURL)); err == nil {
 				v.Version, v.Build = ver, b
+			}
+		}
+		// FEATURE-557: three-state board indicator for the agent list. Only a
+		// registered agent gets an icon: bright while online, grey while it is
+		// merely known (registered earlier, link down) and none at all while it
+		// is unregistered (board switch off).
+		v.BoardState = BoardStateUnregistered
+		if w.board != nil {
+			if info, ok := w.board.Agent(s.ID); ok && info.Registered {
+				v.BoardEnabled = true
+				v.BoardState = BoardStateOffline
+				if info.Online {
+					v.BoardState = BoardStateOnline
+				}
 			}
 		}
 		// FEATURE-499: query the agent's busy state (task executing) for the
@@ -308,11 +332,11 @@ type createAgentRequest struct {
 	// agent-name initialised to the ID, when it does not exist yet). It is never
 	// stored in the registry.
 	AgentDescription string `json:"agent_description,omitempty"`
-	Workspace    string `json:"workspace"`
-	CoShell      string `json:"co_shell,omitempty"`
-	ConfigPath   string `json:"config_path,omitempty"`
-	CreateConfig bool   `json:"create_config"`
-	Port         int    `json:"port,omitempty"`
+	Workspace        string `json:"workspace"`
+	CoShell          string `json:"co_shell,omitempty"`
+	ConfigPath       string `json:"config_path,omitempty"`
+	CreateConfig     bool   `json:"create_config"`
+	Port             int    `json:"port,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json (copied from ~/.co-shell/config.json when absent,
 	// or created empty if the shared config does not exist either).
@@ -534,6 +558,10 @@ func (w *WebUI) handleStopAgent(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	// FEATURE-557: a stopped agent leaves the board right away — waiting for the
+	// socket to be reaped would keep showing it online. This is idempotent with
+	// the disconnect path (dropAgentLink ends up here too).
+	w.proxy.handleAgentGone(id)
 	writeJSON(rw, http.StatusOK, map[string]string{"id": id})
 }
 

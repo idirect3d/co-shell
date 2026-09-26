@@ -56,3 +56,39 @@ func TestBoardAckFrameCarriesMessageID(t *testing.T) {
 		t.Fatalf("req_id/ok = %q/%v, want r1/true", msg.ReqID, msg.BoardOK)
 	}
 }
+
+// TestBoardStateFrameSelection pins FEATURE-557 A-015: this agent announces its
+// board state with board_register (carrying the IDENTITY.md name and 职责) while
+// its board switch is on, and with board_unregister while it is off — the frame
+// that turns a stale "online" roster entry into "not registered".
+func TestBoardStateFrameSelection(t *testing.T) {
+	data, frameType := boardStateFrame(true, "co-shell", "dev")
+	if frameType != "board_register" {
+		t.Fatalf("frame type with the switch on = %q, want board_register", frameType)
+	}
+	var on map[string]interface{}
+	if err := json.Unmarshal(data, &on); err != nil {
+		t.Fatalf("unmarshal register frame: %v", err)
+	}
+	if on["type"] != "board_register" || on["name"] != "co-shell" || on["duty"] != "dev" {
+		t.Fatalf("register frame = %v, want type/name/duty", on)
+	}
+
+	data, frameType = boardStateFrame(false, "co-shell", "dev")
+	if frameType != "board_unregister" {
+		t.Fatalf("frame type with the switch off = %q, want board_unregister", frameType)
+	}
+	var off map[string]interface{}
+	if err := json.Unmarshal(data, &off); err != nil {
+		t.Fatalf("unmarshal unregister frame: %v", err)
+	}
+	if off["type"] != "board_unregister" {
+		t.Fatalf("unregister frame = %v, want type=board_unregister", off)
+	}
+	if _, ok := off["name"]; ok {
+		t.Errorf("unregister frame must not carry a name: %v", off)
+	}
+	if _, ok := off["duty"]; ok {
+		t.Errorf("unregister frame must not carry a duty: %v", off)
+	}
+}

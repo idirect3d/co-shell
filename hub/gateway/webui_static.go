@@ -15,8 +15,14 @@ var errClosed = errors.New("use of closed network connection")
 //     they are on the hub, not a bare co-shell instance.
 //   - The agent list lives in a left drawer that is collapsed to a thin edge
 //     strip by default and slides open when the pointer dwells on the left
-//     edge (or the badge is clicked). On wide screens the open drawer pushes
-//     the iframe aside; on narrow screens it overlays the iframe.
+//     edge (or the badge is clicked). The drawer always floats over the iframe
+//     (FEATURE-557): it never pushes the co-shell main view aside, so opening
+//     it does not reflow the page behind (wide screens used to lay out
+//     side-by-side and shift the iframe right).
+//   - A board-enabled agent (one registered on the hub message board) shows a
+//     chat-bubble icon right after its name (FEATURE-557) — the same artwork as
+//     the co-shell status-bar session bubble (i-sessions); the flag arrives as
+//     board_enabled in GET /api/agents.
 //   - The drawer has two internal views: the agent list and the config view
 //     (add local/remote agent + start/stop/delete). "Agent 管理" switches to
 //     the config view; its back button returns to the agent list.
@@ -42,8 +48,9 @@ const webIndexHTML = `<!DOCTYPE html>
   html,body { height:100%; }
   body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); overflow:hidden; }
 
-  /* Full-screen iframe stage. */
-  #stage { position:fixed; inset:0; transition:left .22s ease; }
+  /* Full-screen iframe stage. FEATURE-557: the stage is always full-bleed —
+     the drawer overlays it and never shifts it, so no left transition. */
+  #stage { position:fixed; inset:0; }
   .frame { position:absolute; inset:0; width:100%; height:100%; border:none; background:#fff; display:none; }
   .frame.active { display:block; }
   .empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--fg-dim); text-align:center; padding:20px; }
@@ -93,6 +100,9 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel {
     position:fixed; top:var(--topbar-h); left:0; bottom:0; width:var(--panel-w); z-index:25;
     background:var(--panel); border-right:1px solid var(--border);
+    /* FEATURE-557: the drawer floats over the iframe at every screen size, so
+       the shadow is unconditional (it used to apply on narrow screens only). */
+    box-shadow:2px 0 12px rgba(0,0,0,.4);
     transform:translateX(-100%); transition:transform .22s ease;
     display:flex; flex-direction:column;
   }
@@ -221,7 +231,13 @@ const webIndexHTML = `<!DOCTYPE html>
     0%,100% { box-shadow:0 0 2px var(--err); opacity:.55; }
     50% { box-shadow:0 0 8px var(--err); opacity:1; }
   }
-  .agent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* FEATURE-557: the name is wrapped so the board (chat bubble) marker can sit
+     right after the text: the wrapper takes the flexible slot, the name
+     truncates inside it and the marker stays visible. */
+  .agent .nmwrap { flex:1; min-width:0; display:flex; align-items:center; gap:4px; }
+  .agent .nm { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agent .bmark { flex:none; display:flex; align-items:center; color:var(--accent); }
+  .agent .bmark.off { color:var(--fg-faint); }
   .agent .chev { flex:none; font-size:16px; color:var(--fg-faint); padding:0 2px; cursor:pointer; line-height:1; }
   .agent .chev:hover { color:var(--accent); }
   /* Sliding power switch (start/stop). */
@@ -314,14 +330,9 @@ const webIndexHTML = `<!DOCTYPE html>
   .btn .ico { width:15px; height:15px; margin-right:5px; }
 
 
-  /* Wide screens: an open drawer pushes the iframe aside (side-by-side). */
-  @media (min-width:901px) {
-    body.drawer-open #stage { left:var(--panel-w); }
-  }
-  /* Narrow screens: the drawer overlays the iframe. */
-  @media (max-width:900px) {
-    #agentPanel { box-shadow:2px 0 12px rgba(0,0,0,.4); }
-  }
+  /* FEATURE-557: there is no wide-screen side-by-side rule any more — the
+     drawer overlays the iframe at every width (see #agentPanel above), so
+     opening it never squeezes the co-shell main view. */
   /* FEATURE-537: on phone-sized screens the drawer fills the viewport, so the
      Chat list and the Chat detail each take one screen (WeChat mobile style). */
   @media (max-width:640px) {
@@ -380,6 +391,15 @@ const webIndexHTML = `<!DOCTYPE html>
     <symbol id="i-check" viewBox="0 0 24 24">
       <path d="M5 12.5l4.5 4.5L19 7.5"
             fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- FEATURE-557: chat-bubble marker for a board-enabled agent (one that
+         registered on the hub message board); shown after the agent name.
+         FEATURE-557 follow-up: same geometry as the co-shell status-bar session
+         icon (i-sessions in web/static/index.html) so both pages read alike. -->
+    <symbol id="i-board" viewBox="0 0 24 24">
+      <path d="M20.4 11.8c0 4-3.8 7.2-8.4 7.2-1 0-2-.16-2.9-.46L4.6 20.4l1.3-3.5c-1.5-1.3-2.4-3.1-2.4-5.1 0-4 3.8-7.2 8.5-7.2s8.4 3.2 8.4 7.2Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
             stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
   </defs>
@@ -970,7 +990,18 @@ const webIndexHTML = `<!DOCTYPE html>
       del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
-      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm" title="' + esc(a.id || '') + '">' + esc(displayName(a)) + '</span>' +
+      // FEATURE-557: three-state board marker right after the name (same
+      // artwork as the co-shell status-bar session icon): bright while the agent
+      // is registered and online, grey while it is registered but offline, and
+      // nothing at all while it is not registered (board switch off).
+      var bmark = '';
+      if (a.board_state === 'online' || a.board_state === 'offline') {
+        var off = a.board_state === 'offline';
+        bmark = '<span class="bmark' + (off ? ' off' : '') + '" title="' +
+          (off ? '已启用公告板·离线' : '已启用公告板·在线') +
+          '"><svg class="ico ico-inline" aria-hidden="true" focusable="false"><use href="#i-board"/></svg></span>';
+      }
+      r.innerHTML = '<span class="st ' + st + '"></span><span class="nmwrap"><span class="nm" title="' + esc(a.id || '') + '">' + esc(displayName(a)) + '</span>' + bmark + '</span>' +
         (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
         '<span class="chev" title="修改配置">›</span>';
       // Clicking the card switches the main view to this agent; clicking the

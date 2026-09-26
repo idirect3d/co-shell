@@ -324,6 +324,14 @@ func (p *Proxy) routeAgentMessage(agentID string, msg []byte) {
 		})
 		b.BroadcastRoster()
 		log.Printf("board: agent %s reported identity (type=%s, duty source=%s)", agentID, frame.Type, info.DutyFrom)
+	case MsgTypeBoardUnregister:
+		// The agent turned its board switch off (FEATURE-557). The roster entry
+		// is kept — the agent stays reachable and its conversations stay
+		// readable — only the state flips to "not registered".
+		if _, changed := b.SetUnregistered(agentID); changed {
+			b.BroadcastRoster()
+			log.Printf("board: agent %s is no longer registered", agentID)
+		}
 	case MsgTypeBoardSend:
 		ack := p.sendBoardMessage(agentID, boardSendRequest{
 			To:          frame.To,
@@ -452,8 +460,8 @@ func (p *Proxy) HandleMessage(ctx context.Context, c *Conn, env *Envelope) {
 		p.handleListAgents(c)
 	case MsgTypeBoardSend:
 		p.handleBoardClient(c, env)
-	case MsgTypeBoardRegister:
-		_ = c.Send(&Envelope{Type: MsgTypeError, Payload: json.RawMessage(`"board_register is agent-only"`)})
+	case MsgTypeBoardRegister, MsgTypeBoardUnregister:
+		_ = c.Send(&Envelope{Type: MsgTypeError, Payload: json.RawMessage(`"board registration is agent-only"`)})
 	default:
 		p.forwardToCurrent(c, env)
 	}

@@ -4,6 +4,34 @@
 
 ---
 
+## v0.76.0 — hub UI 体验优化（抽屉浮动化 + 公告板喇叭标识）
+
+> **版本**: v0.76.0
+
+> **状态**: ✅ 已发布（tag **v0.76.0**，分支 FEATURE-557 已合并 main，BUILD-1128）
+> **里程碑**: hub Web UI 两处体验优化：① 宽屏下打开 Agents 抽屉不再把 co-shell 主界面（iframe 舞台）向右挤压，改为与窄屏一致的**浮动叠加**；② Agents 清单中对**已注册到 hub 公告板（board-enabled）**的 agent，在名称右侧显示**聊天气泡矢量图标**（与 co-shell 状态栏「会话列表」图标同款几何）。
+> **说明**: 现状 `hub/gateway/webui_static.go` 中 `@media (min-width:901px){ body.drawer-open #stage { left:var(--panel-w); } }` 在宽屏打开抽屉时把 iframe 整体右移，挤压 co-shell 主界面（窄屏本就是遮罩浮动叠加）。本次统一为浮动叠加：抽屉始终 `position:fixed` 浮在主界面之上并常驻投影，主界面宽度与位置保持不变。图标数据来源：hub 侧此前没有任何 `board_enabled` 数据（该开关是 agent 自身 `config.json` 的配置项），经用户确认**按公告板 roster 注册判定**——`GET /api/agents` 的每个 agent 增加 `board_enabled` 字段（`w.board.Agent(id)` 命中即为 true），前端在名称右侧渲染聊天气泡图标（沿用既有内联 SVG sprite 风格、`currentColor` 跟随文字色；几何与 co-shell 状态栏会话列表图标 `i-sessions` 一致）。从未注册到公告板的 agent 不显示图标。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-557 | 0.76.0 | P2 | hub UI 优化：① 宽屏抽屉改为浮动叠加（删除 `body.drawer-open #stage{left:...}` 推移规则、抽屉投影常驻），不再挤压 co-shell 主界面；② `agentView` 新增 `board_enabled`（公告板 roster 命中），Agents 清单名称右侧渲染聊天气泡矢量图标（复用 co-shell 状态栏会话列表图标几何）；③（BUILD-1128）公告板在线状态改事件驱动三态——在线（亮色气泡）/ 离线（灰色气泡）/ 未注册（不显示图标，条目与会话保留），去掉 60s 心跳 |
+
+> 当前 BUILD: 1126
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-557 hub UI 优化：抽屉浮动化 + 公告板喇叭标识**
+  - 背景（用户提出）：「1、现在宽屏模式下，hub 的 agents 列表从左侧弹出，会将 co-shell 的主界面所有内容向右挤压，窄屏模式是浮动弹出，不影响右边内容，现在需要宽屏模式向窄屏对齐，采用浮动弹出模式。以便弹出时不会挤压 co-shell 主界面内容。2、在 Agents 清单中，对于启用 board-enabled 的 agent，在名字右边增加一个小喇叭矢量图标。」
+  - 交互决策（经 ask_user 确认）：① 版本归属 **v0.76.0**、任务编号 **FEATURE-557**（新功能按 minor 递增）；② 「启用 board-enabled」判定口径 = **hub 公告板 roster 注册**（`w.board.Agent(id)` 命中即显示；从未注册过的 agent 不显示）。
+  - 分支：**FEATURE-557**（基于 main，v0.75.0 已合并并打 tag），版本 v0.76.0
+  - 实现概要：① **抽屉浮动化**（`hub/gateway/webui_static.go`）——删除 `@media (min-width:901px){ body.drawer-open #stage { left:var(--panel-w); } }` 平移规则与 `#stage` 的 `transition:left`（不再有抽屉状态影响主界面位置的 CSS），抽屉投影 `box-shadow:2px 0 12px rgba(0,0,0,.4)` 由「仅窄屏」提升为常驻（并入 `#agentPanel` 基规则），宽屏与窄屏统一为浮动叠加；② **公告板标记**——`agentView` 新增 `BoardEnabled bool`（JSON `board_enabled`），`handleListAgents` 以 `w.board.Agent(s.ID)` 命中判定（`w.board == nil` 时为 false），`renderList()` 在名称右侧按需渲染喇叭图标（新增内联 SVG symbol `i-board`，`currentColor` 跟随文字色），名称改为 `.nmwrap` 包裹以便图标常显、过长名称仍省略号截断。
+  - 验证：`gofmt` 干净（仅改动文件）；`go build ./... && go vet ./...` root 与 hub 模块均通过；`hub/gateway` 全量单测通过（4.75s），新增 `hub/gateway/feature557_test.go`（`TestListAgentsBoardEnabled` 覆盖 A-001..A-004、`TestHubIndexDrawerFloatsAndMarksBoard` 覆盖 A-005/A-006）全绿；编译产物 `work/co-shell-0.76.0.darwin.arm64`（`--version` 输出 `v0.76.0 [BUILD-1126]`）与 `work/co-shell-hub-0.76.0.darwin.arm64`；真实 hub 二进制冒烟（独立端口 + 独立 board DB）：服务页面**不包含**宽屏平移规则、包含 `i-board` symbol 与 `board_enabled` 读取；`go test ./... -short` 仅 `cmd`（logo 默认值）与 `i18n`（RULES.md 文案）既有失败，与本次改动无关。运行时用例 `use-case/FEATURE-557/FEATURE-557-UC-0001.md`（A 组 6 条 + B 组 13 条）待用户实测确认。
+  - 追加调整（用户提出，2026-09-26）：Agents 清单的公告板标记图标由小喇叭改为**聊天气泡**，且要求与 co-shell 状态栏「会话列表」图标用同一个——hub 侧 `i-board` symbol 的 path 已替换为 `web/static/index.html` 中 `i-sessions` 的同一几何（`currentColor` 描边，尺寸/位置/交互不变）；注释、用例与 ROADMAP 口径同步。BUILD-1127。
+  - 追加调整（用户提出，2026-09-26，BUILD-1128）：公告板在线状态改为**事件驱动**，去掉 60s 心跳（roster 只增不删、注册过就长期显示在线，心跳无实际意义）。**三态模型**：`Registered && Online` = 【在线】亮色气泡；`Registered && !Online` = 【离线】灰色气泡（`--fg-faint`）；`!Registered` = 【未注册】不显示图标（条目与会话消息一律保留，agent 仍可访问）。实现：① **agent 侧**（`web/session_board.go`）删 `boardHeartbeat`；`initBoard` 不再按开关早退（运行时无条件建立，会话内 off→on 即可用）；新增 `boardStateFrame()`/`announceBoardState()`/`watchBoardSwitch()`（2s 轮询开关位——`board_enabled` 有 `:config`、设置界面、config.json 三个写入点，改轮询比改 3 个 setter 更稳），链路每次建立都无条件校正一次（开→`board_register`，关→`board_unregister`），使 hub 重启/重连后状态自愈；② **hub 侧**（`hub/gateway/`）`AgentInfo` 新增 `Registered` 并持久化，新增 `SetUnregistered()` 与 `board_unregister` 帧分支，`SetOffline`/`MarkOnline`/`touchLocked` 对未注册条目一律 no-op（否则【未注册】会被链路断开改写成【离线】），`handleStopAgent` 立即置离线（不等 socket 回收），`/api/agents` 新增 `board_state`（`board_enabled` 保留兼容旧前端）；③ **前端** `renderList()` 按 `board_state` 三态渲染并带 tooltip，在线用 `--accent`、离线用 `--fg-faint`。迁移与兼容：旧 roster 数据（无 `registered` 字段）按【未注册】处理，agent 重连后自愈；新 hub + 老 agent 正常（老 agent 仍发 `board_register`，功能不受影响）。已知局限（用户已确认接受）：去掉心跳后 agent 进程僵死而 socket 未断时会持续显示【在线】。
+  - 验证（BUILD-1128）：`gofmt` 干净；root `go build ./... && go vet ./...` 与 hub 模块 `go build/vet/test ./gateway/` 全绿；新增 `hub/gateway/feature557_state_test.go`（三态转换、未注册 no-op、注销不删条目与会话消息、hub 重启与旧数据迁移、`/api/agents` 三态）与 `web/board_frame_test.go::TestBoardStateFrameSelection`（帧选择）；`grep boardHeartbeat` 无残留；产物 `work/co-shell-0.76.0.darwin.arm64`（`--version` → `v0.76.0 [BUILD-1128]`）与 `work/co-shell-hub-0.76.0.darwin.arm64`。运行时用例 `use-case/FEATURE-557/FEATURE-557-UC-0002.md`（A 组 16 条 + B 组 11 条 + 2 条回归）待用户实测确认。
+
 ## v0.75.0 — 浏览器 CDP 能力补强（P0 稳定性 + P1 配置化）
 
 > **版本**: v0.75.0

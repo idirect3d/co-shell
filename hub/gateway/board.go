@@ -34,8 +34,11 @@ const (
 	// MsgTypeBoardIdentity re-announces an agent whose IDENTITY.md changed
 	// (FEATURE-538). It carries the same name/duty fields as board_register and
 	// is handled identically, so a rename or description edit reaches the hub
-	// without waiting for the 60s heartbeat.
+	// without waiting for any periodic re-announcement.
 	MsgTypeBoardIdentity = "board_identity"
+	// MsgTypeBoardUnregister tells the hub the agent turned its board switch off
+	// (FEATURE-557). The roster entry is kept, only its state flips.
+	MsgTypeBoardUnregister = "board_unregister"
 	// MsgTypeBoardSend posts a message or replies to one.
 	MsgTypeBoardSend = "board_send"
 	// MsgTypeBoardRegistered acknowledges a registration.
@@ -95,14 +98,32 @@ type Message struct {
 }
 
 // AgentInfo is one entry of the roster.
+//
+// Registered and Online together describe the three states the hub Web UI shows
+// (FEATURE-557): Registered=false is "not registered" (no icon, but the entry is
+// kept so the agent stays reachable), Registered && Online is "online" (bright
+// icon) and Registered && !Online is "offline" (grey icon).
 type AgentInfo struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Duty     string `json:"duty"`
-	DutyFrom string `json:"duty_source"` // "hub" | "agent"
-	Online   bool   `json:"online"`
-	LastSeen int64  `json:"last_seen"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Duty       string `json:"duty"`
+	DutyFrom   string `json:"duty_source"` // "hub" | "agent"
+	Registered bool   `json:"registered"`  // announced while the board switch is on
+	Online     bool   `json:"online"`      // only meaningful while registered
+	LastSeen   int64  `json:"last_seen"`
 }
+
+// Board states reported to the hub Web UI (FEATURE-557). Only a registered
+// agent gets an icon: bright while online, grey while its link is down and none
+// at all while it is not registered.
+const (
+	// BoardStateUnregistered means the board switch is off (or never registered).
+	BoardStateUnregistered = "unregistered"
+	// BoardStateOnline means registered with its link up.
+	BoardStateOnline = "online"
+	// BoardStateOffline means registered earlier but its link is down.
+	BoardStateOffline = "offline"
+)
 
 // Delivery reports one recipient's delivery outcome.
 type Delivery struct {
@@ -207,7 +228,10 @@ func NewBoard(store *BoardStore) (*Board, error) {
 		b.rosterRev = state.rosterRev
 		for i := range state.agents {
 			a := state.agents[i]
-			// A restarted hub has no live connections yet.
+			// A restarted hub has no live connections yet, so every entry starts
+			// offline. Registered survives the restart; an entry persisted before
+			// FEATURE-557 has no such field and loads as "not registered", the
+			// conservative reading — the agent re-announces itself on reconnect.
 			a.Online = false
 			b.agents[a.ID] = &a
 		}
@@ -325,19 +349,22 @@ func (b *Board) Register(agentID, name, duty string) (AgentInfo, int) {
 		name = agentID
 	}
 	info := &AgentInfo{
-		ID:       agentID,
-		Name:     name,
-		Duty:     effectiveDuty,
-		DutyFrom: source,
-		Online:   true,
-		LastSeen: b.nowUnix(),
+		ID:         agentID,
+		Name:       name,
+		Duty:       effectiveDuty,
+		DutyFrom:   source,
+		Registered: true,
+		Online:     true,
+		LastSeen:   b.nowUnix(),
 	}
 	// Only a real roster change bumps the revision: an agent re-announcing
-	// itself (connect hook or heartbeat) must not churn the revision its peers
-	// have cached, otherwise the injected roster text changes for nothing.
+	// itself (connect hook or switch change) must not churn the revision its
+	// peers have cached, otherwise the injected roster text changes for nothing.
+	// A not-registered entry counts as a change, so turning the board switch
+	// back on is broadcast to the peers.
 	prev, known := b.agents[agentID]
 	if !known || prev.Name != info.Name || prev.Duty != info.Duty ||
-		prev.DutyFrom != info.DutyFrom || !prev.Online {
+		prev.DutyFrom != info.DutyFrom || !prev.Online || !prev.Registered {
 		b.rosterRev++
 	}
 	b.agents[agentID] = info
@@ -389,15 +416,43 @@ func (b *Board) RosterRev() int {
 }
 
 // SetOffline marks an agent offline (on disconnect) and returns the new
-// revision plus whether anything changed.
+// revision plus whether anything changed. An unregistered agent has no online
+// state to lose and is ignored, which is what keeps "not registered" from
+// degrading into "offline" when its link drops (FEATURE-557).
 func (b *Board) SetOffline(agentID string) (int, bool) {
 	b.mu.Lock()
 	a, ok := b.agents[agentID]
-	if !ok || !a.Online {
+	if !ok || !a.Registered || !a.Online {
 		rev := b.rosterRev
 		b.mu.Unlock()
 		return rev, false
 	}
+	a.Online = false
+	a.LastSeen = b.nowUnix()
+	b.rosterRev++
+	rev := b.rosterRev
+	if b.store != nil {
+		b.storeErr("agent", b.store.SaveAgent(*a))
+		b.storeErr("meta", b.store.SaveMeta(b.seq, b.rosterRev))
+	}
+	b.mu.Unlock()
+	b.changed()
+	return rev, true
+}
+
+// SetUnregistered marks an agent as "not registered" because its board switch
+// was turned off. The entry itself is kept — the agent must stay reachable and
+// its conversations and messages stay readable — only the state flips. An
+// unknown agent, or one that is already unregistered, is a no-op.
+func (b *Board) SetUnregistered(agentID string) (int, bool) {
+	b.mu.Lock()
+	a, ok := b.agents[agentID]
+	if !ok || !a.Registered {
+		rev := b.rosterRev
+		b.mu.Unlock()
+		return rev, false
+	}
+	a.Registered = false
 	a.Online = false
 	a.LastSeen = b.nowUnix()
 	b.rosterRev++
@@ -417,7 +472,9 @@ func (b *Board) SetOffline(agentID string) (int, bool) {
 func (b *Board) MarkOnline(agentID string) (int, bool) {
 	b.mu.Lock()
 	a, ok := b.agents[agentID]
-	if !ok || a.Online {
+	// Only a registered entry can come back online: an entry that is merely
+	// known (board switch off) must not light up because its link returned.
+	if !ok || !a.Registered || a.Online {
 		rev := b.rosterRev
 		b.mu.Unlock()
 		return rev, false
@@ -440,7 +497,9 @@ func (b *Board) MarkOnline(agentID string) (int, bool) {
 // broadcast to every agent instead of staying hub-local (FEATURE-530).
 func (b *Board) touchLocked(agentID string) bool {
 	a, ok := b.agents[agentID]
-	if !ok {
+	// An unregistered entry stays untouched: any stray frame must not turn it
+	// back into an online roster member.
+	if !ok || !a.Registered {
 		return false
 	}
 	flipped := !a.Online
