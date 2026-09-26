@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 // WebUIConfig configures the hub Web UI HTTP server.
@@ -81,7 +80,6 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	// Agent描述 (FEATURE-538): the description lives in the agent's workspace
 	// IDENTITY.md, not in the hub registry.
 	mux.HandleFunc("GET /api/agents/{id}/identity", w.handleGetAgentIdentity)
-	mux.HandleFunc("PUT /api/agents/{id}/identity", w.handlePutAgentIdentity)
 	// Agent-config helpers (detection + defaults + version).
 	mux.HandleFunc("GET /api/agent-defaults", w.handleAgentDefaults)
 	mux.HandleFunc("GET /api/co-shell-locations", w.handleCoShellLocations)
@@ -327,16 +325,13 @@ func (w *WebUI) agentDisplayName(id string, connected bool) string {
 // createAgentRequest is the POST /api/agents body.
 type createAgentRequest struct {
 	ID string `json:"id"`
-	// AgentDescription (FEATURE-538) is optional: when set the hub writes it to
-	// {workspace}/IDENTITY.md after creating the agent (creating the file, with
-	// agent-name initialised to the ID, when it does not exist yet). It is never
-	// stored in the registry.
-	AgentDescription string `json:"agent_description,omitempty"`
-	Workspace        string `json:"workspace"`
-	CoShell          string `json:"co_shell,omitempty"`
-	ConfigPath       string `json:"config_path,omitempty"`
-	CreateConfig     bool   `json:"create_config"`
-	Port             int    `json:"port,omitempty"`
+	// FIX-558: the create form no longer carries an Agent描述; the hub writes the
+	// agent's ID into {workspace}/IDENTITY.md (`## agent-name`) instead.
+	Workspace    string `json:"workspace"`
+	CoShell      string `json:"co_shell,omitempty"`
+	ConfigPath   string `json:"config_path,omitempty"`
+	CreateConfig bool   `json:"create_config"`
+	Port         int    `json:"port,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json (copied from ~/.co-shell/config.json when absent,
 	// or created empty if the shared config does not exist either).
@@ -362,12 +357,11 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
 		return
 	}
-	// FEATURE-538: an Agent描述 typed in the create form goes straight to the
-	// agent's IDENTITY.md (the file, not the registry).
-	if desc := strings.TrimSpace(req.AgentDescription); desc != "" {
-		if err := WriteIdentityDescription(spec.Workspace, spec.ID, desc); err != nil {
-			log.Printf("webui: agent %s created but identity write failed: %v", spec.ID, err)
-		}
+	// FIX-558: nothing about the description is collected here. The agent's ID
+	// is written into {workspace}/IDENTITY.md as its initial `## agent-name`, so
+	// co-shell starts with a name it can identify itself by.
+	if err := WriteIdentityName(spec.Workspace, spec.ID); err != nil {
+		log.Printf("webui: agent %s created but identity write failed: %v", spec.ID, err)
 	}
 	writeJSON(rw, http.StatusCreated, spec)
 }
@@ -452,40 +446,33 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, spec)
 }
 
-// maxAgentDescriptionRunes caps an Agent描述 accepted by the hub.
-const maxAgentDescriptionRunes = 2000
-
-// agentIdentityView is the JSON shape of GET/PUT /api/agents/{id}/identity
-// (FEATURE-538).
+// agentIdentityView is the JSON shape of GET /api/agents/{id}/identity.
 type agentIdentityView struct {
 	AgentID          string `json:"agent_id"`
 	AgentDescription string `json:"agent_description"`
-	// Source reports where the description came from: "file" (a managed agent's
-	// IDENTITY.md) or "agent" (an external agent's board report).
-	Source   string `json:"source"`
-	Readonly bool   `json:"readonly"`
-	// Workspace is the file's directory (managed agents only).
-	Workspace string `json:"workspace,omitempty"`
+	// Source reports where the description came from: "agent" (the value the
+	// agent reported when it last registered on the board).
+	Source string `json:"source"`
+	// Readonly is always true (FIX-558): the hub never writes a description.
+	Readonly bool `json:"readonly"`
 }
 
-// identityFor builds one agent's identity view: a managed agent is read from
-// {workspace}/IDENTITY.md every time (no cache), while an external agent has no
-// local workspace and shows the value it reported on the board.
+// identityFor builds one agent's identity view. FIX-558: the description shown is
+// the value the agent reported when it last registered on the board — the hub no
+// longer reads or writes {workspace}/IDENTITY.md here, so the field is read-only
+// everywhere (each agent owns its description under 「身份与个性」). A roster entry
+// whose duty came from the hub-side fallback (duty_source=hub) counts as "never
+// reported".
 func (w *WebUI) identityFor(spec AgentSpec) agentIdentityView {
-	view := agentIdentityView{AgentID: spec.ID}
-	if spec.Type == AgentTypeManaged {
-		view.Source = "file"
-		view.Workspace = spec.Workspace
-		view.AgentDescription = ReadIdentityDescription(spec.Workspace)
+	view := agentIdentityView{AgentID: spec.ID, Source: DutySourceAgent, Readonly: true}
+	if w.board == nil {
 		return view
 	}
-	view.Source = DutySourceAgent
-	view.Readonly = true
-	if w.board != nil {
-		if info, ok := w.board.Agent(spec.ID); ok {
-			view.AgentDescription = info.Duty
-		}
+	info, ok := w.board.Agent(spec.ID)
+	if !ok || info.DutyFrom == DutySourceHub {
+		return view
 	}
+	view.AgentDescription = info.Duty
 	return view
 }
 
@@ -496,41 +483,6 @@ func (w *WebUI) handleGetAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "agent not found"})
 		return
 	}
-	writeJSON(rw, http.StatusOK, w.identityFor(spec))
-}
-
-// handlePutAgentIdentity writes a managed agent's Agent描述 into
-// {workspace}/IDENTITY.md (creating the file when absent). An external agent's
-// description can only be changed on its own machine, so it is read-only here.
-func (w *WebUI) handlePutAgentIdentity(rw http.ResponseWriter, r *http.Request) {
-	spec, ok := w.manager.Spec(r.PathValue("id"))
-	if !ok {
-		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "agent not found"})
-		return
-	}
-	var req struct {
-		AgentDescription *string `json:"agent_description"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AgentDescription == nil {
-		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "agent_description is required"})
-		return
-	}
-	if utf8.RuneCountInString(*req.AgentDescription) > maxAgentDescriptionRunes {
-		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "agent_description is too long"})
-		return
-	}
-	if spec.Type != AgentTypeManaged {
-		writeJSON(rw, http.StatusConflict, map[string]string{
-			"error": "\u5916\u90e8 Agent \u7684 Agent \u63cf\u8ff0\u4e3a\u53ea\u8bfb\uff0c\u8bf7\u5728\u5bf9\u65b9 co-shell \u7684\u300c\u8eab\u4efd\u4e0e\u4e2a\u6027\u300d\u4e2d\u4fee\u6539",
-		})
-		return
-	}
-	if err := WriteIdentityDescription(spec.Workspace, spec.ID, *req.AgentDescription); err != nil {
-		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	// The agent reports the new value itself (board_identity); the response
-	// carries the freshly read file so the UI can show what was stored.
 	writeJSON(rw, http.StatusOK, w.identityFor(spec))
 }
 

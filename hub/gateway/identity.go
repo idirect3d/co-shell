@@ -110,6 +110,31 @@ func WriteIdentityDescription(dir, agentID, value string) error {
 	return nil
 }
 
+// WriteIdentityName stores name as the `## agent-name` section of
+// {dir}/IDENTITY.md, creating the file when absent. FIX-558 uses it when the hub
+// creates a managed agent: the agent's ID becomes its initial name, so the agent
+// has something to identify itself with. Other sections and free-form text are
+// preserved verbatim.
+func WriteIdentityName(dir, name string) error {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return fmt.Errorf("cannot write %s: empty workspace", IdentityFileName)
+	}
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return fmt.Errorf("workspace %q does not exist", dir)
+	}
+	path := IdentityPath(dir)
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	text := writeIdentitySection(string(data), identityNameKey, name)
+	if err := os.WriteFile(path, []byte(text), 0644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
 // identityLines splits file text into lines, tolerating CRLF and dropping the
 // empty element produced by a trailing newline (so line indexes stay stable).
 func identityLines(text string) []string {

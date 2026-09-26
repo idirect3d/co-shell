@@ -4,6 +4,38 @@
 
 ---
 
+## v0.76.1 — hub Agent 管理界面调整（创建去描述录入 + 注册描述只读展示）
+
+> **版本**: v0.76.1
+
+> **状态**: ✅ 已发布（tag **v0.76.1**，分支 FIX-558 已合并 main，BUILD-1129）
+> **里程碑**: hub Web UI 的 Agent 管理表单调整：① 新建 Agent 不再录入「Agent描述」，改为把 agent ID 写入新建 agent 的 `{workspace}/IDENTITY.md`（`## agent-name` 段，ID 作为名字）；② 编辑 Agent 的「Agent描述」移至所有项目最后并改为**只读展示**，只显示该 agent 在 hub 公告板上最后一次注册上报的描述（从未注册过显示「未上报」）；描述彻底只由 agent 自身在 co-shell「身份与个性」中修改（删除 `PUT /api/agents/{id}/identity` 端点）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-558 | 0.76.1 | P2 | hub Agent 管理界面调整：① 创建 Agent 表单去掉「Agent描述」项，创建后把 ID 写入 `{workspace}/IDENTITY.md` 的 `## agent-name` 段；② 编辑表单的描述项移至最后且只读（取公告板最后一次注册上报的描述，未注册显示「未上报」），移除描述写回与 `PUT /api/agents/{id}/identity` 端点 |
+
+> 当前 BUILD: 1129
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-558 hub Agent 管理界面调整（创建去描述录入 + 注册描述只读展示）** [BUILD-1129]
+  - 背景（用户提出）：「1、创建agent时，去掉“Agent描述”项。ID写入新建agent的 {workspace}/IDENTITY.md。2、在编辑agent时，仅显示agent最后一次注册时的“Agent描述”，显示在所有项目的最后，仅显示内容即可（不用使用任何输入控件）。」
+  - 交互决策（经 ask_user 确认）：① 版本归属 **v0.76.1**、任务编号 **FIX-558**（按修复处理，patch+1）；② ID 写入方式 = 写入 IDENTITY.md 现有 `## agent-name` 段（ID 作为名字）；③ 编辑只读描述口径 = **仅取该 agent 在 hub 公告板最后一次注册上报的描述**，从未注册过显示「未上报」；④ 描述写回通道一并删除（`PUT /api/agents/{id}/identity` 端点移除）。
+  - 分支：**FIX-558**（基于 main，v0.76.0 已发布），版本 v0.76.1
+  - 实现概要：
+    - 前端 `hub/gateway/webui_static.go`：① 创建表单删除「Agent描述」输入（`id="m-name"`），创建请求体不再发 `agent_description`；② 编辑表单把「Agent描述」从第 2 项移到**所有项目之后**（`f-extra`/`d-state` 之后），控件由 `<input id="d-name">` 改为只读 `<div class="ro-text" id="d-name">`（新增 `.ro-text` 样式：`pre-wrap` 多行、虚线边框、CSS 变量配色）；③ `loadAgentIdentity()` 改为渲染文本（无值显示「未上报」）并更新提示文案；④ `saveAgentEdit()` 不再写回描述，保存仅更新运行参数；⑤ 删除 `setFieldEnabled('d-name', …)`。
+    - 后端 `hub/gateway/webui.go`：① `createAgentRequest` 去掉 `AgentDescription` 字段，`handleCreateAgent` 改为 `WriteIdentityName(spec.Workspace, spec.ID)`；② `identityFor()` 统一取 hub 公告板 roster 的**注册上报值**（`duty_source=hub` 的 hub 回退值视为「未上报」），`readonly` 恒为 true，不再读 IDENTITY.md（移除 `Workspace` 字段）；③ 删除 `PUT /api/agents/{id}/identity` 路由与 `handlePutAgentIdentity`、`maxAgentDescriptionRunes` 常量与 `unicode/utf8` 导入（GET 端点保留，前端仍用它拿只读值）。
+    - 后端 `hub/gateway/identity.go`：新增 `WriteIdentityName(dir, name)`——把 ID 写入 `{dir}/IDENTITY.md` 的 `## agent-name` 段（文件不存在则创建，其它段与自由文本原样保留）。
+  - 验证：
+    - `gofmt` 改动文件干净；root `go build ./... && go vet ./...` 通过；hub 模块 `go build ./... && go vet ./...` 与 `go test ./gateway/`（4.98s）全绿。
+    - 新增 `hub/gateway/fix558_test.go`：静态断言（创建表单无 `id="m-name"`、请求体无 `agent_description`、无 PUT handler/路由与前端写回、描述为末尾只读元素）、`WriteIdentityName`（创建/更新/保留其它段/空 workspace 报错）、`handleCreateAgent` 端到端写入 `## agent-name`、`identityFor` 四条口径（未注册 / 已上报 / hub 回退视为未上报 / external 与无 board）。
+    - 真实二进制冒烟（`work/co-shell-hub-0.76.1.darwin.arm64 -serve`，独立端口 28399 + 独立 registry/board DB）：首页 **不含** `id="m-name"`、**含** `class="ro-text" id="d-name"`、**不含** `<input id="d-name"`；`/api/hub-info` = `{"version":"0.76.1","build":"1129"}`；`PUT /api/agents/{id}/identity` → **405**（路由已移除）；`GET /api/agents` 正常。
+    - 产物：`work/co-shell-0.76.1.darwin.arm64`（`--version` → `v0.76.1 [BUILD-1129]`）与 `work/co-shell-hub-0.76.1.darwin.arm64`。运行时用例 `use-case/FIX-558/FIX-558-UC-0001.md`（A 组 12 条单测已通过；B 组 9 条 + C 组 3 条待用户实测确认）。
+  - 运行时用例：`use-case/FIX-558/FIX-558-UC-0001.md`（用户已确认测试通过并发布）
+
 ## v0.76.0 — hub UI 体验优化（抽屉浮动化 + 公告板喇叭标识）
 
 > **版本**: v0.76.0

@@ -310,6 +310,7 @@ const webIndexHTML = `<!DOCTYPE html>
   .badge.off { background:#2a1010; color:var(--err); }
   .agent-row .actions { display:flex; gap:6px; margin-top:6px; }
   .hint { font-size:11px; color:var(--fg-dim); margin-top:4px; }
+  .ro-text { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
   .icon-btn { width:28px; height:28px; border:none; border-radius:6px; background:transparent; color:var(--fg); font-size:16px; cursor:pointer; }
   .icon-btn:hover { background:var(--elev); }
 
@@ -446,7 +447,6 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
         <div class="field"><label>端口号（自动分配，可修改）</label><input id="m-port" placeholder="自动分配"></div>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
-        <div class="field"><label>Agent描述</label><input id="m-name" placeholder="可选，写入 IDENTITY.md"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
         <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
@@ -473,8 +473,6 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
     <div class="config-body">
       <div class="field"><label>ID（不可修改）</label><input id="d-id" readonly></div>
-      <div class="field"><label>Agent描述</label><input id="d-name" placeholder="（未设置）"></div>
-      <div class="hint" id="d-name-hint">写入 {workspace}/IDENTITY.md，即时生效（下一轮对话生效）。</div>
       <div class="field"><label>类型</label><input id="d-type" readonly></div>
       <div class="field" id="f-ws"><label>Workspace 路径</label><input id="d-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
       <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
@@ -484,6 +482,9 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
       <div class="field" id="f-extra"><label>补充运行参数</label><input id="d-extra" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
+      <!-- FIX-558: the Agent描述 is the last item and read-only: it shows what the
+           agent reported when it last registered on the board. -->
+      <div class="field"><label>Agent描述（最近一次注册上报）</label><div class="ro-text" id="d-name">（未上报）</div><div class="hint" id="d-name-hint">由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。</div></div>
     </div>
     <div class="foot"><button class="btn primary" id="d-save">保存修改</button><div class="hint" id="d-msg"></div></div>
   </div>
@@ -1170,25 +1171,24 @@ const webIndexHTML = `<!DOCTYPE html>
     setFieldEnabled('d-shared', !external);
     setFieldEnabled('d-extra', !external);
     setFieldEnabled('d-yolo', !external);
-    setFieldEnabled('d-name', !external);
     document.getElementById('d-port-label').textContent = external ? '端口号（与主机地址组成 WS 地址）' : '端口号（可修改，需重启后生效）';
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
   }
-  // loadAgentIdentity fills the Agent描述 field from the agent's workspace
-  // IDENTITY.md (FEATURE-538). The hub reads the file on every call, so opening
-  // the form always shows the current value rather than a stored copy.
+  // loadAgentIdentity shows the Agent描述 the agent reported when it last
+  // registered on the board (FIX-558). It is read-only: the agent owns the value
+  // (it edits it under 「身份与个性」) and the hub never writes it back.
   function loadAgentIdentity(id, external){
     var el = document.getElementById('d-name');
     var hint = document.getElementById('d-name-hint');
-    el.value = '';
+    el.textContent = '（未上报）';
     hint.textContent = external
       ? '外部 Agent 的描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。'
-      : '写入 {workspace}/IDENTITY.md，即时生效（下一轮对话生效）。';
+      : '由 agent 在其 co-shell 的「身份与个性」中设置，hub 仅展示其最近一次注册上报的内容。';
     api('GET', '/api/agents/' + encodeURIComponent(id) + '/identity', null, function(st, j){
       if (editID !== id) return; // the form switched to another agent meanwhile
       if (st !== 200){ hint.textContent = '无法读取 Agent描述: ' + ((j && j.error) || st); return; }
-      el.value = (j && j.agent_description) || '';
+      el.textContent = (j && j.agent_description) || '（未上报）';
     });
   }
   // saveAgentEdit PUTs the edited fields back to the hub. A running managed
@@ -1222,7 +1222,6 @@ const webIndexHTML = `<!DOCTYPE html>
       var editShellSel = document.getElementById('d-coshell');
       if (editShellSel.options.length) body.co_shell = editShellSel.value;
     }
-    var desc = document.getElementById('d-name').value;
     api('PUT', '/api/agents/' + encodeURIComponent(editID), body, function(st, j){
       var msg = document.getElementById('d-msg');
       if (st >= 400){
@@ -1230,25 +1229,11 @@ const webIndexHTML = `<!DOCTYPE html>
         alert('保存失败: ' + ((j && j.error) || st));
         return;
       }
-      if (external){
-        msg.textContent = '已保存。';
-        msg.className = 'hint ver-ok';
-        refresh();
-        return;
-      }
-      // FEATURE-538: the Agent描述 goes to {workspace}/IDENTITY.md through its
-      // own endpoint (the registry no longer stores it). co-shell reads the file
-      // when it builds each turn's prompt, so no restart is required.
-      api('PUT', '/api/agents/' + encodeURIComponent(editID) + '/identity', { agent_description: desc }, function(st2, j2){
-        if (st2 >= 400){
-          msg.textContent = '';
-          alert('运行参数已保存，但 Agent描述写入失败: ' + ((j2 && j2.error) || st2));
-          return;
-        }
-        msg.textContent = '已保存：Agent描述已写入 IDENTITY.md，即时生效（下一轮对话生效）。';
-        msg.className = 'hint ver-ok';
-        refresh();
-      });
+      // FIX-558: the Agent描述 is read-only on the hub (the agent owns it), so
+      // saving the run parameters is the whole operation.
+      msg.textContent = '已保存。';
+      msg.className = 'hint ver-ok';
+      refresh();
     });
   }
   document.getElementById('d-save').onclick = saveAgentEdit;
@@ -1581,7 +1566,6 @@ const webIndexHTML = `<!DOCTYPE html>
     }
     api('POST', '/api/agents', {
       id: id,
-      agent_description: document.getElementById('m-name').value.trim(),
       workspace: ws,
       co_shell: coshellSel.value,
       use_shared_config: document.getElementById('m-shared').checked,
