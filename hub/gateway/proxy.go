@@ -600,14 +600,22 @@ func (p *Proxy) forwardToCurrent(c *Conn, env *Envelope) {
 	}
 }
 
-// Close tears down all agent connections.
+// Close tears down all agent connections. An agent link's close hook
+// (dropAgentLink) takes p.mu as well, so the links are detached while holding
+// the lock and closed only after it is released: closing them under p.mu
+// self-deadlocks and hangs the whole shutdown (FIX-561).
 func (p *Proxy) Close() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	links := make([]agentLink, 0, len(p.agents))
 	for _, ac := range p.agents {
-		ac.Close()
+		links = append(links, ac)
 	}
 	p.agents = map[string]agentLink{}
 	p.order = nil
 	p.current = map[*Conn]string{}
+	p.mu.Unlock()
+
+	for _, ac := range links {
+		ac.Close()
+	}
 }
