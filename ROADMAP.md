@@ -28,6 +28,7 @@
   - 背景（用户需求）：Web UI 右侧「任务进展」栏下方需要垂直向下对齐显示 sub-agent 运行状态清单，每行格式 `{sub-agent-id} {指令，超过 30 字符用 ... 截断}({子代理执行进度})`；进度在有任务计划时显示 `已完成数/总任务数`，无计划时分母取 1、分子取主任务是否完成。
   - 交互决策（经 ask_user 确认）：版本 **v0.78.0**（新特性，minor 递增）、任务编号 **FEATURE-564**；面板显示条件＝当前会话存在子代理即显示（即使无主任务计划）；刷新机制＝B2（事件驱动 + 运行中子代理 jsonl tail watcher）；范围＝子代理记录绑定会话，只显示当前会话的子代理（含该会话已完成/历史）；进度口径＝已完成数取非 pending 终态步骤数（completed+cancelled+failed）；指令截断 30 字符。
   - 分支/版本：**FEATURE-564**（基于 main），版本 v0.78.0
+  - 运行时修复（[BUILD-1140]）：首版只在 agent 事件（设会话 id / 子代理工具调用 / watcher tick）推送清单，而 `web/server.go` 的连接快照 `sendState` 只回放任务计划与运行状态——因此页面刷新 / 重连 / 重开标签页后，任务进展栏只剩计划、清单为空，直到下一次子代理活动（用户报障现象）。现按既有 `SetPlanProvider` 同构补 `Server.SetSubAgentsProvider(agent.SubAgentsSnapshot)`，`sendState` 在 state 帧之后追发一个 `sub_agents` 事件帧（复用前端既有渲染分支）；新增回归测试 `web/subagents_state_test.go`（有 provider → state + sub_agents 两帧且 meta 正确；无 provider → 仅 state 帧）。
 
 
 

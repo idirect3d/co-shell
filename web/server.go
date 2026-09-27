@@ -291,6 +291,11 @@ type Server struct {
 	// pushed to the browser on connect as a state message.
 	planFn func() string
 
+	// subAgentsFn returns the current session's ID and its sub-agent status
+	// list as JSON (FEATURE-564), so a freshly connected client can restore the
+	// section below the task plan as well.
+	subAgentsFn func() (string, string)
+
 	// modelInfoFn returns the active text/vision model context info for the
 	// status bar (FEATURE-378); nil when no provider is registered.
 	modelInfoFn func() agent.ModelInfo
@@ -432,6 +437,15 @@ func (s *Server) SetConnectHook(fn func()) {
 func (s *Server) SetPlanProvider(fn func() string) {
 	s.mu.Lock()
 	s.planFn = fn
+	s.mu.Unlock()
+}
+
+// SetSubAgentsProvider installs the sub-agent snapshot provider (FEATURE-564).
+// It returns the current session's ID and its sub-agent list as JSON, so a
+// connecting client can paint the list below the task plan right away.
+func (s *Server) SetSubAgentsProvider(fn func() (string, string)) {
+	s.mu.Lock()
+	s.subAgentsFn = fn
 	s.mu.Unlock()
 }
 
@@ -614,6 +628,7 @@ func (s *Server) sendState(c *wsConn) {
 	s.mu.Lock()
 	fn := s.planFn
 	busyFn := s.busyFn
+	saFn := s.subAgentsFn
 	s.mu.Unlock()
 	plan := json.RawMessage("null")
 	if fn != nil {
@@ -634,6 +649,17 @@ func (s *Server) sendState(c *wsConn) {
 		return
 	}
 	_ = c.WriteMessage(data)
+	// FEATURE-564: restore the sub-agent list as well. It is pushed on agent
+	// events only, so without this snapshot a page refresh (or a reconnect)
+	// left the section below the task plan empty until the next sub-agent
+	// activity.
+	if saFn != nil {
+		sid, rows := saFn()
+		ev := newEventJSON(agent.SubAgentsEvent(sid, rows), 0)
+		if payload, err := json.Marshal(serverMessage{Kind: "event", Event: ev}); err == nil {
+			_ = c.WriteMessage(payload)
+		}
+	}
 }
 
 // dispatch routes one browser message to the registered handler.

@@ -151,6 +151,10 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
+	// FEATURE-564: the sub-agent list below the task plan needs the same
+	// snapshot, otherwise a page load or reconnect shows the plan but no
+	// sub-agents until the next sub-agent event.
+	srv.SetSubAgentsProvider(sess.ag.SubAgentsSnapshot)
 	srv.SetModelInfoProvider(sess.ag.ModelInfo)
 	// FEATURE-499: expose the agent busy state via GET /api/status for the hub.
 	srv.SetBusyProvider(sess.ag.IsBusy)

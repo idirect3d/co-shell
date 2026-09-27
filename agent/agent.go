@@ -632,6 +632,19 @@ func (a *Agent) pushSubAgents() {
 	pusher.PushSubAgents(sessionID, a.subAgentMgr.RowsJSON(sessionID))
 }
 
+// SubAgentsSnapshot returns the current session's ID and the JSON status list
+// of its sub-agents (FEATURE-564). The web layer uses it to restore the list
+// below the task plan when a page connects or reloads, where previously only
+// the task plan was resynchronised. An agent without a sub-agent manager —
+// every CLI run — reports an empty list.
+func (a *Agent) SubAgentsSnapshot() (string, string) {
+	sessionID := a.CurrentSessionID()
+	if a.subAgentMgr == nil {
+		return sessionID, "[]"
+	}
+	return sessionID, a.subAgentMgr.RowsJSON(sessionID)
+}
+
 // onSubAgentProgress is the sub-agent manager notifier (FEATURE-564): a push
 // for another session is dropped, because the frontend renders only the
 // current session's sub-agents. It runs on the manager's watcher goroutine, so
