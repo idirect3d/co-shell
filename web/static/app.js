@@ -651,7 +651,11 @@ function wsConnect() {
     }
     // FEATURE-548: the switch was refused (a task is running). Refresh the list so
     // the current-session highlight snaps back and tell the user why.
-    else if (msg.kind === "session_switch_result" && msg.ok === false) {
+    // FEATURE-565: the backend omits "ok" when it is false (json omitempty), so a
+    // refusal arrives without the field at all. Testing === false therefore never
+    // matched and the user saw nothing happen; treat every frame that is not an
+    // explicit acceptance as a refusal.
+    else if (msg.kind === "session_switch_result" && msg.ok !== true) {
       wsSend({ type: "session_list" });
       notifyUser(msg.message === "busy" ? (T.sessionSwitchBusy || "A task is running") : (msg.message || T.sessionSwitchFailed || ""));
     }
@@ -3148,9 +3152,12 @@ function renderPlan(plan) {
 // renderSubAgents paints the current session's sub-agent list below the task
 // plan: one line per sub-agent, "{id} {instruction}({done}/{total})". The
 // instruction is truncated at 30 characters. An entry without a task plan
-// shows (1/1) once the sub-agent finished, (0/1) while it is still working.
+// shows (0/1) while the sub-agent is working (FEATURE-565: only running
+// sub-agents are listed at all, so the panel disappears once the pool is idle).
 function renderSubAgents(rows) {
-  lastSubAgents = Array.isArray(rows) ? rows : [];
+  // The backend already filters on running, filter again here so a stale or
+  // hand-crafted payload can never leave a finished sub-agent on the panel.
+  lastSubAgents = (Array.isArray(rows) ? rows : []).filter((row) => row && row.status === 'running');
   subAgentBody.textContent = '';
   const show = lastSubAgents.length > 0;
   // The markup ships both blocks with class="hidden", so the toggle must go

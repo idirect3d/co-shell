@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/subagent"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
@@ -224,6 +225,11 @@ type LLMConfig struct {
 
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
+
+	// MaxSubAgents: per-session sub-agent pool size (FEATURE-565). Every session
+	// owns its own pool A1..An, 0 disables sub-agent creation; the legal range is
+	// 0..subagent.MaxPoolSize and --max-sub-agents overrides this value.
+	MaxSubAgents int `json:"max_sub_agents"`
 
 	// ShellSessionEnabled: whether persistent shell session tools (shell_start, shell_exec, shell_stop) are enabled
 	ShellSessionEnabled bool `json:"shell_session_enabled"`
@@ -1111,6 +1117,7 @@ func DefaultConfig() *Config {
 			AttemptCompletionConfirm:    true,
 			CompletionMode:              "simple",
 			SubAgentEnabled:             true,
+			MaxSubAgents:                subagent.DefaultMaxSubAgents,
 			ShellSessionEnabled:         false,
 			ShellSessionTimeout:         0,
 			ShellVTRows:                 24,

@@ -826,6 +826,14 @@ func (s *WebSession) switchSessionRequest(id string) {
 		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: "busy"})
 		return
 	}
+	// FEATURE-565: the sub-agent pool, its working directories and the on-screen
+	// list are all bound to the session that launched them, so leaving a session
+	// whose sub-agents are still running would hide them and orphan their
+	// results. Refuse the switch and tell the browser why (localized).
+	if err := s.ag.RunningSubAgentsError(); err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: err.Error()})
+		return
+	}
 	s.switchSession(id)
 }
 
@@ -887,6 +895,13 @@ func (s *WebSession) newSession() {
 	// session they belong to (same reason as switchSessionRequest).
 	if s.ag.IsBusy() {
 		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: "busy"})
+		return
+	}
+	// FEATURE-565: starting a new session abandons the current one just like an
+	// explicit switch does, so it is refused for the same reason (same check as
+	// switchSessionRequest).
+	if err := s.ag.RunningSubAgentsError(); err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: err.Error()})
 		return
 	}
 	if err := s.ag.FlushCurrentSession(); err != nil {

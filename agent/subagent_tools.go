@@ -50,11 +50,34 @@ func errI18n(key string, args ...interface{}) error {
 	return errors.New(i18n.TF(key, args...))
 }
 
-// subAgentBlock renders the <sub_agents> process table injected into
-// <environment_details> (FEATURE-563). It is empty while no sub-agent has ever
-// been launched, in which case the block is omitted entirely.
+// poolErrorI18n renders a pool validation failure (FEATURE-565) as a localized
+// error that names the current limit and the legal range, so the model can retry
+// with a usable id instead of guessing.
+func poolErrorI18n(pe *subagent.PoolError) error {
+	switch pe.Kind {
+	case subagent.PoolErrDisabled:
+		return errI18n(i18n.KeySubAgentPoolDisabled)
+	case subagent.PoolErrIDRequired:
+		return errI18n(i18n.KeySubAgentIDRequired, pe.Max, pe.Max)
+	case subagent.PoolErrIDFormat:
+		return errI18n(i18n.KeySubAgentIDFormat, pe.ID, subagent.MaxPoolSize)
+	case subagent.PoolErrIDOutOfRange:
+		return errI18n(i18n.KeySubAgentIDOutOfRange, pe.ID, pe.Max, pe.Max)
+	case subagent.PoolErrIDBusy:
+		return errI18n(i18n.KeySubAgentIDBusy, pe.ID, pe.PID, pe.Run, pe.Max)
+	case subagent.PoolErrIDDuplicate:
+		return errI18n(i18n.KeySubAgentIDDuplicate, pe.ID, pe.Max)
+	}
+	return errors.New(pe.Error())
+}
+
+// subAgentBlock renders the <sub_agents> block injected into
+// <environment_details> (FEATURE-563/565): the pool limit followed by the
+// sub-agents of the current session that are running right now. The block is
+// omitted only while sub-agent tools are off for this run (it would just cost
+// context then).
 func (a *Agent) subAgentBlock() string {
-	if a.subAgentMgr == nil {
+	if a.subAgentMgr == nil || !a.subAgentEnabled {
 		return ""
 	}
 	return a.subAgentMgr.StatusBlock()
@@ -85,6 +108,9 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 	procs, err := a.subAgentMgr.Start(ctx, tasks, time.Duration(timeoutSeconds)*time.Second)
 	if err != nil {
 		if len(procs) == 0 {
+			if pe, ok := subagent.AsPoolError(err); ok {
+				return "", poolErrorI18n(pe)
+			}
 			return "", err
 		}
 		log.Warn("launch_sub_agent: partially started (%d process(es)): %v", len(procs), err)
@@ -333,14 +359,15 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 	return []llm.Tool{
 		{
 			Name: "launch_sub_agent",
-			Description: "Launch one or more sub-agent processes in a single call. Each task carries an id you choose " +
-				"(letters/digits/'_'/'-', max 32 chars); the id names the sub-agent workspace " +
-				"(<workspace>/sub-agents/<id>) and is used afterwards by sub_agent_status / kill_sub_agent. Every " +
-				"sub-agent runs its own co-shell in unattended mode and reports the final answer of its last LLM turn " +
-				"(thinking excluded). The call waits at most timeout_seconds; sub-agents still running then keep running " +
-				"in the background — their status is shown in the <sub_agents> block of <environment_details> and can be " +
-				"read with sub_agent_status. Re-using the id of a finished sub-agent restarts it in the same workspace " +
-				"with an incremented run (history logs kept); re-using the id of a running sub-agent fails.",
+			Description: "Launch one or more sub-agent processes in a single call. Every sub-agent takes a slot from the current " +
+				"session's fixed id pool A1..An (n = the max sub-agents of this run, shown as max=… in the <sub_agents> block of " +
+				"<environment_details>): read that block first and pick ids it does NOT report as running. Each sub-agent runs its " +
+				"own co-shell in unattended mode (workspace <workspace>/sub-agents/<session>/<id>) and reports the final answer of " +
+				"its last LLM turn (thinking excluded). The call waits at most timeout_seconds; sub-agents still running then keep " +
+				"running in the background — their status is shown in the <sub_agents> block and can be read with sub_agent_status. " +
+				"Re-using the id of a finished sub-agent restarts it in the same workspace with an incremented run (history logs " +
+				"kept); re-using the id of a running sub-agent, an id outside A1..An, a duplicate id inside the batch, or launching " +
+				"while the pool is disabled (max 0) or exhausted all fail with an error.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -350,13 +377,13 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 					},
 					"tasks": map[string]interface{}{
 						"type":        "array",
-						"description": "Required: one entry per sub-agent to launch, each {id, instruction}. Ids must be unique within the batch.",
+						"description": "Required: one entry per sub-agent to launch, each {id, instruction}. Ids must come from this session's pool A1..An and be unique within the batch.",
 						"items": map[string]interface{}{
 							"type": "object",
 							"properties": map[string]interface{}{
 								"id": map[string]interface{}{
 									"type":        "string",
-									"description": "Caller-chosen sub-agent id (letters/digits/'_'/'-', max 32 chars). Also the workspace folder name.",
+									"description": "Required: the slot to use, A1..An of this session's pool (n = max sub-agents). Pick an id that the <sub_agents> block of <environment_details> does not report as running.",
 								},
 								"instruction": map[string]interface{}{
 									"type":        "string",
@@ -378,10 +405,10 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 		{
 			Name: "sub_agent_status",
 			Description: "Report the status of launched sub-agents: status/running pid or exit code, run number, elapsed time, " +
-				"the final answer of their last LLM turn, their output file list and a log tail. The same summary is " +
-				"rendered in the <sub_agents> block of <environment_details>, so check that block first and only call this " +
-				"tool when you need the detailed result. wait_seconds > 0 blocks until the selected sub-agents finish " +
-				"(it never kills them); omit it to get the current snapshot.",
+				"the final answer of their last LLM turn, their output file list and a log tail. The <sub_agents> block of " +
+				"<environment_details> lists the same sub-agents of the current session, but only while they are running, so check " +
+				"that block first and only call this tool when you need the detailed result of a running sub-agent. wait_seconds > 0 " +
+				"blocks until the selected sub-agents finish (it never kills them); omit it to get the current snapshot.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
