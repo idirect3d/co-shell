@@ -1132,6 +1132,14 @@ func (w *WebIO) PushTaskPlan(planJSON string) {
 	w.srv.sendEvent(agent.TaskPlanEvent(planJSON))
 }
 
+// PushSubAgents implements agent.SubAgentsPusher: it pushes a sub_agents event
+// to the browser so the frontend refreshes the sub-agent list shown below the
+// task-plan panel (FEATURE-564). sessionID is the session the listed
+// sub-agents belong to; agentsJSON is the list as a JSON array.
+func (w *WebIO) PushSubAgents(sessionID, agentsJSON string) {
+	w.srv.sendEvent(agent.SubAgentsEvent(sessionID, agentsJSON))
+}
+
 // PushSessionList implements agent.SessionListPusher: it refreshes the
 // frontend session menu/count. Called by the agent when the current session
 // changes (FEATURE-387), covering paths like :new that switch the session

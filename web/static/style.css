@@ -1230,6 +1230,26 @@ aside {
 
 .plan-body { flex: 1; overflow: auto; padding: 10px 12px; }
 
+/* FEATURE-564: the sub-agent status list sits below the task plan, one line per
+   sub-agent, vertically aligned with the plan content. The head only shows up
+   when the current session has sub-agents. */
+.sub-agent-head { margin-top: 4px; border-top: 1px solid var(--line, rgba(255,255,255,.12)); }
+.subagent-body { flex: 0 0 auto; max-height: 32%; overflow: auto; padding: 6px 12px 12px; }
+.subagent-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg-dim);
+}
+.subagent-item .sa-id { flex: 0 0 auto; color: var(--accent); }
+.subagent-item .sa-inst { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.subagent-item .sa-prog { flex: 0 0 auto; }
+
 /* Plan title and step first lines stand out in plain foreground (white);
    continuation lines of a step stay dim (FEATURE-369). */
 .plan-title { font-size: 12.5px; color: var(--fg); margin-bottom: 10px; }

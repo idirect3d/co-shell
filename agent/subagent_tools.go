@@ -94,6 +94,9 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentLaunched), len(procs))
 	}
 
+	// Refresh the Web UI sub-agent list right after the launch (FEATURE-564).
+	a.pushSubAgents()
+
 	var sb strings.Builder
 	sb.WriteString(i18n.TF(i18n.KeySubAgentLaunched, len(procs)))
 	a.appendSubAgentProcLines(&sb, procs, false)
@@ -137,6 +140,9 @@ func (a *Agent) subAgentStatusTool(ctx context.Context, args map[string]interfac
 		return i18n.T(i18n.KeySubAgentNone), nil
 	}
 
+	// Refresh the Web UI sub-agent list (FEATURE-564).
+	a.pushSubAgents()
+
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeySubAgentStatusHeader))
 	a.appendSubAgentProcLines(&sb, procs, true)
@@ -160,6 +166,9 @@ func (a *Agent) killSubAgentTool(ctx context.Context, args map[string]interface{
 	if a.cfg == nil || a.cfg.OutputCategoryShown("subagent") {
 		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentKilled), len(procs))
 	}
+
+	// Refresh the Web UI sub-agent list (FEATURE-564).
+	a.pushSubAgents()
 
 	var sb strings.Builder
 	sb.WriteString(i18n.TF(i18n.KeySubAgentKilled, len(procs)))
