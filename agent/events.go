@@ -32,6 +32,9 @@ const (
 	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
 	EventToolCallDiff   = "tool_call_diff"   // FEATURE-424: unified diff rendering for a completed replace_in_file call
 	EventTaskPlan       = "task_plan"        // FEATURE-307c: full task plan snapshot (Meta[MetaKeyPlan] = plan JSON, "" when archived)
+	// EventSubAgents carries the sub-agent status list of one session as a JSON
+	// array (FEATURE-564). The Web UI renders it below the task-plan panel.
+	EventSubAgents = "sub_agents" // sub-agent status list (Meta[MetaKeySubAgents] + Meta[MetaKeySubAgentsSession])
 
 	// FEATURE-524: LLM-driven rich component output. EventUIRender carries a
 	// validated component tree for the Web UI to paint; EventUIUpdate replaces
@@ -89,6 +92,30 @@ const (
 // as a JSON string ("" means the plan was archived/cleared — consumers hide
 // the plan panel).
 const MetaKeyPlan = "plan"
+
+// Meta keys of EventSubAgents (FEATURE-564).
+const (
+	// MetaKeySubAgents carries the sub-agent status list as a JSON array; "[]"
+	// means the session has no sub-agent (consumers hide the list).
+	MetaKeySubAgents = "sub_agents"
+	// MetaKeySubAgentsSession carries the session id the list belongs to.
+	MetaKeySubAgentsSession = "session_id"
+)
+
+// SubAgentsEvent builds an EventSubAgents event carrying the sub-agent status
+// list of one session (FEATURE-564). The LineRenderer has no case for this
+// type, so terminal output is unaffected.
+func SubAgentsEvent(sessionID, agentsJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventSubAgents,
+		Chan:  ChannelTaskPlan,
+		Level: LevelInfo,
+		Meta: map[string]string{
+			MetaKeySubAgents:        agentsJSON,
+			MetaKeySubAgentsSession: sessionID,
+		},
+	}
+}
 
 // MetaKeySupScenario is the Meta key of a content_chunk event on the
 // supervisor channel carrying the SUP block title (e.g. "SUP·问题解决") for

@@ -379,6 +379,10 @@ const blockNavTop = document.getElementById("blockNavTop");
 const blockNavBottom = document.getElementById("blockNavBottom");
 const planPanel = document.getElementById("plan-panel");
 const planBody = document.getElementById("planBody");
+// FEATURE-564: sub-agent status list, rendered below the task plan.
+const subAgentHead = document.getElementById("subAgentHead");
+const subAgentBody = document.getElementById("subAgentBody");
+let lastSubAgents = [];
 const layout = document.getElementById("layout");
 const askArea = document.getElementById("askArea");
 const askHint = document.getElementById("askHint");
@@ -1756,6 +1760,12 @@ function renderEvent(ev) {
     renderPlan(plan);
     return;
   }
+  if (ev.type === "sub_agents") {
+    let rows = [];
+    try { if (ev.meta && ev.meta.sub_agents) rows = JSON.parse(ev.meta.sub_agents); } catch { /* keep [] */ }
+    renderSubAgents(rows);
+    return;
+  }
   // FEATURE-524: LLM component trees (render_ui / ui_update).
   if (ev.type === "ui_render") { renderUIBlock(ev); return; }
   if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
@@ -2417,7 +2427,7 @@ function applyPanels() {
   const showWs = panelPrefs.ws !== false;
   layout.classList.toggle("no-ws", !showWs);
   miWsCheck.classList.toggle("on", showWs);
-  const showPlan = panelPrefs.plan !== false && !!lastPlan;
+  const showPlan = panelPrefs.plan !== false && (!!lastPlan || lastSubAgents.length > 0);
   planPanel.classList.toggle("hidden", !showPlan);
   layout.classList.toggle("no-plan", !showPlan);
   miPlanCheck.classList.toggle("on", panelPrefs.plan !== false);
@@ -3131,6 +3141,50 @@ function renderPlan(plan) {
     row.appendChild(desc);
     planBody.appendChild(row);
   }
+}
+
+/* ---------- sub-agent status list (FEATURE-564) ---------- */
+
+// renderSubAgents paints the current session's sub-agent list below the task
+// plan: one line per sub-agent, "{id} {instruction}({done}/{total})". The
+// instruction is truncated at 30 characters. An entry without a task plan
+// shows (1/1) once the sub-agent finished, (0/1) while it is still working.
+function renderSubAgents(rows) {
+  lastSubAgents = Array.isArray(rows) ? rows : [];
+  subAgentBody.textContent = '';
+  const show = lastSubAgents.length > 0;
+  // The markup ships both blocks with class="hidden", so the toggle must go
+  // through the class list: setting the hidden *attribute* left the class in
+  // place (display:none) and the whole list stayed invisible.
+  subAgentHead.classList.toggle('hidden', !show);
+  subAgentBody.classList.toggle('hidden', !show);
+  for (const row of lastSubAgents) {
+    const line = document.createElement('div');
+    line.className = 'subagent-item';
+    const id = document.createElement('span');
+    id.className = 'sa-id';
+    id.textContent = row.id || '';
+    const inst = document.createElement('span');
+    inst.className = 'sa-inst';
+    inst.textContent = truncateInstruction(row.instruction);
+    inst.title = row.instruction || '';
+    const prog = document.createElement('span');
+    prog.className = 'sa-prog';
+    prog.textContent = '(' + (row.done || 0) + '/' + (row.total || 1) + ')';
+    line.appendChild(id);
+    line.appendChild(inst);
+    line.appendChild(prog);
+    subAgentBody.appendChild(line);
+  }
+  applyPanels();
+}
+
+// truncateInstruction shortens an instruction to 30 characters and appends
+// "..." when it was cut.
+function truncateInstruction(text) {
+  const chars = Array.from(String(text || '').trim());
+  if (chars.length <= 30) return chars.join('');
+  return chars.slice(0, 30).join('') + '...';
 }
 
 /* ---------- ask area ---------- */

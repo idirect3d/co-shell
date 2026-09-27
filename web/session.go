@@ -151,6 +151,10 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
+	// FEATURE-564: the sub-agent list below the task plan needs the same
+	// snapshot, otherwise a page load or reconnect shows the plan but no
+	// sub-agents until the next sub-agent event.
+	srv.SetSubAgentsProvider(sess.ag.SubAgentsSnapshot)
 	srv.SetModelInfoProvider(sess.ag.ModelInfo)
 	// FEATURE-499: expose the agent busy state via GET /api/status for the hub.
 	srv.SetBusyProvider(sess.ag.IsBusy)
@@ -1130,6 +1134,14 @@ func (w *WebIO) pushText(text string) {
 // plan snapshot as JSON ("" when archived/cleared).
 func (w *WebIO) PushTaskPlan(planJSON string) {
 	w.srv.sendEvent(agent.TaskPlanEvent(planJSON))
+}
+
+// PushSubAgents implements agent.SubAgentsPusher: it pushes a sub_agents event
+// to the browser so the frontend refreshes the sub-agent list shown below the
+// task-plan panel (FEATURE-564). sessionID is the session the listed
+// sub-agents belong to; agentsJSON is the list as a JSON array.
+func (w *WebIO) PushSubAgents(sessionID, agentsJSON string) {
+	w.srv.sendEvent(agent.SubAgentsEvent(sessionID, agentsJSON))
 }
 
 // PushSessionList implements agent.SessionListPusher: it refreshes the

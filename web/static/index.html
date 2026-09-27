@@ -455,6 +455,11 @@
   <aside id="plan-panel" class="hidden">
     <div class="panel-head"><span data-i18n="taskPlan">任务进展</span></div>
     <div id="planBody" class="plan-body"></div>
+    <!-- FEATURE-564: the current session's sub-agent list, aligned straight
+         below the task plan (one line per sub-agent: id, instruction,
+         progress). Hidden while the session has no sub-agent. -->
+    <div class="panel-head sub-agent-head hidden" id="subAgentHead"><span data-i18n="subAgents">子代理</span></div>
+    <div id="subAgentBody" class="subagent-body hidden"></div>
   </aside>
 
   <footer id="bottom">

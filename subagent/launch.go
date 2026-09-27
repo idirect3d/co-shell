@@ -175,7 +175,9 @@ func (m *Manager) streamArgs() []string {
 }
 
 // startOne spawns the sub-agent process of one prepared request and registers
-// the reaper goroutine that finalises its row.
+// the reaper goroutine that finalises its row. A second goroutine watches the
+// sub-agent's log while it runs so plan progress advances reach the caller
+// (FEATURE-564).
 func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 	execPath := m.opts.ExecPath
 	if execPath == "" {
@@ -225,6 +227,7 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 	}
 
 	m.mu.Lock()
+	proc.SessionID = m.sessionID
 	m.procs[pr.task.ID] = proc
 	m.cmds[pr.task.ID] = handle
 	m.done[pr.task.ID] = done
@@ -232,6 +235,7 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 	m.mu.Unlock()
 
 	go m.reap(pr, cmd, handle, done)
+	go m.watchProgress(pr.logPath, proc.SessionID, done)
 
 	cp := *proc
 	return &cp, nil

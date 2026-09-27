@@ -96,10 +96,14 @@ type Task struct {
 
 // Proc is one row of the sub-agent process table.
 type Proc struct {
-	ID          string    `json:"id"`
-	PID         int       `json:"pid"`
-	PGID        int       `json:"pgid"`
-	Workspace   string    `json:"workspace"`
+	ID        string `json:"id"`
+	PID       int    `json:"pid"`
+	PGID      int    `json:"pgid"`
+	Workspace string `json:"workspace"`
+	// SessionID is the session that launched this sub-agent (FEATURE-564). The
+	// Web UI status list only shows the current session's sub-agents, so rows
+	// restored from an older build (empty SessionID) are not listed.
+	SessionID   string    `json:"session_id"`
 	Status      Status    `json:"status"`
 	Run         int       `json:"run"`
 	Instruction string    `json:"instruction"`
@@ -172,6 +176,11 @@ type Manager struct {
 	// noStream drops the default machine-readable display flags from launches
 	// (set only when the operator explicitly switched the display off).
 	noStream bool
+	// sessionID is the session newly launched sub-agents are bound to, and
+	// notifier is fired whenever the progress shown for a sub-agent moves
+	// (FEATURE-564). Both are guarded by mu.
+	sessionID string
+	notifier  func(sessionID string)
 }
 
 // execHandle couples a running command with its kill bookkeeping.

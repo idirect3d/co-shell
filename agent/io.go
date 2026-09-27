@@ -153,6 +153,16 @@ type TaskPlanPusher interface {
 	PushTaskPlan(planJSON string)
 }
 
+// SubAgentsPusher is implemented by UserIO implementations that can push the
+// sub-agent status list to their consumer (e.g. WebIO pushes it to the browser
+// panel below the task plan). The agent uses it to refresh that list after a
+// sub-agent tool call, when a sub-agent exits and whenever a running
+// sub-agent advances its own task plan (FEATURE-564). sessionID is the session
+// the listed sub-agents belong to and agentsJSON is the list as a JSON array.
+type SubAgentsPusher interface {
+	PushSubAgents(sessionID, agentsJSON string)
+}
+
 // SessionListPusher is implemented by UserIO implementations that can push
 // the current session list to their consumer (e.g. WebIO pushes it to the
 // browser). The agent uses it to refresh the frontend session menu/count when

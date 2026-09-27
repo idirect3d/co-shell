@@ -55,7 +55,7 @@ import (
 func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules string) *Agent {
 	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, promptIdentity{}, "", "", "", true, i18n.T(i18n.KeySystemPromptToolUsage))
 
-	return &Agent{
+	ag := &Agent{
 		llmClient:       llmClient,
 		mcpMgr:          mcpMgr,
 		store:           s,
@@ -75,6 +75,10 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 			{Role: "system", Content: systemPrompt},
 		},
 	}
+	// Keep the Web UI sub-agent list live: the manager fires this callback when
+	// a running sub-agent advances its own task plan (FEATURE-564).
+	ag.subAgentMgr.SetNotifier(ag.onSubAgentProgress)
+	return ag
 }
 
 // SetIO sets the UserIO implementation used by this agent for user interaction.
@@ -578,6 +582,11 @@ func (a *Agent) SetCurrentSessionID(id string) {
 	if a.taskPlanMgr != nil {
 		a.taskPlanMgr.SetSessionID(id)
 	}
+	// Sub-agents launched from now on belong to this session (FEATURE-564):
+	// the Web UI list only shows the current session's sub-agents.
+	if a.subAgentMgr != nil {
+		a.subAgentMgr.SetSessionID(id)
+	}
 	a.mu.Unlock()
 
 	// Push the target session's task plan to the frontend (FEATURE-386):
@@ -603,6 +612,48 @@ func (a *Agent) SetCurrentSessionID(id string) {
 	if pusher, ok := a.io.(SessionListPusher); ok {
 		pusher.PushSessionList()
 	}
+	// Switching sessions also changes which sub-agents the Web UI must show
+	// below the task plan (FEATURE-564).
+	a.pushSubAgents()
+}
+
+// pushSubAgents pushes the current session's sub-agent status list to the user
+// interface. It is a no-op for IO implementations that cannot render it (e.g.
+// the terminal), so CLI runs are unaffected.
+func (a *Agent) pushSubAgents() {
+	if a.subAgentMgr == nil {
+		return
+	}
+	pusher, ok := a.io.(SubAgentsPusher)
+	if !ok {
+		return
+	}
+	sessionID := a.CurrentSessionID()
+	pusher.PushSubAgents(sessionID, a.subAgentMgr.RowsJSON(sessionID))
+}
+
+// SubAgentsSnapshot returns the current session's ID and the JSON status list
+// of its sub-agents (FEATURE-564). The web layer uses it to restore the list
+// below the task plan when a page connects or reloads, where previously only
+// the task plan was resynchronised. An agent without a sub-agent manager —
+// every CLI run — reports an empty list.
+func (a *Agent) SubAgentsSnapshot() (string, string) {
+	sessionID := a.CurrentSessionID()
+	if a.subAgentMgr == nil {
+		return sessionID, "[]"
+	}
+	return sessionID, a.subAgentMgr.RowsJSON(sessionID)
+}
+
+// onSubAgentProgress is the sub-agent manager notifier (FEATURE-564): a push
+// for another session is dropped, because the frontend renders only the
+// current session's sub-agents. It runs on the manager's watcher goroutine, so
+// it must not block.
+func (a *Agent) onSubAgentProgress(sessionID string) {
+	if sessionID == "" || sessionID != a.CurrentSessionID() {
+		return
+	}
+	a.pushSubAgents()
 }
 
 // CurrentSessionID returns the current session's ID.

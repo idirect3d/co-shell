@@ -4,7 +4,34 @@
 
 ---
 
-## v0.77.0 — sub-agent 重构（批量创建 / 进程表 / 超时转后台 / 无人值守 / 状态注入）
+## v0.78.0 — 右侧任务进展栏下方的 sub-agent 状态清单（会话绑定 + 实时进度）
+
+> **版本**: v0.78.0
+
+> **状态**: 🚧 开发中（分支 **FEATURE-564**）
+> **里程碑**: Web UI 右侧「任务进展」面板下方按行列出当前会话的 sub-agent 清单（`{id} {指令截断30字符}({done}/{total})`）——有任务计划时按步骤完成度显示，无计划时按主任务是否完成显示；子代理记录绑定会话（新增 SessionID），清单只显示当前会话的子代理（含已完成/历史）；刷新走事件驱动（sub-agent 工具调用后 / 进程结束）+ 运行中子代理日志 tail watcher；当前会话存在子代理即显示该面板。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-564 | 0.78.0 | P1 | ① `subagent.Proc` 新增 `SessionID`（启动时写入当前会话 id），新增按会话过滤的快照 API；② 解析子代理 `run-*.jsonl` 中的 `task_plan` 事件得到计划进度（已完成 = 非 pending 终态步骤数，无计划时分母 1、分子 = 主任务是否完成）；③ 新增 `sub_agents` 事件 + Web 推送（工具调用后 / 子代理进程结束 / 运行中 watcher 发现新 task_plan）；④ 前端在任务进展面板下方垂直向下渲染清单，指令超 30 字符截断、进度 `(done/total)`；⑤ 显示条件：当前会话存在子代理即显示该面板 |
+
+> 当前 BUILD: 1139
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-564 右侧任务进展栏下方的 sub-agent 状态清单**
+  - 实现概要：`subagent/progress.go`（新增 `Row`/`PlanProgress` 类型、`Rows`/`RowsJSON` 按会话过滤并生成前端清单、`planProgressOf` 解析 `run-*.jsonl` 尾部最后一条 `task_plan` 事件并统计非 pending 步骤、`watchProgress` 运行中增量推送、`SetSessionID`/`SetNotifier`）；`subagent.Proc` 新增 `SessionID` 字段，`launch.go` 在 `startOne` 写入会话 id 并启动进度 watcher；`agent` 层新增 `EventSubAgents`/`SubAgentsEvent` 与 `SubAgentsPusher` 接口、`pushSubAgents`/`onSubAgentProgress`，`SetCurrentSessionID` 绑定子代理会话并在会话切换/构造后推送，`launch_sub_agent`/`sub_agent_status`/`kill_sub_agent` 三个工具调用后推送；`web/session.go` 实现 `WebIO.PushSubAgents`；前端 `index.html`/`app.js`/`style.css` 在任务进展面板下方逐行渲染清单（`{id} {指令截断30字符}({done}/{total})`），只要当前会话存在子代理就显示该面板。
+  - 验证：`go build ./...`、`go vet ./...` 通过；`go test ./subagent/` 全绿（新增 `subagent/progress_test.go`：计划步骤统计、日志尾部取最后 task_plan、会话过滤与无计划 0/1/1/1 回退、watcher 变更与退出通知）；`go test ./... -short` 中 i18n/cmd/agent/web 的失败与 HEAD 基线一致（已在 main worktree 复现 `TestWebIOSetSessionPushesTaskPlan` 等同名失败），与本特性无关。
+  - 运行时用例：`use-case/FEATURE-564/FEATURE-564-UC-0001.md`、`FEATURE-564-UC-0002.md`、`FEATURE-564-UC-0003.md`
+  - 背景（用户需求）：Web UI 右侧「任务进展」栏下方需要垂直向下对齐显示 sub-agent 运行状态清单，每行格式 `{sub-agent-id} {指令，超过 30 字符用 ... 截断}({子代理执行进度})`；进度在有任务计划时显示 `已完成数/总任务数`，无计划时分母取 1、分子取主任务是否完成。
+  - 交互决策（经 ask_user 确认）：版本 **v0.78.0**（新特性，minor 递增）、任务编号 **FEATURE-564**；面板显示条件＝当前会话存在子代理即显示（即使无主任务计划）；刷新机制＝B2（事件驱动 + 运行中子代理 jsonl tail watcher）；范围＝子代理记录绑定会话，只显示当前会话的子代理（含该会话已完成/历史）；进度口径＝已完成数取非 pending 终态步骤数（completed+cancelled+failed）；指令截断 30 字符。
+  - 分支/版本：**FEATURE-564**（基于 main），版本 v0.78.0
+  - 运行时修复（[BUILD-1140]）：首版只在 agent 事件（设会话 id / 子代理工具调用 / watcher tick）推送清单，而 `web/server.go` 的连接快照 `sendState` 只回放任务计划与运行状态——因此页面刷新 / 重连 / 重开标签页后，任务进展栏只剩计划、清单为空，直到下一次子代理活动（用户报障现象）。现按既有 `SetPlanProvider` 同构补 `Server.SetSubAgentsProvider(agent.SubAgentsSnapshot)`，`sendState` 在 state 帧之后追发一个 `sub_agents` 事件帧（复用前端既有渲染分支）；新增回归测试 `web/subagents_state_test.go`（有 provider → state + sub_agents 两帧且 meta 正确；无 provider → 仅 state 帧）。
+  - 运行时修复（[BUILD-1141]）：清单节点在 `index.html` 中自带 `class="hidden"`（CSS `display:none`），而 `renderSubAgents()` 只切换了 `hidden` **属性**——class 上的 `hidden` 从未移除，于是 DOM 里有行数据但元素始终不可见（浏览器实测：`#subAgentBody` computed `display:none`、高度 0；手工去掉该 class 后立即 `display:block`、4 行全显）。现改为 `classList.toggle('hidden', !show)`，与项目 `.hidden` 约定一致。
+
+
 
 > **版本**: v0.77.0
 
