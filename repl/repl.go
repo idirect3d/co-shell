@@ -485,6 +485,13 @@ func (r *REPL) handleBuiltin(input string) {
 	case ":body-display":
 		result, err = r.handleBodyDisplay(args)
 	case ":new":
+		// FEATURE-565: starting a new session leaves the current one, exactly
+		// like :session switch, so it is refused while this session's sub-agents
+		// still run (their pool and results are bound to the session).
+		if err := r.agent.RunningSubAgentsError(); err != nil {
+			io.Print(err.Error())
+			return
+		}
 		// Flush current session messages to DB, then create a new empty session
 		if err := r.agent.FlushCurrentSession(); err != nil {
 			log.Warn("Failed to flush current session: %v", err)

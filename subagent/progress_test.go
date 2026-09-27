@@ -101,18 +101,20 @@ func TestPlanProgressOfUsesLastPlanEvent(t *testing.T) {
 	}
 }
 
-// newRowsTestManager builds a manager with one row per given proc.
+// newRowsTestManager builds a manager with one row per given proc, keyed by
+// session + id like the real process table (FEATURE-565).
 func newRowsTestManager(rows ...*Proc) *Manager {
 	m := NewManager(Options{NoStoreLoad: true, Workspace: "/tmp/ws"})
 	for _, row := range rows {
-		m.procs[row.ID] = row
+		m.procs[procKey(row.SessionID, row.ID)] = row
 	}
 	m.loaded = true
 	return m
 }
 
-// Rows lists only the current session's sub-agents and falls back to a binary
-// 0/1 (or 1/1) when the sub-agent never built a task plan (FEATURE-564).
+// Rows lists only the running sub-agents of one session, in pool order, and
+// falls back to a binary 0/1 when the sub-agent never built a task plan
+// (FEATURE-565; finished rows leave the list).
 func TestRowsSessionFilterAndProgressFallback(t *testing.T) {
 	dir := t.TempDir()
 	planLog := filepath.Join(dir, "planner.jsonl")
@@ -121,35 +123,39 @@ func TestRowsSessionFilterAndProgressFallback(t *testing.T) {
 	})
 
 	m := newRowsTestManager(
-		&Proc{ID: "done", SessionID: "sess-A", Status: StatusCompleted, Instruction: "finished", LogPath: filepath.Join(dir, "none.jsonl")},
-		&Proc{ID: "running", SessionID: "sess-A", Status: StatusRunning, Instruction: "still going", LogPath: filepath.Join(dir, "none.jsonl")},
-		&Proc{ID: "planner", SessionID: "sess-A", Status: StatusRunning, Instruction: "three steps", LogPath: planLog},
-		&Proc{ID: "other", SessionID: "sess-B", Status: StatusRunning, Instruction: "another session", LogPath: filepath.Join(dir, "none.jsonl")},
-		&Proc{ID: "legacy", Status: StatusRunning, Instruction: "no session", LogPath: filepath.Join(dir, "none.jsonl")},
+		&Proc{ID: "A3", SessionID: "sess-A", Status: StatusCompleted, Instruction: "finished", LogPath: filepath.Join(dir, "none.jsonl")},
+		&Proc{ID: "A1", SessionID: "sess-A", Status: StatusRunning, Instruction: "still going", LogPath: filepath.Join(dir, "none.jsonl")},
+		&Proc{ID: "A2", SessionID: "sess-A", Status: StatusRunning, Instruction: "three steps", LogPath: planLog},
+		&Proc{ID: "A4", SessionID: "sess-A", Status: StatusKilled, Instruction: "killed", LogPath: filepath.Join(dir, "none.jsonl")},
+		&Proc{ID: "A1", SessionID: "sess-B", Status: StatusRunning, Instruction: "another session", LogPath: filepath.Join(dir, "none.jsonl")},
+		&Proc{ID: "A1", Status: StatusRunning, Instruction: "no session", LogPath: filepath.Join(dir, "none.jsonl")},
 	)
 
 	rows := m.Rows("sess-A")
-	if len(rows) != 3 {
-		t.Fatalf("Rows(sess-A) returned %d rows, want 3: %+v", len(rows), rows)
+	if len(rows) != 2 {
+		t.Fatalf("Rows(sess-A) returned %d rows, want the 2 running ones: %+v", len(rows), rows)
+	}
+	if rows[0].ID != "A1" || rows[1].ID != "A2" {
+		t.Fatalf("Rows(sess-A) = %s,%s, want pool order A1,A2", rows[0].ID, rows[1].ID)
 	}
 	byID := map[string]Row{}
 	for _, row := range rows {
 		byID[row.ID] = row
 	}
-	if row := byID["done"]; !row.HasPlan && (row.Done != 1 || row.Total != 1) {
-		t.Fatalf("finished sub-agent without plan = %+v, want 1/1", row)
-	}
-	if row := byID["running"]; !row.HasPlan && (row.Done != 0 || row.Total != 1) {
+	if row := byID["A1"]; !row.HasPlan && (row.Done != 0 || row.Total != 1) {
 		t.Fatalf("running sub-agent without plan = %+v, want 0/1", row)
 	}
-	if row := byID["planner"]; !row.HasPlan || row.Done != 2 || row.Total != 3 {
+	if row := byID["A2"]; !row.HasPlan || row.Done != 2 || row.Total != 3 {
 		t.Fatalf("sub-agent with plan = %+v, want 2/3", row)
 	}
-	if len(m.Rows("sess-B")) != 1 {
-		t.Fatalf("Rows(sess-B) = %+v, want the other session's row only", m.Rows("sess-B"))
+	if got := m.Rows("sess-B"); len(got) != 1 || got[0].ID != "A1" {
+		t.Fatalf("Rows(sess-B) = %+v, want the other session's A1 only", got)
 	}
-	if len(m.Rows("")) != 0 {
-		t.Fatalf("Rows(\"\") = %+v, want empty", m.Rows(""))
+	if got := m.Rows(""); len(got) != 0 {
+		t.Fatalf("Rows(\"\") = %+v, want empty", got)
+	}
+	if got := m.Rows("sess-none"); len(got) != 0 {
+		t.Fatalf("Rows(unknown session) = %+v, want empty", got)
 	}
 	if got := m.RowsJSON("sess-A"); got == "" || got[0] != '[' {
 		t.Fatalf("RowsJSON = %q, want a JSON array", got)

@@ -47,13 +47,14 @@ import (
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/subagent"
 	"github.com/idirect3d/co-shell/web"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
 const version = "0.79.0"
 
-const build = "1142"
+const build = "1143"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -116,6 +117,10 @@ type cliFlags struct {
 
 	// SubAgent enabled
 	subAgentEnabled string // "on"/"off"
+
+	// maxSubAgents is the per-session sub-agent pool size (FEATURE-565);
+	// -1 means "use the config file value".
+	maxSubAgents int
 
 	// Unattended mode + run-level tool shielding (FEATURE-563)
 	unattended    string // "on"/"off"; empty means the default rule (on with a command, off otherwise)
@@ -299,6 +304,9 @@ func parseFlags() cliFlags {
 	// SubAgent enabled
 	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "Enable sub-agent (overrides config file)")
 	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "Disable sub-agent (overrides config file)")
+
+	// Sub-agent pool size (FEATURE-565): 0..10 per session, 0 disables.
+	flag.IntVar(&f.maxSubAgents, "max-sub-agents", -1, "Max sub-agents per session (0..10, 0 disables; overrides config file)")
 
 	// Unattended mode + run-level tool shielding (FEATURE-563)
 	flag.StringVar(&f.unattended, "unattended", "", "Unattended mode (on/off; defaults to on when a command is given, off otherwise)")
@@ -873,6 +881,17 @@ func main() {
 		}
 	}
 
+	// FEATURE-565: per-session sub-agent pool size. --max-sub-agents overrides
+	// config.json (max_sub_agents); an out-of-range value is fatal for either
+	// source so a typo never silently disables or over-provisions the pool.
+	if flags.maxSubAgents >= 0 {
+		cfg.LLM.MaxSubAgents = flags.maxSubAgents
+	}
+	if err := subagent.ValidateMaxSubAgents(cfg.LLM.MaxSubAgents); err != nil {
+		io.ErrPrintf("Error: invalid sub-agent pool size: %v\n", err)
+		os.Exit(1)
+	}
+
 	// FEATURE-563: unattended mode. A run started with a command (single-shot
 	// stdio) is unattended by default; an interactive REPL/serve run is not. An
 	// explicit --unattended always wins.
@@ -898,6 +917,9 @@ func main() {
 		cfg.LLM.ToolModes["default"] = "auto"
 		cfg.LLM.NoToolAction = "exit"
 		cfg.LLM.CompletionMode = "exit"
+		// FEATURE-565: nobody is reachable in unattended mode, so agent-to-agent
+		// board collaboration is switched off as well.
+		cfg.BoardEnabled = false
 		log.Info("Unattended mode enabled")
 	}
 
@@ -907,6 +929,9 @@ func main() {
 	// covers a child started by hand with the marker set.
 	if os.Getenv("CO_SHELL_SUB_AGENT") == "true" {
 		cfg.LLM.SubAgentEnabled = false
+		// FEATURE-565: a sub-agent is a one-shot unattended run, so it never joins
+		// the board either (board collaboration is off by default for sub-agents).
+		cfg.BoardEnabled = false
 	}
 
 	// Apply toolcall-enabled CLI override
@@ -1544,6 +1569,8 @@ func main() {
 
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
+	// Apply the per-session sub-agent pool size (FEATURE-565).
+	ag.SetMaxSubAgents(cfg.LLM.MaxSubAgents)
 
 	// Sub-agent JSON logs stay machine-readable (tool events included) even when
 	// the interactive display is off; an explicit --show-tool off /

@@ -65,27 +65,41 @@ type Row struct {
 	HasPlan     bool   `json:"has_plan"`
 }
 
-// Rows renders the status list of one session (newest start first). Sub-agents
-// launched before the session binding existed carry no SessionID and are
-// therefore not listed. Without a task plan the progress is binary: Total is 1
-// and Done is 1 only when the sub-agent's main task finished successfully.
+// Rows renders the status list of one session: only the sub-agents that are
+// running right now are listed (FEATURE-565), ordered by pool slot (A1 first).
+// A finished sub-agent leaves the list as soon as it exits, so the panel is a
+// live view of the pool. Without a task plan the progress is binary: Total is 1
+// and Done stays 0 while the sub-agent is working.
 func (m *Manager) Rows(sessionID string) []Row {
 	out := make([]Row, 0)
 	if strings.TrimSpace(sessionID) == "" {
 		return out
 	}
-	for _, p := range m.List(nil) {
-		if p.SessionID != sessionID {
-			continue
+
+	m.mu.Lock()
+	m.loadLocked()
+	rows := make([]*Proc, 0, len(m.procs))
+	for _, p := range m.procs {
+		if p.SessionID == sessionID && p.Status == StatusRunning {
+			cp := *p
+			rows = append(rows, &cp)
 		}
+	}
+	m.mu.Unlock()
+
+	// Order by pool slot so the rows read A1, A2, ...
+	for i := 1; i < len(rows); i++ {
+		for j := i; j > 0 && poolSlotOf(rows[j].ID) < poolSlotOf(rows[j-1].ID); j-- {
+			rows[j], rows[j-1] = rows[j-1], rows[j]
+		}
+	}
+
+	for _, p := range rows {
 		row := Row{ID: p.ID, Instruction: p.Instruction, Status: p.Status, Run: p.Run}
 		if pr := planProgressOf(p.LogPath); pr.HasPlan {
 			row.HasPlan, row.Done, row.Total = true, pr.Done, pr.Total
 		} else {
 			row.Total = 1
-			if p.Status == StatusCompleted {
-				row.Done = 1
-			}
 		}
 		out = append(out, row)
 	}

@@ -250,8 +250,15 @@ func (a *Agent) OnScheduledTaskTriggered(entry *scheduler.CronEntry) {
 	log.Info("Scheduled task #%d triggered: %s", entry.ID, entry.Instruction)
 
 	// FEATURE-563: scheduled tasks run as managed sub-agents, so they show up
-	// in the process table and can be inspected/killed like any other one.
-	id := fmt.Sprintf("scheduled-%d", entry.ID)
+	// in the process table and can be inspected/killed like any other one. Since
+	// FEATURE-565 a sub-agent id must be a free slot of the current session's
+	// fixed pool, so the id is allocated here instead of being invented.
+	id, ok := a.freeSubAgentID()
+	if !ok {
+		log.Error("Scheduled task #%d not launched: no free sub-agent slot (limit %d)",
+			entry.ID, subagent.MaxPoolSize)
+		return
+	}
 	procs, err := a.subAgentMgr.Start(context.Background(),
 		[]subagent.Task{{ID: id, Instruction: entry.Instruction}},
 		subagent.MaxWaitSeconds*time.Second)

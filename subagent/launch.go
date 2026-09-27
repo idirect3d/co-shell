@@ -54,7 +54,11 @@ var machineReadableArgs = []string{"--show-tool", "on", "--show-llm-content", "o
 // All requests are prepared before the first process starts, so an invalid
 // batch never leaves half of it running.
 type prepared struct {
-	task    Task
+	task Task
+	// session is the session the sub-agent belongs to; it is captured under
+	// the lock so a batch always lands in the pool it was validated against
+	// (FEATURE-565).
+	session string
 	run     int
 	dir     string
 	logPath string
@@ -89,7 +93,9 @@ func (m *Manager) Start(ctx context.Context, tasks []Task, waitTimeout time.Dura
 	}
 	parsed, err := ParseTasks(tasks)
 	if err != nil {
-		return nil, err
+		// ParseTasks builds the duplicate PoolError without knowing the pool
+		// size, so stamp the limit in before the agent layer localizes it.
+		return nil, m.stampPoolError(err)
 	}
 
 	preps, err := m.prepare(parsed)
@@ -120,16 +126,20 @@ func (m *Manager) prepare(tasks []Task) ([]*prepared, error) {
 	defer m.mu.Unlock()
 	m.loadLocked()
 
+	// The pool belongs to the session bound right now: validate the whole batch
+	// against it before anything is created (FEATURE-565).
+	session := m.sessionID
+	if err := m.validatePoolLocked(session, tasks); err != nil {
+		return nil, err
+	}
+
 	preps := make([]*prepared, 0, len(tasks))
 	for _, t := range tasks {
 		run := 1
-		if prev, ok := m.procs[t.ID]; ok {
-			if !prev.Finished() {
-				return nil, fmt.Errorf("sub-agent %q is already running (pid %d, run %d)", t.ID, prev.PID, prev.Run)
-			}
+		if prev, ok := m.procs[procKey(session, t.ID)]; ok {
 			run = prev.Run + 1
 		}
-		dir := m.SubAgentDir(t.ID)
+		dir := m.SubAgentDir(session, t.ID)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			closeAll(preps)
 			return nil, fmt.Errorf("create sub-agent workspace %s: %w", dir, err)
@@ -148,7 +158,7 @@ func (m *Manager) prepare(tasks []Task) ([]*prepared, error) {
 			return nil, fmt.Errorf("open sub-agent error log %s: %w", errPath, err)
 		}
 		preps = append(preps, &prepared{
-			task: t, run: run, dir: dir,
+			task: t, session: session, run: run, dir: dir,
 			logPath: logPath, errPath: errPath,
 			stdout: stdout, stderr: stderr,
 		})
@@ -218,6 +228,7 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 		PID:         pid,
 		PGID:        pgid,
 		Workspace:   pr.dir,
+		SessionID:   pr.session,
 		Status:      StatusRunning,
 		Run:         pr.run,
 		Instruction: pr.task.Instruction,
@@ -225,12 +236,12 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 		LogPath:     pr.logPath,
 		ErrLogPath:  pr.errPath,
 	}
+	key := procKey(pr.session, pr.task.ID)
 
 	m.mu.Lock()
-	proc.SessionID = m.sessionID
-	m.procs[pr.task.ID] = proc
-	m.cmds[pr.task.ID] = handle
-	m.done[pr.task.ID] = done
+	m.procs[key] = proc
+	m.cmds[key] = handle
+	m.done[key] = done
 	m.saveLocked()
 	m.mu.Unlock()
 
@@ -257,7 +268,7 @@ func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done cha
 	result, toolCalls := parseStream(pr.logPath, m.resultLimit())
 
 	m.mu.Lock()
-	if p, ok := m.procs[pr.task.ID]; ok {
+	if p, ok := m.procs[procKey(pr.session, pr.task.ID)]; ok {
 		killed := handle.killed
 		p.ExitCode = exitCode
 		p.EndedAt = time.Now()
@@ -275,7 +286,7 @@ func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done cha
 		p.Result = result
 		p.ToolCalls = toolCalls
 	}
-	delete(m.cmds, pr.task.ID)
+	delete(m.cmds, procKey(pr.session, pr.task.ID))
 	m.saveLocked()
 	m.mu.Unlock()
 
@@ -285,20 +296,20 @@ func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done cha
 // waitBatch waits for the given processes until waitTimeout expires (a
 // non-positive timeout returns immediately) and returns their fresh rows.
 func (m *Manager) waitBatch(procs []*Proc, waitTimeout time.Duration) []*Proc {
-	ids := make([]string, 0, len(procs))
+	keys := make([]string, 0, len(procs))
 	for _, p := range procs {
-		ids = append(ids, p.ID)
+		keys = append(keys, procKey(p.SessionID, p.ID))
 	}
 	if waitTimeout > 0 {
-		waitChans(m.waitChans(ids), waitTimeout)
+		waitChans(m.waitChans(keys), waitTimeout)
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.loadLocked()
-	out := make([]*Proc, 0, len(ids))
-	for _, id := range ids {
-		p, ok := m.procs[id]
+	out := make([]*Proc, 0, len(keys))
+	for _, key := range keys {
+		p, ok := m.procs[key]
 		if !ok {
 			continue
 		}
@@ -311,48 +322,50 @@ func (m *Manager) waitBatch(procs []*Proc, waitTimeout time.Duration) []*Proc {
 }
 
 // Wait blocks until the given sub-agents finish or timeout expires. An empty
-// ids list means "every sub-agent that is still running"; a non-positive
-// timeout returns the current state without waiting. Processes are never
-// killed here.
+// ids list means "every sub-agent of the current session that is still
+// running"; a non-positive timeout returns the current state without waiting.
+// Processes are never killed here.
 func (m *Manager) Wait(ids []string, timeout time.Duration) []*Proc {
-	targets := m.pendingIDs(ids)
+	targets := m.pendingKeys(ids)
 	if timeout > 0 {
 		waitChans(m.waitChans(targets), timeout)
 	}
 	return m.List(ids)
 }
 
-// pendingIDs resolves the ids to watch: the requested ones (existing only),
-// or every unfinished sub-agent when ids is empty.
-func (m *Manager) pendingIDs(ids []string) []string {
+// pendingKeys resolves the pool keys to watch in the current session: the
+// requested ids (existing ones only), or every unfinished sub-agent of that
+// session when ids is empty.
+func (m *Manager) pendingKeys(ids []string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.loadLocked()
 	if len(ids) > 0 {
 		out := make([]string, 0, len(ids))
 		for _, id := range ids {
-			if _, ok := m.procs[id]; ok {
-				out = append(out, id)
+			key := procKey(m.sessionID, id)
+			if _, ok := m.procs[key]; ok {
+				out = append(out, key)
 			}
 		}
 		return out
 	}
 	out := make([]string, 0, len(m.procs))
-	for id, p := range m.procs {
-		if !p.Finished() {
-			out = append(out, id)
+	for key, p := range m.procs {
+		if p.SessionID == m.sessionID && !p.Finished() {
+			out = append(out, key)
 		}
 	}
 	return out
 }
 
-// waitChans snapshots the completion channels of the given ids.
-func (m *Manager) waitChans(ids []string) []chan struct{} {
+// waitChans snapshots the completion channels of the given pool keys.
+func (m *Manager) waitChans(keys []string) []chan struct{} {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	chans := make([]chan struct{}, 0, len(ids))
-	for _, id := range ids {
-		if ch, ok := m.done[id]; ok {
+	chans := make([]chan struct{}, 0, len(keys))
+	for _, key := range keys {
+		if ch, ok := m.done[key]; ok {
 			chans = append(chans, ch)
 		}
 	}
@@ -383,16 +396,22 @@ func waitChans(chans []chan struct{}, timeout time.Duration) {
 	}
 }
 
-// Kill terminates the given sub-agents and their whole process group:
-// SIGTERM first, SIGKILL after terminateGrace if the process is still alive.
-// An unknown id fails the call before anything is signalled. Already finished
-// sub-agents are returned unchanged.
+// Kill terminates the given sub-agents of the current session and their whole
+// process group: SIGTERM first, SIGKILL after terminateGrace if the process is
+// still alive. An unknown id fails the call before anything is signalled.
+// Already finished sub-agents are returned unchanged.
 func (m *Manager) Kill(ids []string) ([]*Proc, error) {
-	targets, err := m.markKillTargets(ids)
+	targets, err := m.resolveKillTargets(ids)
 	if err != nil {
 		return nil, err
 	}
+	m.killTargets(targets)
+	return m.List(ids), nil
+}
 
+// killTargets signals the whole process group of every target (SIGTERM, then
+// SIGKILL after the grace period) and marks the matching rows as killed.
+func (m *Manager) killTargets(targets []killTarget) {
 	for _, t := range targets {
 		_ = killGroup(t.pid, t.pgid, syscall.SIGTERM)
 	}
@@ -408,7 +427,7 @@ func (m *Manager) Kill(ids []string) ([]*Proc, error) {
 	m.mu.Lock()
 	now := time.Now()
 	for _, t := range targets {
-		if p, ok := m.procs[t.id]; ok && p.Status == StatusRunning {
+		if p, ok := m.procs[t.key]; ok && p.Status == StatusRunning {
 			p.Status = StatusKilled
 			p.ExitCode = -1
 			p.EndedAt = now
@@ -417,20 +436,19 @@ func (m *Manager) Kill(ids []string) ([]*Proc, error) {
 	}
 	m.saveLocked()
 	m.mu.Unlock()
-
-	return m.List(ids), nil
 }
 
 // killTarget is a resolved running sub-agent about to be terminated.
 type killTarget struct {
+	key  string // session-scoped pool key
 	id   string
 	pid  int
 	pgid int
 }
 
-// markKillTargets validates ids and flags the matching running processes as
-// killed so the reapers keep the killed status once Wait returns.
-func (m *Manager) markKillTargets(ids []string) ([]killTarget, error) {
+// resolveKillTargets validates ids against the current session's pool and flags
+// the matching running processes as killed so the reapers keep that status.
+func (m *Manager) resolveKillTargets(ids []string) ([]killTarget, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("at least one sub-agent id is required")
 	}
@@ -445,37 +463,59 @@ func (m *Manager) markKillTargets(ids []string) ([]killTarget, error) {
 			continue
 		}
 		seen[id] = true
-		p, ok := m.procs[id]
+		key := procKey(m.sessionID, id)
+		p, ok := m.procs[key]
 		if !ok {
 			return nil, fmt.Errorf("unknown sub-agent %q", id)
 		}
 		if p.Status != StatusRunning {
 			continue
 		}
-		if h, ok := m.cmds[id]; ok {
+		if h, ok := m.cmds[key]; ok {
 			h.killed = true
 		}
-		targets = append(targets, killTarget{id: id, pid: p.PID, pgid: p.PGID})
+		targets = append(targets, killTarget{key: key, id: id, pid: p.PID, pgid: p.PGID})
 	}
 	return targets, nil
 }
 
-// Close terminates every running sub-agent (process group included). It is
-// called when the parent agent shuts down and is safe to call more than once.
+// markKeysForKill resolves explicit pool keys; used by Close, which spans every
+// session (FEATURE-565). Missing or already finished keys are skipped.
+func (m *Manager) markKeysForKill(keys []string) []killTarget {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.loadLocked()
+	targets := make([]killTarget, 0, len(keys))
+	for _, key := range keys {
+		p, ok := m.procs[key]
+		if !ok || p.Status != StatusRunning {
+			continue
+		}
+		if h, ok := m.cmds[key]; ok {
+			h.killed = true
+		}
+		targets = append(targets, killTarget{key: key, id: p.ID, pid: p.PID, pgid: p.PGID})
+	}
+	return targets
+}
+
+// Close terminates every running sub-agent of every session (process group
+// included). It is called when the parent agent shuts down and is safe to call
+// more than once.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	m.loadLocked()
-	ids := make([]string, 0, len(m.procs))
-	for id, p := range m.procs {
+	keys := make([]string, 0, len(m.procs))
+	for key, p := range m.procs {
 		if p.Status == StatusRunning {
-			ids = append(ids, id)
+			keys = append(keys, key)
 		}
 	}
 	m.mu.Unlock()
-	if len(ids) == 0 {
+	if len(keys) == 0 {
 		return
 	}
-	_, _ = m.Kill(ids)
+	m.killTargets(m.markKeysForKill(keys))
 }
 
 // childEnv builds the sub-agent environment: the parent environment plus the

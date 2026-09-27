@@ -134,6 +134,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpPlanDisabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpSubAgentEnabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpSubAgentDisabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMaxSubAgents)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallEnabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallDisabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallMode)))

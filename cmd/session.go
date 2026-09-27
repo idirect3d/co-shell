@@ -501,6 +501,13 @@ func (h *SessionHandler) handleSwitch(idStr string) (string, error) {
 		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNotFound), idStr)
 	}
 
+	// FEATURE-565: the sub-agent pool is owned by the session that launched it,
+	// so switching away while sub-agents still run would hide them (the status
+	// list only shows the current session's) and orphan their results.
+	if err := h.agent.RunningSubAgentsError(); err != nil {
+		return "", err
+	}
+
 	// Flush current session messages back to DB before switching
 	if err := h.agent.FlushCurrentSession(); err != nil {
 		// Non-fatal, just log

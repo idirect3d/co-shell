@@ -14,15 +14,16 @@ import (
 	"testing"
 )
 
-// TestValidateID accepts the documented id shape and rejects everything a
-// path traversal or an unusable folder name could hide in (UC: id 校验).
+// TestValidateID accepts only the pool shape (A1..A10) and rejects everything a
+// path traversal or an unusable folder name could hide in (UC: id 校验,
+// FEATURE-565: 固定 id 池).
 func TestValidateID(t *testing.T) {
-	for _, id := range []string{"a", "A9", "sub-agent_1", strings.Repeat("x", 32)} {
+	for _, id := range []string{"A1", "A2", "A9", PoolID(MaxPoolSize)} {
 		if err := ValidateID(id); err != nil {
 			t.Errorf("ValidateID(%q) = %v, want nil", id, err)
 		}
 	}
-	for _, id := range []string{"", strings.Repeat("x", 33), "../evil", "a/b", "a b", "a.b", "子agent"} {
+	for _, id := range []string{"", "A", "a1", "../evil", "a/b", "a b", "a.b", "B1", "scheduled-3", "子agent"} {
 		if err := ValidateID(id); err == nil {
 			t.Errorf("ValidateID(%q) = nil, want error", id)
 		}
@@ -38,11 +39,20 @@ func TestParseTasks(t *testing.T) {
 	if _, err := ParseTasks([]Task{{ID: "a", Instruction: "  "}}); err == nil {
 		t.Error("blank instruction must fail")
 	}
-	if _, err := ParseTasks([]Task{{ID: "../x", Instruction: "x"}}); err == nil {
-		t.Error("invalid id must fail")
+	// Id syntax and range are pool concerns (FEATURE-565): ParseTasks accepts
+	// any string and Start rejects the ones outside the pool.
+	if _, err := ParseTasks([]Task{{ID: "../x", Instruction: "x"}}); err != nil {
+		t.Errorf("ParseTasks must not judge id syntax: %v", err)
 	}
-	if _, err := ParseTasks([]Task{{ID: "a", Instruction: "x"}, {ID: "a", Instruction: "y"}}); err == nil {
+	dup, err := ParseTasks([]Task{{ID: "A1", Instruction: "x"}, {ID: " A1 ", Instruction: "y"}})
+	if err == nil {
 		t.Error("duplicate id within one batch must fail")
+	}
+	if pe, ok := AsPoolError(err); !ok || pe.Kind != PoolErrIDDuplicate {
+		t.Errorf("duplicate batch error = %v, want a PoolErrIDDuplicate", err)
+	}
+	if dup != nil {
+		t.Errorf("ParseTasks returned %v for a duplicate batch", dup)
 	}
 	got, err := ParseTasks([]Task{{ID: " a ", Instruction: "do it"}})
 	if err != nil {
@@ -124,23 +134,40 @@ func TestParseStreamMissingLog(t *testing.T) {
 	}
 }
 
-// TestStatusBlockOmittedWhenEmpty keeps <environment_details> clean while no
-// sub-agent exists (UC: 状态块省略).
-func TestStatusBlockOmittedWhenEmpty(t *testing.T) {
+// TestStatusBlockKeepsPoolSizeWhenIdle pins the injection contract of the
+// block: it is always present (the model needs max to pick an id) but carries
+// no rows while nothing runs (FEATURE-563/565).
+func TestStatusBlockKeepsPoolSizeWhenIdle(t *testing.T) {
 	m := NewManager(Options{Workspace: t.TempDir(), NoStoreLoad: true})
-	if got := m.StatusBlock(); got != "" {
-		t.Errorf("StatusBlock() = %q, want empty", got)
+	got := m.StatusBlock()
+	if !strings.Contains(got, `<sub_agents max="5">`) || !strings.Contains(got, "</sub_agents>") {
+		t.Errorf("StatusBlock() = %q, want an empty pool with max=5", got)
+	}
+	if strings.Contains(got, "<agent ") {
+		t.Errorf("StatusBlock() = %q, want no rows while idle", got)
 	}
 }
 
-// TestSubAgentDirIsScopedToWorkspace pins the {workspace}/sub-agents/{id}/
-// layout that replaced the former sibling-directory convention.
-func TestSubAgentDirIsScopedToWorkspace(t *testing.T) {
+// TestSubAgentDirIsScopedToSession pins the
+// {workspace}/sub-agents/{session}/{id}/ layout (FEATURE-565): two sessions
+// never share a directory, a blank session falls back to the default folder and
+// an unsafe session id is sanitized.
+func TestSubAgentDirIsScopedToSession(t *testing.T) {
 	ws := t.TempDir()
 	m := NewManager(Options{Workspace: ws, NoStoreLoad: true})
-	want := filepath.Join(ws, "sub-agents", "alpha")
-	if got := m.SubAgentDir("alpha"); got != want {
-		t.Errorf("SubAgentDir = %q, want %q", got, want)
+
+	wantA := filepath.Join(ws, "sub-agents", "sess-A", "A1")
+	if got := m.SubAgentDir("sess-A", "A1"); got != wantA {
+		t.Errorf("SubAgentDir(sess-A, A1) = %q, want %q", got, wantA)
+	}
+	if got := m.SubAgentDir("sess-B", "A1"); got == wantA {
+		t.Errorf("two sessions share %q", got)
+	}
+	if got := m.SubAgentDir("", "A1"); got != filepath.Join(ws, "sub-agents", defaultSessionDirName, "A1") {
+		t.Errorf("SubAgentDir(\"\", A1) = %q, want the default session folder", got)
+	}
+	if got := m.SubAgentDir("a/b", "A1"); got != filepath.Join(ws, "sub-agents", "a_b", "A1") {
+		t.Errorf("SubAgentDir(a/b, A1) = %q, want the sanitized folder a_b", got)
 	}
 }
 

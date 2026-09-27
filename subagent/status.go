@@ -42,41 +42,35 @@ func (m *Manager) SetWorkspace(dir string) {
 	m.mu.Unlock()
 }
 
-// StatusBlock renders the process table as the <sub_agents> XML block injected
-// into <environment_details>, or "" when there is no sub-agent at all (an empty
-// block would only waste context). Rows are ordered by id so the block stays
-// diff-friendly across turns.
+// StatusBlock renders the <sub_agents> block injected into
+// <environment_details> (FEATURE-563/565): the pool upper bound (max="N") plus
+// the sub-agents of the *current session* that are running right now. Finished
+// sub-agents do not appear, so the block always mirrors the live pool. It is
+// emitted even when nothing is running, because max is what tells the model
+// which ids it may use.
 func (m *Manager) StatusBlock() string {
 	m.mu.Lock()
 	m.loadLocked()
-	if len(m.procs) == 0 {
-		m.mu.Unlock()
-		return ""
-	}
+	max := m.maxSubAgents
+	sessionID := m.sessionID
 	rows := make([]Proc, 0, len(m.procs))
 	for _, p := range m.procs {
+		if p.SessionID != sessionID || p.Status != StatusRunning {
+			continue
+		}
 		rows = append(rows, *p)
 	}
 	m.mu.Unlock()
 
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	// Rows are ordered by pool slot so the block stays diff-friendly.
+	sort.Slice(rows, func(i, j int) bool { return poolSlotOf(rows[i].ID) < poolSlotOf(rows[j].ID) })
 
 	var sb strings.Builder
-	sb.WriteString("<sub_agents>\n")
+	fmt.Fprintf(&sb, "<sub_agents max=%q>\n", strconv.Itoa(max))
 	for i := range rows {
 		p := &rows[i]
-		fmt.Fprintf(&sb, "  <agent id=%q status=%q run=%q", p.ID, string(p.Status), strconv.Itoa(p.Run))
-		if p.Status == StatusRunning {
-			fmt.Fprintf(&sb, " pid=%q", strconv.Itoa(p.PID))
-		}
-		fmt.Fprintf(&sb, " elapsed=%q", formatElapsed(p.Elapsed()))
-		if p.Finished() {
-			fmt.Fprintf(&sb, " exit_code=%q", strconv.Itoa(p.ExitCode))
-		}
-		if p.WaitTimedOut {
-			sb.WriteString(` wait_timed_out="true"`)
-		}
-		sb.WriteString("/>\n")
+		fmt.Fprintf(&sb, "  <agent id=%q status=%q run=%q pid=%q elapsed=%q/>\n",
+			p.ID, string(p.Status), strconv.Itoa(p.Run), strconv.Itoa(p.PID), formatElapsed(p.Elapsed()))
 	}
 	sb.WriteString("</sub_agents>")
 	return sb.String()
@@ -86,7 +80,7 @@ func (m *Manager) StatusBlock() string {
 // JSON-Lines stream). Missing logs yield an empty string.
 func (m *Manager) LogTail(id string, maxBytes int) string {
 	m.mu.Lock()
-	p, ok := m.procs[id]
+	p, ok := m.procs[procKey(m.sessionID, id)]
 	path := ""
 	if ok {
 		path = p.LogPath

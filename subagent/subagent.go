@@ -44,7 +44,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -81,10 +80,6 @@ const storeKey = "subagent:procs"
 // defaultResultLimit caps how many bytes of the sub-agent's final output are
 // kept/injected, so a verbose sub-agent cannot blow up the parent context.
 const defaultResultLimit = 8 * 1024
-
-// idPattern restricts sub-agent ids: they are used as directory names, so path
-// separators, dots and whitespace are rejected (path-traversal guard).
-var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
 
 // Task is one sub-agent launch request.
 type Task struct {
@@ -176,6 +171,9 @@ type Manager struct {
 	// noStream drops the default machine-readable display flags from launches
 	// (set only when the operator explicitly switched the display off).
 	noStream bool
+	// maxSubAgents is the per-session pool size (FEATURE-565): A1..An, 0 means
+	// creation is disabled. Guarded by mu.
+	maxSubAgents int
 	// sessionID is the session newly launched sub-agents are bound to, and
 	// notifier is fired whenever the progress shown for a sub-agent moves
 	// (FEATURE-564). Both are guarded by mu.
@@ -195,10 +193,11 @@ func NewManager(opts Options) *Manager {
 		opts.ResultLimit = defaultResultLimit
 	}
 	return &Manager{
-		opts:  opts,
-		procs: make(map[string]*Proc),
-		cmds:  make(map[string]*execHandle),
-		done:  make(map[string]chan struct{}),
+		opts:         opts,
+		procs:        make(map[string]*Proc),
+		cmds:         make(map[string]*execHandle),
+		done:         make(map[string]chan struct{}),
+		maxSubAgents: DefaultMaxSubAgents,
 	}
 }
 
@@ -220,15 +219,10 @@ func (m *Manager) SetStreamFlags(enabled bool) {
 	m.mu.Unlock()
 }
 
-// ValidateID reports whether id is a legal sub-agent id.
-func ValidateID(id string) error {
-	if !idPattern.MatchString(id) {
-		return fmt.Errorf("invalid sub-agent id %q: must match %s", id, idPattern.String())
-	}
-	return nil
-}
-
-// ParseTasks normalises and validates a batch of tasks.
+// ParseTasks normalises a batch of tasks and checks the shared shape rules
+// (non-empty batch, unique ids, non-empty instructions). The pool rules
+// (A1..An of the launching session) are enforced by Start, which knows the
+// target session and the configured pool size (FEATURE-565).
 func ParseTasks(tasks []Task) ([]Task, error) {
 	if len(tasks) == 0 {
 		return nil, errors.New("at least one task is required")
@@ -237,11 +231,11 @@ func ParseTasks(tasks []Task) ([]Task, error) {
 	out := make([]Task, 0, len(tasks))
 	for _, t := range tasks {
 		id := strings.TrimSpace(t.ID)
-		if err := ValidateID(id); err != nil {
-			return nil, err
-		}
 		if seen[id] {
-			return nil, fmt.Errorf("duplicate sub-agent id %q in one batch", id)
+			// A typed pool error so the agent layer can render the localized
+			// duplicate message (FEATURE-565); the pool size is stamped by
+			// Manager.Start, which knows it.
+			return nil, &PoolError{Kind: PoolErrIDDuplicate, ID: id}
 		}
 		if strings.TrimSpace(t.Instruction) == "" {
 			return nil, fmt.Errorf("sub-agent %q: instruction must not be empty", id)
@@ -261,12 +255,12 @@ func ValidateWaitSeconds(seconds int) error {
 	return nil
 }
 
-// Lookup returns a copy of one process-table row.
+// Lookup returns a copy of one row of the current session's pool.
 func (m *Manager) Lookup(id string) (*Proc, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.loadLocked()
-	p, ok := m.procs[id]
+	p, ok := m.procs[procKey(m.sessionID, id)]
 	if !ok {
 		return nil, false
 	}
@@ -274,7 +268,8 @@ func (m *Manager) Lookup(id string) (*Proc, bool) {
 	return &cp, true
 }
 
-// List returns process-table rows (all when ids is empty), newest run first.
+// List returns the current session's rows (all of them when ids is empty),
+// newest run first.
 func (m *Manager) List(ids []string) []*Proc {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -285,8 +280,11 @@ func (m *Manager) List(ids []string) []*Proc {
 		want[id] = true
 	}
 	out := make([]*Proc, 0, len(m.procs))
-	for id, p := range m.procs {
-		if len(want) > 0 && !want[id] {
+	for _, p := range m.procs {
+		if p.SessionID != m.sessionID {
+			continue
+		}
+		if len(want) > 0 && !want[p.ID] {
 			continue
 		}
 		cp := *p
@@ -301,9 +299,12 @@ func (m *Manager) List(ids []string) []*Proc {
 	return out
 }
 
-// SubAgentDir returns the workspace directory of a sub-agent.
-func (m *Manager) SubAgentDir(id string) string {
-	return filepath.Join(m.opts.Workspace, "sub-agents", id)
+// SubAgentDir returns the workspace directory of one sub-agent:
+// {workspace}/sub-agents/{session}/{id}. The pool is per session, so the
+// session is part of the path: two sessions may run A1 at the same time without
+// sharing logs (FEATURE-565). Runs without a session use "default".
+func (m *Manager) SubAgentDir(sessionID, id string) string {
+	return filepath.Join(m.opts.Workspace, "sub-agents", sessionDirName(sessionID), id)
 }
 
 // ---------- persistence ----------
@@ -336,7 +337,7 @@ func (m *Manager) loadLocked() {
 				row.EndedAt = time.Now()
 			}
 		}
-		m.procs[row.ID] = row
+		m.procs[procKey(row.SessionID, row.ID)] = row
 	}
 }
 
@@ -366,10 +367,13 @@ func (m *Manager) resultLimit() int {
 	return defaultResultLimit
 }
 
-// OutputFiles lists the files a sub-agent produced under its own
-// {workspace}/output/ directory.
+// OutputFiles lists the files a sub-agent of the current session produced
+// under its own {workspace}/output/ directory.
 func (m *Manager) OutputFiles(id string) []string {
-	dir := filepath.Join(m.SubAgentDir(id), "output")
+	m.mu.Lock()
+	sessionID := m.sessionID
+	m.mu.Unlock()
+	dir := filepath.Join(m.SubAgentDir(sessionID, id), "output")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil

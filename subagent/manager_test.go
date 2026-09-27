@@ -81,6 +81,10 @@ func (f *fakePersister) GetMemory(key string) (string, bool, error) {
 	return v, ok, nil
 }
 
+// testSessionID is the session the fixture managers work in: the sub-agent
+// pool, the process table and the workspaces are all per session (FEATURE-565).
+const testSessionID = "sess-test"
+
 // newTestManager builds a manager over a fresh workspace with the fake
 // co-shell as the child executable.
 func newTestManager(t *testing.T, persister Persister) (*Manager, string) {
@@ -92,8 +96,14 @@ func newTestManager(t *testing.T, persister Persister) (*Manager, string) {
 		Persister:   persister,
 		NoStoreLoad: true,
 	})
+	m.SetSessionID(testSessionID)
 	t.Cleanup(m.Close)
 	return m, ws
+}
+
+// agentDir is the workspace of one sub-agent of the fixture session.
+func agentDir(ws, id string) string {
+	return filepath.Join(ws, "sub-agents", testSessionID, id)
 }
 
 // waitGone polls until the process disappears or the deadline expires. A
@@ -112,13 +122,14 @@ func waitGone(t *testing.T, pid int, timeout time.Duration) {
 }
 
 // TestStartBatchCreatesIsolatedWorkspaces covers the batch launch contract:
-// one call starts several sub-agents, each in {workspace}/sub-agents/{id}/,
-// and each returns its own result (UC-0001: 批量创建 + 结果提取).
+// one call starts several sub-agents, each in
+// {workspace}/sub-agents/{session}/{id}/, and each returns its own result
+// (UC-0001: 批量创建 + 结果提取, FEATURE-565: 每会话目录).
 func TestStartBatchCreatesIsolatedWorkspaces(t *testing.T) {
 	m, ws := newTestManager(t, nil)
 	procs, err := m.Start(context.Background(), []Task{
-		{ID: "alpha", Instruction: "first"},
-		{ID: "beta", Instruction: "second"},
+		{ID: "A1", Instruction: "first"},
+		{ID: "A2", Instruction: "second"},
 	}, 10*time.Second)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -139,7 +150,7 @@ func TestStartBatchCreatesIsolatedWorkspaces(t *testing.T) {
 		if len(p.ToolCalls) != 1 || p.ToolCalls[0] != "read_file" {
 			t.Errorf("%s tool calls = %v, want [read_file]", p.ID, p.ToolCalls)
 		}
-		want := filepath.Join(ws, "sub-agents", p.ID)
+		want := agentDir(ws, p.ID)
 		if p.Workspace != want {
 			t.Errorf("%s workspace = %q, want %q", p.ID, p.Workspace, want)
 		}
@@ -156,13 +167,14 @@ func TestStartBatchCreatesIsolatedWorkspaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if !strings.Contains(string(logData), "env=true/alpha") {
+	if !strings.Contains(string(logData), "env=true/A1") {
 		t.Errorf("child env markers missing from %s", procs[0].LogPath)
 	}
 }
 
-// TestStartValidation covers the batch guards: no task, bad id, empty
-// instruction (UC-0001: id 校验/防路径穿越).
+// TestStartValidation covers the batch guards: no task, pool id syntax/range,
+// duplicate slots and an empty instruction (UC-0001: id 校验, FEATURE-565:
+// id 池与防路径穿越).
 func TestStartValidation(t *testing.T) {
 	m, _ := newTestManager(t, nil)
 	ctx := context.Background()
@@ -170,10 +182,44 @@ func TestStartValidation(t *testing.T) {
 	if _, err := m.Start(ctx, nil, time.Second); err == nil {
 		t.Error("Start(nil tasks) must fail")
 	}
-	if _, err := m.Start(ctx, []Task{{ID: "../evil", Instruction: "x"}}, time.Second); err == nil {
-		t.Error("Start with a traversal id must fail")
+	// The id must name a slot: everything that is not A<digits> is a format
+	// error, which also rules out path traversal ids.
+	for _, bad := range []string{"../evil", "a1", "A", "B1", "scheduled-3"} {
+		_, err := m.Start(ctx, []Task{{ID: bad, Instruction: "x"}}, time.Second)
+		pe, ok := AsPoolError(err)
+		if !ok {
+			t.Fatalf("Start(id=%q) error = %v, want a PoolError", bad, err)
+		}
+		if pe.Kind != PoolErrIDFormat {
+			t.Errorf("Start(id=%q) kind = %v, want PoolErrIDFormat", bad, pe.Kind)
+		}
 	}
-	if _, err := m.Start(ctx, []Task{{ID: "ok", Instruction: "   "}}, time.Second); err == nil {
+	// A blank id is "required", not a format error (UC: id 必填).
+	if _, err := m.Start(ctx, []Task{{ID: "  ", Instruction: "x"}}, time.Second); err != nil {
+		pe, ok := AsPoolError(err)
+		if !ok || pe.Kind != PoolErrIDRequired {
+			t.Errorf("Start(blank id) = %v, want a PoolErrIDRequired", err)
+		}
+	}
+	// A0 and anything past the pool are range errors, not format errors.
+	for _, bad := range []string{"A0", "A6"} {
+		_, err := m.Start(ctx, []Task{{ID: bad, Instruction: "x"}}, time.Second)
+		pe, ok := AsPoolError(err)
+		if !ok || pe.Kind != PoolErrIDOutOfRange {
+			t.Errorf("Start(id=%q) = %v, want a PoolErrIDOutOfRange", bad, err)
+		}
+		if ok && pe.Max != DefaultMaxSubAgents {
+			t.Errorf("Start(id=%q) max = %d, want %d", bad, pe.Max, DefaultMaxSubAgents)
+		}
+	}
+	// The same slot twice in one batch.
+	_, err := m.Start(ctx, []Task{{ID: "A1", Instruction: "x"}, {ID: "A1", Instruction: "y"}}, time.Second)
+	if pe, ok := AsPoolError(err); !ok || pe.Kind != PoolErrIDDuplicate {
+		t.Errorf("Start(duplicate A1) = %v, want a PoolErrIDDuplicate", err)
+	} else if pe.Max != DefaultMaxSubAgents {
+		t.Errorf("duplicate error max = %d, want %d", pe.Max, DefaultMaxSubAgents)
+	}
+	if _, err := m.Start(ctx, []Task{{ID: "A1", Instruction: "   "}}, time.Second); err == nil {
 		t.Error("Start with a blank instruction must fail")
 	}
 	if procs := m.List(nil); len(procs) != 0 {
@@ -188,7 +234,7 @@ func TestTimeoutLeavesProcessRunning(t *testing.T) {
 	t.Setenv("FAKE_SLEEP", "1")
 	m, _ := newTestManager(t, nil)
 
-	procs, err := m.Start(context.Background(), []Task{{ID: "slow", Instruction: "think"}}, 100*time.Millisecond)
+	procs, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "think"}}, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -202,7 +248,7 @@ func TestTimeoutLeavesProcessRunning(t *testing.T) {
 		t.Fatalf("process %d must keep running after the wait window expired", procs[0].PID)
 	}
 
-	final := m.Wait([]string{"slow"}, 15*time.Second)
+	final := m.Wait([]string{"A1"}, 15*time.Second)
 	if len(final) != 1 {
 		t.Fatalf("Wait returned %d procs, want 1", len(final))
 	}
@@ -222,7 +268,7 @@ func TestWaitZeroTimeoutReturnsImmediately(t *testing.T) {
 	t.Setenv("FAKE_SLEEP", "30")
 	m, _ := newTestManager(t, nil)
 
-	if _, err := m.Start(context.Background(), []Task{{ID: "waiter", Instruction: "x"}}, 100*time.Millisecond); err != nil {
+	if _, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "x"}}, 100*time.Millisecond); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	start := time.Now()
@@ -244,7 +290,7 @@ func TestKillTerminatesOwnProcessGroup(t *testing.T) {
 	t.Setenv("FAKE_SLEEP", "30")
 	m, _ := newTestManager(t, nil)
 
-	procs, err := m.Start(context.Background(), []Task{{ID: "victim", Instruction: "loop"}}, 100*time.Millisecond)
+	procs, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "loop"}}, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -253,7 +299,7 @@ func TestKillTerminatesOwnProcessGroup(t *testing.T) {
 		t.Errorf("pgid = %d, want its own group %d", procs[0].PGID, pid)
 	}
 
-	killed, err := m.Kill([]string{"victim"})
+	killed, err := m.Kill([]string{"A1"})
 	if err != nil {
 		t.Fatalf("Kill: %v", err)
 	}
@@ -275,7 +321,7 @@ func TestKillEscalatesToSigkill(t *testing.T) {
 	t.Setenv("FAKE_IGNORE_TERM", "1")
 	m, _ := newTestManager(t, nil)
 
-	procs, err := m.Start(context.Background(), []Task{{ID: "stubborn", Instruction: "ignore"}}, 200*time.Millisecond)
+	procs, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "ignore"}}, 200*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -294,7 +340,7 @@ func TestKillEscalatesToSigkill(t *testing.T) {
 		t.Skip("fixture died on SIGTERM; the SIGKILL escalation cannot be observed")
 	}
 
-	if _, err := m.Kill([]string{"stubborn"}); err != nil {
+	if _, err := m.Kill([]string{"A1"}); err != nil {
 		t.Fatalf("Kill: %v", err)
 	}
 	waitGone(t, pid, 3*time.Second)
@@ -306,19 +352,19 @@ func TestKillValidation(t *testing.T) {
 	if _, err := m.Kill(nil); err == nil {
 		t.Error("Kill(nil) must fail")
 	}
-	if _, err := m.Kill([]string{"ghost"}); err == nil {
-		t.Error("Kill with an unknown id must fail")
+	if _, err := m.Kill([]string{"A5"}); err == nil {
+		t.Error("Kill with an idle pool id must fail")
 	}
 }
 
-// TestReuseIncrementsRun covers run reuse: a finished id restarts in the same
-// workspace with the next run number while the earlier log is kept, and a
-// running id is refused (UC-0001: 复用).
+// TestReuseIncrementsRun covers slot reuse: a finished slot restarts in the
+// same workspace with the next run number while the earlier log is kept, and a
+// running slot is refused (UC-0001: 复用, FEATURE-565: 非运行中 id 可复用).
 func TestReuseIncrementsRun(t *testing.T) {
 	m, ws := newTestManager(t, nil)
 	ctx := context.Background()
 
-	first, err := m.Start(ctx, []Task{{ID: "reuse", Instruction: "one"}}, 10*time.Second)
+	first, err := m.Start(ctx, []Task{{ID: "A1", Instruction: "one"}}, 10*time.Second)
 	if err != nil {
 		t.Fatalf("Start #1: %v", err)
 	}
@@ -326,31 +372,38 @@ func TestReuseIncrementsRun(t *testing.T) {
 		t.Fatalf("first run = %d, want 1", first[0].Run)
 	}
 
-	second, err := m.Start(ctx, []Task{{ID: "reuse", Instruction: "two"}}, 10*time.Second)
+	second, err := m.Start(ctx, []Task{{ID: "A1", Instruction: "two"}}, 10*time.Second)
 	if err != nil {
 		t.Fatalf("Start #2: %v", err)
 	}
 	if second[0].Run != 2 {
 		t.Errorf("second run = %d, want 2", second[0].Run)
 	}
+	if second[0].Workspace != agentDir(ws, "A1") {
+		t.Errorf("reused workspace = %q, want %q", second[0].Workspace, agentDir(ws, "A1"))
+	}
 	for _, name := range []string{"run-1.jsonl", "run-2.jsonl"} {
-		if _, err := os.Stat(filepath.Join(ws, "sub-agents", "reuse", name)); err != nil {
+		if _, err := os.Stat(filepath.Join(agentDir(ws, "A1"), name)); err != nil {
 			t.Errorf("%s missing after reuse: %v", name, err)
 		}
 	}
 }
 
-// TestRunningIDIsRefused covers the "already running" guard.
+// TestRunningIDIsRefused covers the "slot already running" guard.
 func TestRunningIDIsRefused(t *testing.T) {
 	t.Setenv("FAKE_SLEEP", "30")
 	m, _ := newTestManager(t, nil)
 
-	if _, err := m.Start(context.Background(), []Task{{ID: "busy", Instruction: "x"}}, 100*time.Millisecond); err != nil {
+	if _, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "x"}}, 100*time.Millisecond); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	_, err := m.Start(context.Background(), []Task{{ID: "busy", Instruction: "y"}}, time.Second)
-	if err == nil || !strings.Contains(err.Error(), "already running") {
-		t.Fatalf("second Start with a running id = %v, want an \"already running\" error", err)
+	_, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "y"}}, time.Second)
+	pe, ok := AsPoolError(err)
+	if !ok || pe.Kind != PoolErrIDBusy {
+		t.Fatalf("second Start on a running slot = %v, want a PoolErrIDBusy", err)
+	}
+	if pe.Run != 1 || pe.PID <= 0 {
+		t.Errorf("busy error = run %d pid %d, want run 1 and a live pid", pe.Run, pe.PID)
 	}
 }
 
@@ -359,7 +412,7 @@ func TestFailedExitIsRecorded(t *testing.T) {
 	t.Setenv("FAKE_EXIT", "3")
 	m, _ := newTestManager(t, nil)
 
-	procs, err := m.Start(context.Background(), []Task{{ID: "boom", Instruction: "fail"}}, 10*time.Second)
+	procs, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "fail"}}, 10*time.Second)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -372,33 +425,57 @@ func TestFailedExitIsRecorded(t *testing.T) {
 }
 
 // TestStatusBlockAndOutputs covers the injected <sub_agents> block and the
-// output listing used by sub_agent_status (UC-0001: 状态注入/产出清单).
+// output listing used by sub_agent_status (UC-0001: 状态注入/产出清单,
+// FEATURE-565: 只列运行中 + max).
 func TestStatusBlockAndOutputs(t *testing.T) {
+	t.Setenv("FAKE_SLEEP", "30")
 	m, _ := newTestManager(t, nil)
-	if _, err := m.Start(context.Background(), []Task{{ID: "shown", Instruction: "x"}}, 10*time.Second); err != nil {
+	if _, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "x"}}, 100*time.Millisecond); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
 	block := m.StatusBlock()
-	for _, want := range []string{"<sub_agents>", "</sub_agents>", `id="shown"`, `status="completed"`, `run="1"`} {
+	for _, want := range []string{
+		`<sub_agents max="5">`, `</sub_agents>`, `id="A1"`, `status="running"`, `run="1"`,
+	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("StatusBlock missing %q:\n%s", want, block)
 		}
 	}
 
-	outDir := filepath.Join(m.SubAgentDir("shown"), "output")
+	outDir := filepath.Join(m.SubAgentDir(testSessionID, "A1"), "output")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		t.Fatalf("mkdir output: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(outDir, "note.md"), []byte("hi"), 0o644); err != nil {
 		t.Fatalf("write output: %v", err)
 	}
-	files := m.OutputFiles("shown")
+	files := m.OutputFiles("A1")
 	if len(files) != 1 || files[0] != "note.md" {
 		t.Errorf("OutputFiles = %v, want [note.md]", files)
 	}
-	if tail := m.LogTail("shown", 4096); !strings.Contains(tail, "final answer") {
-		t.Errorf("LogTail = %q, want the emitted stream", tail)
+	// The stream is written up front, so the tail is readable while running;
+	// the child needs a moment to start and echo its lines.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if tail := m.LogTail("A1", 4096); strings.Contains(tail, "final answer") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("LogTail = %q, want the emitted stream", m.LogTail("A1", 4096))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, err := m.Kill([]string{"A1"}); err != nil {
+		t.Fatalf("Kill: %v", err)
+	}
+	// A finished sub-agent leaves the block: only running rows are listed.
+	after := m.StatusBlock()
+	if strings.Contains(after, `id="A1"`) {
+		t.Errorf("StatusBlock still lists a killed sub-agent:\n%s", after)
+	}
+	if !strings.Contains(after, `max="5"`) {
+		t.Errorf("StatusBlock must keep the pool size even when idle:\n%s", after)
 	}
 }
 
@@ -410,8 +487,8 @@ func TestCloseKillsEveryRunning(t *testing.T) {
 	m, _ := newTestManager(t, nil)
 
 	procs, err := m.Start(context.Background(), []Task{
-		{ID: "one", Instruction: "x"},
-		{ID: "two", Instruction: "y"},
+		{ID: "A1", Instruction: "x"},
+		{ID: "A2", Instruction: "y"},
 	}, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -442,7 +519,8 @@ func TestPersistenceRecoversProcessTable(t *testing.T) {
 	exe := fakeCoShell(t)
 
 	m1 := NewManager(Options{Workspace: ws, ExecPath: exe, Persister: persister, NoStoreLoad: true})
-	if _, err := m1.Start(context.Background(), []Task{{ID: "kept", Instruction: "x"}}, 10*time.Second); err != nil {
+	m1.SetSessionID(testSessionID)
+	if _, err := m1.Start(context.Background(), []Task{{ID: "A1", Instruction: "x"}}, 10*time.Second); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	m1.Close()
@@ -452,7 +530,8 @@ func TestPersistenceRecoversProcessTable(t *testing.T) {
 	}
 
 	m2 := NewManager(Options{Workspace: ws, ExecPath: exe, Persister: persister})
-	got, ok := m2.Lookup("kept")
+	m2.SetSessionID(testSessionID)
+	got, ok := m2.Lookup("A1")
 	if !ok {
 		t.Fatal("recovered manager lost the persisted record")
 	}
@@ -473,7 +552,8 @@ func TestPersistenceMarksDeadRunningRecordStale(t *testing.T) {
 	exe := fakeCoShell(t)
 
 	m1 := NewManager(Options{Workspace: ws, ExecPath: exe, Persister: persister, NoStoreLoad: true})
-	if _, err := m1.Start(context.Background(), []Task{{ID: "ghost", Instruction: "x"}}, 10*time.Second); err != nil {
+	m1.SetSessionID(testSessionID)
+	if _, err := m1.Start(context.Background(), []Task{{ID: "A1", Instruction: "x"}}, 10*time.Second); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	m1.Close()
@@ -490,7 +570,8 @@ func TestPersistenceMarksDeadRunningRecordStale(t *testing.T) {
 	broken := &fakePersister{data: map[string]string{storeKey: patched}}
 
 	m2 := NewManager(Options{Workspace: ws, ExecPath: exe, Persister: broken})
-	got, ok := m2.Lookup("ghost")
+	m2.SetSessionID(testSessionID)
+	got, ok := m2.Lookup("A1")
 	if !ok {
 		t.Fatal("recovered manager lost the patched record")
 	}
@@ -530,7 +611,7 @@ func TestStartInjectsMachineReadableStreamFlags(t *testing.T) {
 			NoStoreLoad: true,
 		})
 		m.SetStreamFlags(tc.enabled)
-		if _, err := m.Start(context.Background(), []Task{{ID: "flags", Instruction: "run"}}, 10*time.Second); err != nil {
+		if _, err := m.Start(context.Background(), []Task{{ID: "A1", Instruction: "run"}}, 10*time.Second); err != nil {
 			t.Fatalf("%s: Start: %v", tc.name, err)
 		}
 		data, err := os.ReadFile(argsPath)

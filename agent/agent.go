@@ -1001,6 +1001,61 @@ func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
 
+// SetMaxSubAgents sets the per-session sub-agent pool size (FEATURE-565): the
+// session owns A1..An, and 0 disables sub-agent creation. The value comes from
+// config.json (max_sub_agents) or the --max-sub-agents CLI override.
+func (a *Agent) SetMaxSubAgents(n int) error {
+	if a.subAgentMgr == nil {
+		return nil
+	}
+	return a.subAgentMgr.SetMaxSubAgents(n)
+}
+
+// RunningSubAgentIDs lists the ids of the current session's running sub-agents
+// (FEATURE-565). A non-empty result blocks switching the session: leaving would
+// orphan sub-agents whose results the user is still waiting for.
+func (a *Agent) RunningSubAgentIDs() []string {
+	if a.subAgentMgr == nil {
+		return nil
+	}
+	return a.subAgentMgr.SessionRunningIDs(a.CurrentSessionID())
+}
+
+// RunningSubAgentsError returns a localized error when the current session
+// still has running sub-agents (FEATURE-565), and nil otherwise. Session
+// switches are refused while it is non-nil: the pool, the process table and
+// the on-screen list are all keyed by session, so leaving would hide the
+// running sub-agents and orphan the results the user is waiting for.
+func (a *Agent) RunningSubAgentsError() error {
+	ids := a.RunningSubAgentIDs()
+	if len(ids) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s", i18n.TF(i18n.KeySubAgentSessionBusy, strings.Join(ids, ", ")))
+}
+
+// freeSubAgentID returns the first free slot of the current session's pool
+// (FEATURE-565); ok is false when creation is disabled or every slot runs.
+func (a *Agent) freeSubAgentID() (string, bool) {
+	if a.subAgentMgr == nil {
+		return "", false
+	}
+	status := a.subAgentMgr.PoolStatus(a.CurrentSessionID())
+	if status.Max <= 0 {
+		return "", false
+	}
+	running := make(map[string]bool, len(status.Running))
+	for _, id := range status.Running {
+		running[id] = true
+	}
+	for _, id := range subagent.PoolIDs(status.Max) {
+		if !running[id] {
+			return id, true
+		}
+	}
+	return "", false
+}
+
 // SetSubAgentStreamFlags forwards the machine-readable stream decision to the
 // sub-agent manager: sub-agent JSON logs keep tool events unless the operator
 // explicitly switched the display off (FEATURE-563).
