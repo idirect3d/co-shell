@@ -651,7 +651,11 @@ function wsConnect() {
     }
     // FEATURE-548: the switch was refused (a task is running). Refresh the list so
     // the current-session highlight snaps back and tell the user why.
-    else if (msg.kind === "session_switch_result" && msg.ok === false) {
+    // FEATURE-565: the backend omits "ok" when it is false (json omitempty), so a
+    // refusal arrives without the field at all. Testing === false therefore never
+    // matched and the user saw nothing happen; treat every frame that is not an
+    // explicit acceptance as a refusal.
+    else if (msg.kind === "session_switch_result" && msg.ok !== true) {
       wsSend({ type: "session_list" });
       notifyUser(msg.message === "busy" ? (T.sessionSwitchBusy || "A task is running") : (msg.message || T.sessionSwitchFailed || ""));
     }
