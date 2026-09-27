@@ -2172,6 +2172,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySubAgentToolCalls:           "工具调用：%s",
 	KeySubAgentOutputList:          "输出文件：%s",
 	KeySubAgentTasksRequired:       "tasks 必须是非空的 {id, instruction} 对象数组",
+	KeySubAgentNoticeCompleted:     "子代理 %s（run %d）已完成（exit %d，用时 %s）。请调用 sub_agent_status 取结果。",
+	KeySubAgentNoticeFailed:        "子代理 %s（run %d）失败（exit %d，用时 %s）。请调用 sub_agent_status 查看结果与错误日志。",
 	KeySubAgentTaskShape:           "tasks[%d] 必须是包含 id 与 instruction 的对象",
 	KeySubAgentInvalidID:           "子代理 id 非法 %q（仅允许字母、数字、'_'、'-'，最长 32 字符）",
 	KeySubAgentInstructionRequired: "子代理 %q：instruction 不能为空",

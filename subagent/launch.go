@@ -267,6 +267,10 @@ func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done cha
 	}
 	result, toolCalls := parseStream(pr.logPath, m.resultLimit())
 
+	// completed keeps the final row of a naturally finished sub-agent so the
+	// notifier can fire outside the lock (FEATURE-566).
+	var completed *Proc
+
 	m.mu.Lock()
 	if p, ok := m.procs[procKey(pr.session, pr.task.ID)]; ok {
 		killed := handle.killed
@@ -285,12 +289,22 @@ func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done cha
 		}
 		p.Result = result
 		p.ToolCalls = toolCalls
+		// A sub-agent that finished on its own must report itself to the agent
+		// that launched it (FEATURE-566). A killed one is not reported: the
+		// caller asked for the termination and already has the result.
+		if p.Status == StatusCompleted || p.Status == StatusFailed {
+			cp := *p
+			completed = &cp
+		}
 	}
 	delete(m.cmds, procKey(pr.session, pr.task.ID))
 	m.saveLocked()
 	m.mu.Unlock()
 
 	close(done)
+	if completed != nil {
+		m.notifyCompletion(*completed)
+	}
 }
 
 // waitBatch waits for the given processes until waitTimeout expires (a

@@ -229,6 +229,10 @@ const (
 	KeySubAgentToolCalls           = "subagent_tool_calls"
 	KeySubAgentOutputList          = "subagent_output_list"
 	KeySubAgentTasksRequired       = "subagent_tasks_required"
+	// FEATURE-566: completion notices delivered to the agent that launched the
+	// sub-agent (id, run, exit code, elapsed time).
+	KeySubAgentNoticeCompleted     = "subagent_notice_completed"
+	KeySubAgentNoticeFailed        = "subagent_notice_failed"
 	KeySubAgentTaskShape           = "subagent_task_shape"
 	KeySubAgentInvalidID           = "subagent_invalid_id"
 	KeySubAgentInstructionRequired = "subagent_instruction_required"

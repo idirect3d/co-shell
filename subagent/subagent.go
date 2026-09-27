@@ -179,6 +179,11 @@ type Manager struct {
 	// (FEATURE-564). Both are guarded by mu.
 	sessionID string
 	notifier  func(sessionID string)
+	// completionNotifier is fired once per sub-agent that reaches a natural
+	// terminal state (Completed or Failed), carrying a copy of its final row
+	// (FEATURE-566). Killed rows are not reported: the caller asked for the
+	// termination and already got the result from the kill tool call.
+	completionNotifier func(Proc)
 }
 
 // execHandle couples a running command with its kill bookkeeping.

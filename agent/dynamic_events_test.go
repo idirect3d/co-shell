@@ -201,3 +201,29 @@ func TestConsumeDynamicEventsViewFile(t *testing.T) {
 		t.Errorf("block should carry open_file ./work/other.go, got:\n%s", block)
 	}
 }
+
+// TestDynamicQueueKeepsTextEvents is the FEATURE-566 regression: text-carrying
+// events (board message, sub-agent completion notice, component action) keep
+// their payload in Text and leave Path empty, so two events of the same kind
+// share an empty path. They must never be coalesced — before the fix the second
+// sub-agent notice was silently swallowed, so a batch of sub-agents finishing
+// while the agent was busy produced only the *first* notice (UC-0007 "one notice
+// per completion, in completion order").
+func TestDynamicQueueKeepsTextEvents(t *testing.T) {
+	q := newDynamicEventQueue(100)
+	q.add(DynamicEvent{Kind: DynamicSubAgentDone, Text: `<sub_agent_done id="A1">first</sub_agent_done>`})
+	q.add(DynamicEvent{Kind: DynamicSubAgentDone, Text: `<sub_agent_done id="A2">second</sub_agent_done>`})
+	q.add(DynamicEvent{Kind: DynamicBoardMessage, Text: "<board_message>m1</board_message>"})
+	q.add(DynamicEvent{Kind: DynamicBoardMessage, Text: "<board_message>m2</board_message>"})
+
+	got := q.drain()
+	if len(got) != 4 {
+		t.Fatalf("drain len = %d, want 4 (text events must not coalesce)", len(got))
+	}
+	if !strings.Contains(got[0].Text, `id="A1"`) || !strings.Contains(got[1].Text, `id="A2"`) {
+		t.Errorf("sub-agent notices lost or reordered: %q, %q", got[0].Text, got[1].Text)
+	}
+	if !strings.Contains(got[2].Text, "m1") || !strings.Contains(got[3].Text, "m2") {
+		t.Errorf("board messages lost: %q, %q", got[2].Text, got[3].Text)
+	}
+}

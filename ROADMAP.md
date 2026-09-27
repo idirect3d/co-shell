@@ -4,11 +4,41 @@
 
 ---
 
+## v0.80.0 — 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）
+
+> **版本**: v0.80.0
+
+> **状态**: ✅ 已完成（2026-09-28 合并 main，标签 **v0.80.0**，BUILD-1148）
+> **里程碑**: 子代理（A1..An）**无论成功或失败**，结束时都必须把「它结束了」这件事**送达主 agent**，避免「子代理干完了但主 agent 不知道、没有后续动作」导致白做：① 主 agent **正在迭代中**时，通过**动态感知机制**把完成事件注入本次迭代（下一次 LLM 调用的 `<user_dynamic_events>`）；② 主 agent **空闲（回合已结束 / 来不及注入）**时，主动发送一条**正式 user message 并启动一次新迭代**。通知按完成先后**逐条**处理：先完成的若 agent 空闲即同步起新迭代，其后完成的自然落入动态感知注入。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-566 | 0.80.0 | P1 | ① `subagent` 层在进程回收（`reap`）终态落定后（锁外）触发**完成回调**（成功 = Completed / 失败 = Failed；主 agent 主动 `kill_sub_agent` 的不通知）；② `agent` 层新增完成通知处理：`IsBusy()` 为真 → 以新的动态事件类型注入当前迭代（`<user_dynamic_events>`），否则交由驱动层（Web 会话）投递一条正式 user message **起一次新迭代**；③ 通知正文＝**状态 + id + run + 提示「请调用 sub_agent_status 取结果」**（不带结果正文，最省 token）；④ 无「起新迭代」能力的出口（终端 repl / 单命令运行）降级为打印提示 + 动态事件缓存，在下一回合注入。 |
+
+> 当前 BUILD: 1148
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-566 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）** [BUILD-1147]
+  - 背景（用户需求）：FEATURE-565 交付后，子代理结束的唯一「通知」是刷新 Web UI 清单（`agent.onSubAgentProgress` → `pushSubAgents`，仅推前端），主 agent 完全感知不到；若 `launch_sub_agent` 等待超时转后台、或主 agent 回合已结束，子代理的结果就可能永远不进对话（「子代理白做」）。用户要求：**每个子代理结束时（成功或失败）都必须通知主 agent**——迭代中走动态感知，来不及则发正式 user message 起新迭代。
+  - 交互决策（经 ask_user 确认）：任务归属＝先合并 FEATURE-565（v0.79.0 已合并 main + 标签），再新建 **FEATURE-566**、版本 **v0.80.0**；注入方式＝**复用现有动态感知**（写入动态事件队列，在下一次 LLM 调用的 `<user_dynamic_events>` 中注入，与 board_message / ui_action 一致）；空闲时＝**立即自动起一次新迭代**（通知作为正式 user message，无需用户参与）；通知内容＝**仅状态 + id/run + 提示调用 `sub_agent_status` 取结果**；粒度＝按完成先后**逐条**处理。
+  - 实现概要（规划）：`subagent` 层在 `reap` 终态落定后（锁外）回调完成通知（新增 setter，进程表持久化语义不变）；`agent` 层新增 `onSubAgentCompleted`——`IsBusy()` 为真时 `AddDynamicEvent`（新增事件类型，`consumeDynamicEvents` 渲染为 `<sub_agent_done>` 条目），否则通过新的 IO 接口（Web 层实现＝向会话 `inputCh` 投递正式 user message）启动一次新迭代；无该能力的出口降级为打印 + 动态事件缓存；i18n（zh/en）新增文案；子代理进程自身带 `--subagent-enabled off`（`subagent/launch.go:204`）天然阻止递归。
+  - 验证：`go build ./...`、`go vet ./...` 通过；新增单测覆盖「完成/失败必回调」「kill 不回调」「busy → 动态事件」「idle → 起新迭代」「跨会话丢弃」；`go test ./subagent/ ./agent/ ./web/` 全绿；UI 实测（隔离实例）确认通知出现在会话流并驱动主 agent 继续处理。
+  - 运行时验收（BUILD-1146，真实子代理，pid 20877）：A1（约 22s 完成）与 A2（约 44s 完成）均以 `launch_sub_agent(timeout_seconds=5)` 启动并回「等待超时 —— 进程已转入后台继续运行」；A1 完成通知确实以 `<user_dynamic_events><sub_agent_done id="A1" run="4" status="completed" exit_code="0" elapsed="22s">子代理 A1（run 4）已完成（exit 0，用时 22s）。请调用 sub_agent_status 取结果。</sub_agent_done></user_dynamic_events>` 注入主 agent 正在进行的迭代（UC-0003/0004/0005 通过）；被 `kill_sub_agent` 终止的 A3（status=killed, exit_code=-1）没有任何通知（UC-0006 通过）；`sub_agent_status` 能取得 A1/A2 各自的最终结果（A1-MARKER-OK / A2-MARKER-OK）。
+  - 运行时验收发现并修复（BUG-1147）：A2 的完成通知**从未送达主 agent**。根因＝`agent/dynamic_events.go` 的 `dynamicEventQueue.add` 合并守卫写成 `if ev.Kind != DynamicUserMessage`，而 Text 类事件（`sub_agent_done` / `board_message` / `ui_action`）的 `Path` 恒为空，于是同 Kind 的第二条事件被判为「重复路径事件」而被静默覆盖丢弃 —— UC-0007「多条按完成先后逐条处理」在真实运行下不成立，board 消息/组件动作同样受影响。修复＝合并只对**带路径**的事件生效（守卫改为 `ev.Path != ""`）；配套复现单测 `agent/dynamic_events_test.go` 的 `TestDynamicQueueKeepsTextEvents`（修复前 `drain len = 2, want 4` 必败，修复后通过）。[BUILD-1147]
+  - 运行时用例：`use-case/FEATURE-566/FEATURE-566-UC-0001.md` ~ `FEATURE-566-UC-0012.md`（升序：空闲起新迭代 / 失败也通知 / 迭代中动态注入 / 超时不吞通知 / 通知体量 / kill 不通知 / 多条逐条处理 / 会话隔离 / 端到端闭环 / 进程退出边界 / 终端降级 / 不递归去重）
+  - 分支/版本：**FEATURE-566**（基于 main），版本 v0.80.0
+  - 合并记录：2026-09-28 合并回 main 并打版本标签 **v0.80.0**（BUILD-1148）。
+
+---
+
 ## v0.79.0 — 每会话固定 A1..An 子代理池（可配置上限 / 仅运行中上墙）
 
 > **版本**: v0.79.0
 
-> **状态**: 🚧 开发中（分支 **FEATURE-565**）
+> **状态**: ✅ 已完成（2026-09-27 合并 main，标签 **v0.79.0**，BUILD-1144）
 > **里程碑**: 子代理的标识与配额从「调用方自由命名 + 无限累积」改为「**每会话固定 ID 池 A1..An**」：池大小可配置（config.json `max_sub_agents`，`--max-sub-agents` 可覆盖），默认 **5**、最大 **10**、**0 = 禁止创建子代理**；`launch_sub_agent` 的 id **必填**且只能取本会话 A1..An 中**当前未运行**的槽位；同一 ID 复用 `run+1`（同一行、指令替换）；右侧清单**只显示正在运行的子代理**（无运行中则整栏隐藏）；`<environment_details>` 的 `<sub_agents>` 只列运行中并标注当前最多可用数。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,7 +51,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-565 每会话固定 A1..An 子代理池（可配置上限 / 仅运行中上墙）** [BUILD-1144]
+- [x] **FEATURE-565 每会话固定 A1..An 子代理池（可配置上限 / 仅运行中上墙）**（已合并 main + 标签 v0.79.0）[BUILD-1144]
   - 背景（用户需求）：FEATURE-564 交付后，子代理清单在会话内「只增不减」（进程表按会话全量列出，含已完成/被杀的历史）；用户要求改为固定 ID 池模型——每个 co-shell 会话最多可创建有限个 agent，数量可配置且有硬上限，ID 固定为 A1..An 且可循环复用但不能超额使用。
   - 交互决策（经 ask_user 确认）：版本 **v0.79.0**（新特性，minor +1）、任务编号 **FEATURE-565**；池作用域＝**每会话一套独立池**（A1..An 仅在本会话内可用，跨会话互不影响）；上限 N 配置＝config.json 字段 + `--max-sub-agents` CLI 覆盖；默认 **5**、上限 **10**、**0 = 禁止创建**；`launch_sub_agent` 的 **id 必填**（不传、`A0`/`A{n+1}`/非法格式、指向正在运行的 ID 均报错拒绝，错误文案多语言并提示可用槽位）；非运行中的 ID 可复用，复用后 `run+1`、同一行、指令替换；右侧清单**只显示正在运行**的子代理，无运行中时**整栏隐藏**；`<sub_agents>` 只列运行中并标注当前最多可用子代理数（不单列可用 ID）；工具说明写明 ID 选取规则（先看 env_details 中正在运行的子代理，选其之外的 A1..An）。
   - 实现概要（规划）：`config` 新增 `max_sub_agents`（0..10 校验）与 CLI `--max-sub-agents`；`subagent` 包按会话维护 A1..An 池（占用判定＝同会话且运行中），启动前校验 id 必填、范围与占用并返回多语言错误；`agent/subagent_tools.go` 参数说明与校验、`status.go` 的 `<sub_agents>` 只列运行中并标注上限；前端 `renderSubAgents()` 只渲染运行中行、空则隐藏整栏。

@@ -132,6 +132,9 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	// Wire the session-list push callback so WebIO can refresh the frontend
 	// session menu/count when the current session changes (FEATURE-387).
 	sess.wio.pushSessionList = sess.pushSessionList
+	// FEATURE-566: let the agent start a turn for a sub-agent that finished on
+	// its own while the agent was idle.
+	sess.wio.startSubAgentTurn = sess.startSubAgentCompletionTurn
 	deps.Ag.SetIO(sess.wio)
 	// FEATURE-530: wire the message board (aggregator + hub registration).
 	// FEATURE-538: the announced 职责 is the agent's "Agent描述" (IDENTITY.md),
@@ -1128,6 +1131,11 @@ type WebIO struct {
 	// pushSessionList refreshes the frontend session menu/count. Set by
 	// newWebSession to WebSession.pushSessionList (FEATURE-387).
 	pushSessionList func()
+
+	// startSubAgentTurn delivers a finished sub-agent's completion notice as a
+	// formal user message that starts a new turn (FEATURE-566). Set by
+	// newWebSession to WebSession.startSubAgentCompletionTurn.
+	startSubAgentTurn func(sessionID, notice string) bool
 
 	mu      sync.Mutex
 	pending map[string]chan askResult
