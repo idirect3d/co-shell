@@ -64,6 +64,11 @@ const (
 	// It is injected into the running turn instead of starting a new one, so the
 	// LLM sees the user's action right before its next call.
 	DynamicUIAction DynamicEventKind = "ui_action"
+
+	// DynamicSubAgentDone: a sub-agent reached a terminal state (completed or
+	// failed) while the agent was mid-turn (FEATURE-566). Text carries a
+	// ready-rendered <sub_agent_done> tag.
+	DynamicSubAgentDone DynamicEventKind = "sub_agent_done"
 )
 
 // DynamicEvent is one user-action event buffered in the dynamic perception
@@ -189,9 +194,9 @@ func (a *Agent) dynamicEventQueueCapacity() int {
 func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 	ev := DynamicEvent{Kind: kind, Time: time.Now()}
 	switch kind {
-	case DynamicUserMessage, DynamicUIAction, DynamicBoardMessage, DynamicBoardTimeout:
-		// Message-like events carry raw text (user messages, board events and
-		// rendered-component actions).
+	case DynamicUserMessage, DynamicUIAction, DynamicBoardMessage, DynamicBoardTimeout, DynamicSubAgentDone:
+		// Message-like events carry raw text (user messages, board events,
+		// rendered-component actions and sub-agent completion notices).
 		ev.Text = pathOrText
 	default:
 		ev.Path = pathOrText
@@ -236,9 +241,10 @@ func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 			sb.WriteString("  <open_file>" + formatFileEvent(ev) + "</open_file>\n")
 		case DynamicViewFile:
 			sb.WriteString("  <view_file>" + formatFileEvent(ev) + "</view_file>\n")
-		case DynamicBoardMessage, DynamicBoardTimeout:
-			// FEATURE-530: board events carry an already-rendered tag in Text (like
-			// ui_action), so they are injected verbatim.
+		case DynamicBoardMessage, DynamicBoardTimeout, DynamicSubAgentDone:
+			// FEATURE-530/FEATURE-566: board events and sub-agent completion notices
+			// carry an already-rendered tag in Text (like ui_action), so they are
+			// injected verbatim.
 			sb.WriteString("  " + ev.Text + "\n")
 		}
 	}

@@ -21,7 +21,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-566 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）** [BUILD-1145]
+- [ ] **FEATURE-566 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）** [BUILD-1146]
   - 背景（用户需求）：FEATURE-565 交付后，子代理结束的唯一「通知」是刷新 Web UI 清单（`agent.onSubAgentProgress` → `pushSubAgents`，仅推前端），主 agent 完全感知不到；若 `launch_sub_agent` 等待超时转后台、或主 agent 回合已结束，子代理的结果就可能永远不进对话（「子代理白做」）。用户要求：**每个子代理结束时（成功或失败）都必须通知主 agent**——迭代中走动态感知，来不及则发正式 user message 起新迭代。
   - 交互决策（经 ask_user 确认）：任务归属＝先合并 FEATURE-565（v0.79.0 已合并 main + 标签），再新建 **FEATURE-566**、版本 **v0.80.0**；注入方式＝**复用现有动态感知**（写入动态事件队列，在下一次 LLM 调用的 `<user_dynamic_events>` 中注入，与 board_message / ui_action 一致）；空闲时＝**立即自动起一次新迭代**（通知作为正式 user message，无需用户参与）；通知内容＝**仅状态 + id/run + 提示调用 `sub_agent_status` 取结果**；粒度＝按完成先后**逐条**处理。
   - 实现概要（规划）：`subagent` 层在 `reap` 终态落定后（锁外）回调完成通知（新增 setter，进程表持久化语义不变）；`agent` 层新增 `onSubAgentCompleted`——`IsBusy()` 为真时 `AddDynamicEvent`（新增事件类型，`consumeDynamicEvents` 渲染为 `<sub_agent_done>` 条目），否则通过新的 IO 接口（Web 层实现＝向会话 `inputCh` 投递正式 user message）启动一次新迭代；无该能力的出口降级为打印 + 动态事件缓存；i18n（zh/en）新增文案；子代理进程自身带 `--subagent-enabled off`（`subagent/launch.go:204`）天然阻止递归。

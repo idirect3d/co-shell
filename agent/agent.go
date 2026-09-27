@@ -78,6 +78,9 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 	// Keep the Web UI sub-agent list live: the manager fires this callback when
 	// a running sub-agent advances its own task plan (FEATURE-564).
 	ag.subAgentMgr.SetNotifier(ag.onSubAgentProgress)
+	// Every sub-agent that finishes on its own (success or failure) must reach
+	// this agent, even when the user is not interacting (FEATURE-566).
+	ag.subAgentMgr.SetCompletionNotifier(ag.onSubAgentCompleted)
 	return ag
 }
 

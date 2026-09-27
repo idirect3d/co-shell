@@ -263,3 +263,24 @@ func (m *Manager) notify(sessionID string) {
 		fn(sessionID)
 	}
 }
+
+// SetCompletionNotifier registers the callback fired once per sub-agent that
+// reaches a natural terminal state (Completed or Failed) — FEATURE-566. The
+// callback receives a copy of the final row and must not block: it is invoked
+// from the reaper goroutine, after the row has been persisted.
+func (m *Manager) SetCompletionNotifier(fn func(Proc)) {
+	m.mu.Lock()
+	m.completionNotifier = fn
+	m.mu.Unlock()
+}
+
+// notifyCompletion fires the completion callback, if any. Callers must not
+// hold m.mu (the callback may inspect the manager).
+func (m *Manager) notifyCompletion(p Proc) {
+	m.mu.Lock()
+	fn := m.completionNotifier
+	m.mu.Unlock()
+	if fn != nil {
+		fn(p)
+	}
+}
