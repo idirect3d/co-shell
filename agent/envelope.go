@@ -216,6 +216,12 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 		sb.WriteString(roster)
 		sb.WriteString("\n")
 	}
+	// FEATURE-563: render the sub-agent process table so the LLM always sees
+	// which sub-agents are running or finished. Omitted while none exists.
+	if subAgents := a.subAgentBlock(); subAgents != "" {
+		sb.WriteString(subAgents)
+		sb.WriteString("\n")
+	}
 	if taskPlan != "" && !skipTaskPlan {
 		sb.WriteString("<task_plan>\n")
 		sb.WriteString(taskPlan)
@@ -380,6 +386,7 @@ func (a *Agent) buildRuntimeInfo() string {
 	sb.WriteString("</runtime_info>")
 	return sb.String()
 }
+
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's
 // <environment_details>. All other content (task_plan, opened_resources, etc.)
 // is preserved as-is from when the message was first created.
