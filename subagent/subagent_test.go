@@ -143,3 +143,142 @@ func TestSubAgentDirIsScopedToWorkspace(t *testing.T) {
 		t.Errorf("SubAgentDir = %q, want %q", got, want)
 	}
 }
+
+// TestParseStreamFallsBackToCompletionResult verifies the fallback chain: when
+// the last content run is empty (co-shell finishes by calling
+// attempt_completion, whose text is echoed as a tool result), the completion
+// result is reported instead of an empty answer.
+func TestParseStreamFallsBackToCompletionResult(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-1.jsonl")
+	lines := []string{
+		`{"type":"thinking_chunk","text":"hidden reasoning"}`,
+		`{"type":"content_chunk","text":"I will report the listing now."}`,
+		`{"type":"tool_call","chan":"tool","text":"[🔧 attempt_completion] 目的: 回报输出","meta":{"phase":"input","tool_summary":"{\"text\":\"[🔧 attempt_completion]\",\"tool_name\":\"attempt_completion\",\"params\":null}"}}`,
+		`{"type":"tool_call","chan":"tool","text":"[返回结果]✅ 任务完成\n\ntotal 48\ndrwxr-xr-x  tmp\n\n[意图] 回报输出","meta":{"phase":"result"}}`,
+		`{"type":"done","chan":"system"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	result, tools := parseStream(path, 0)
+	if !strings.Contains(result, "total 48") {
+		t.Errorf("result = %q, want the attempt_completion result", result)
+	}
+	if strings.Contains(result, "[返回结果]") || strings.Contains(result, "[意图]") {
+		t.Errorf("result kept renderer decorations: %q", result)
+	}
+	if strings.Contains(result, "hidden") || strings.Contains(result, "I will report") {
+		t.Errorf("result leaked reasoning/earlier content: %q", result)
+	}
+	if len(tools) != 1 || tools[0] != "attempt_completion" {
+		t.Errorf("tool calls = %v, want [attempt_completion]", tools)
+	}
+}
+
+// TestParseStreamLastSegmentWins pins the ordering rule: content produced AFTER
+// attempt_completion wins over its result, and a completion that comes last
+// wins over earlier content.
+func TestParseStreamLastSegmentWins(t *testing.T) {
+	completion := `{"type":"tool_call","chan":"tool","text":"[返回结果]✅ 任务完成\n\nanswer from completion","meta":{"phase":"result"}}`
+
+	// completion → later content: content wins.
+	path := filepath.Join(t.TempDir(), "run-1.jsonl")
+	lines := []string{
+		`{"type":"tool_call","chan":"tool","text":"[🔧 attempt_completion]","meta":{"phase":"input","tool_summary":"{\"tool_name\":\"attempt_completion\"}"}}`,
+		completion,
+		`{"type":"content","text":"corrected answer"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	if got, _ := parseStream(path, 0); got != "corrected answer" {
+		t.Errorf("content after completion: result = %q, want %q", got, "corrected answer")
+	}
+
+	// content → completion: the completion result wins.
+	path2 := filepath.Join(t.TempDir(), "run-2.jsonl")
+	lines2 := []string{
+		`{"type":"content","text":"chatter before completing"}`,
+		`{"type":"tool_call","chan":"tool","text":"[🔧 attempt_completion]","meta":{"phase":"input","tool_summary":"{\"tool_name\":\"attempt_completion\"}"}}`,
+		completion,
+	}
+	if err := os.WriteFile(path2, []byte(strings.Join(lines2, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	if got, _ := parseStream(path2, 0); !strings.Contains(got, "answer from completion") {
+		t.Errorf("completion last: result = %q, want the completion result", got)
+	}
+}
+
+// TestParseStreamCompletionResultTruncated verifies the result cap also applies
+// to the attempt_completion fallback and never splits a UTF-8 rune.
+func TestParseStreamCompletionResultTruncated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-1.jsonl")
+	body := strings.Repeat("结", 40)
+	lines := []string{
+		`{"type":"tool_call","chan":"tool","text":"[🔧 attempt_completion]","meta":{"phase":"input","tool_summary":"{\"tool_name\":\"attempt_completion\"}"}}`,
+		`{"type":"tool_call","chan":"tool","text":"[返回结果]` + body + `","meta":{"phase":"result"}}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	result, _ := parseStream(path, 10)
+	trimmed := strings.TrimSuffix(result, truncationSuffix)
+	if !strings.HasSuffix(result, truncationSuffix) {
+		t.Fatalf("result must carry the truncation marker, got %q", result)
+	}
+	if len(trimmed) == 0 || len(trimmed) > 10 {
+		t.Fatalf("truncated body = %d bytes, want (0,10]", len(trimmed))
+	}
+	if !strings.HasPrefix(body, trimmed) {
+		t.Errorf("truncated body %q is not a prefix of the result text", trimmed)
+	}
+	if strings.ToValidUTF8(trimmed, "") != trimmed {
+		t.Errorf("truncation split a UTF-8 rune: %q", trimmed)
+	}
+}
+
+// TestToolLabelDropsLongText verifies long tool output never becomes a trail
+// entry: only structured names, the renderer's bracketed marker, or a short
+// single line are kept.
+func TestToolLabelDropsLongText(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-1.jsonl")
+	longFirstLine := strings.Repeat("x", maxToolLabelLen+1)
+	lines := []string{
+		`{"type":"tool_call","chan":"tool","text":"` + longFirstLine + `"}`,
+		`{"type":"tool_call","chan":"tool","text":"[🔧 read_file] 目的: 读取","meta":{"phase":"input"}}`,
+		`{"type":"tool_call","chan":"tool","text":"` + strings.Repeat("y", 200) + `"}`,
+		`{"type":"tool_call","chan":"tool","text":"执行命令: ls -la（超时: 30s）"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	_, tools := parseStream(path, 0)
+	assertTrailEntries(t, tools, []string{"[🔧 read_file]", "执行命令: ls -la（超时: 30s）"}, longFirstLine)
+}
+
+// assertTrailEntries checks the tool-call trail holds exactly want, that no
+// entry exceeds maxToolLabelLen, and that the forbidden (long) text never leaks
+// into it.
+func assertTrailEntries(t *testing.T, got, want []string, forbidden string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("tool calls = %v, want %v", got, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("tool calls[%d] = %q, want %q", i, got[i], w)
+		}
+	}
+	for _, g := range got {
+		if len(g) > maxToolLabelLen {
+			t.Errorf("trail entry %q exceeds maxToolLabelLen (%d)", g, maxToolLabelLen)
+		}
+		if forbidden != "" && strings.Contains(g, forbidden) {
+			t.Errorf("long tool output leaked into the trail: %q", g)
+		}
+	}
+}
