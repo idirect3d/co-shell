@@ -43,6 +43,13 @@ import (
 // before Kill escalates to SIGKILL on the whole process group.
 const terminateGrace = 500 * time.Millisecond
 
+// machineReadableArgs keep the JSON stream parseable: the child inherits
+// config.json, whose show_tool/show_llm_content switches target an interactive
+// terminal, but the parent recovers the final answer from the
+// attempt_completion tool_call result, so those events must always be emitted
+// unless the operator explicitly switched the display off (FEATURE-563).
+var machineReadableArgs = []string{"--show-tool", "on", "--show-llm-content", "on"}
+
 // prepared is a validated launch request whose log files are already open.
 // All requests are prepared before the first process starts, so an invalid
 // batch never leaves half of it running.
@@ -156,6 +163,17 @@ func closeAll(preps []*prepared) {
 	}
 }
 
+// streamArgs returns the display flags injected into a launch: the
+// machine-readable default unless the caller opted out (SetStreamFlags).
+func (m *Manager) streamArgs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.noStream {
+		return nil
+	}
+	return machineReadableArgs
+}
+
 // startOne spawns the sub-agent process of one prepared request and registers
 // the reaper goroutine that finalises its row.
 func (m *Manager) startOne(pr *prepared) (*Proc, error) {
@@ -167,14 +185,15 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 		}
 		execPath = exe
 	}
-	cmd := exec.Command(execPath,
+	args := []string{
 		"-w", pr.dir,
-		"--name", "sub-"+pr.task.ID,
+		"--name", "sub-" + pr.task.ID,
 		"--unattended", "on",
 		"--subagent-enabled", "off",
-		"--output-format", "json",
-		"--", pr.task.Instruction,
-	)
+	}
+	args = append(args, m.streamArgs()...)
+	args = append(args, "--output-format", "json", "--", pr.task.Instruction)
+	cmd := exec.Command(execPath, args...)
 	cmd.Dir = pr.dir
 	cmd.Env = m.childEnv(pr.task.ID)
 	cmd.Stdin = nil

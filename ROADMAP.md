@@ -15,13 +15,13 @@
 |------|------|------|------|
 | FEATURE-563 | 0.77.0 | P1 | sub-agent 重构：① `launch_sub_agent` 支持 tasks 数组批量创建 + 主 agent 指定 id（`^[A-Za-z0-9_-]{1,32}$` 防路径穿越）+ `timeout_seconds` 必填（1..600s）；② 超时不杀进程、转后台；③ 进程表（id/pid/status/run/起止时间/exit code/日志路径）+ `<sub_agents>` 注入 environment_details；④ 新增 `sub_agent_status`（含 wait_seconds）与 `kill_sub_agent`（SIGTERM→SIGKILL 杀进程组）；⑤ 同 id 复用同工作目录重启（run 递增、日志保留）；⑥ 结果 = 最后一轮 LLM 输出（不含 think，`--output-format json` 解析）；⑦ 子工作区 `{workspace}/sub-agents/{id}/`，共用主 agent config；⑧ 无人值守模式 `--unattended on|off` + `--disabled-tools`；⑨ 进程表 store 持久化 + stale 识别；⑩ 退出 kill 全部后台 sub-agent |
 
-> 当前 BUILD: 1137
+> 当前 BUILD: 1138
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [x] **FEATURE-563 sub-agent 重构（批量创建 / 进程表 / 超时转后台 / 无人值守 / 状态注入 / 持久化）** [BUILD-1137]
+- [x] **FEATURE-563 sub-agent 重构（批量创建 / 进程表 / 超时转后台 / 无人值守 / 状态注入 / 持久化）** [BUILD-1138]
   - 背景（用户需求）：现有 sub-agent 依赖「当前工作区兄弟目录」约定、同步阻塞等待、结果仅回传 exit code 与 `output/` 文件内容；且 `Manager.active` 以常量 `-1` 作 key（并发即互相覆盖，`Close()` 只能取消最后一个）。用户要求改为可批量创建、可超时转后台、可查询、可 kill、状态可见的协作模型。
   - 交互决策（经 ask_user 确认）：版本 **v0.77.0**（新特性，minor 递增）、任务编号 **FEATURE-563**；复用＝同 id 已结束则同目录重启（run 递增）；结果＝最后一轮 LLM 输出（不含 think）；无人值守 `--unattended`（带指令默认 on、无指令默认 off）且包含禁用嵌套创建；进程表 **写入 store 持久化**；主 agent 退出时 kill 全部（含进程组）。
   - 分支/版本：**FEATURE-563**（基于 main，v0.76.4 已发布），版本 v0.77.0
@@ -29,6 +29,7 @@
   - 验证：`go build ./... && go vet ./...` 通过；本特性涉及文件 gofmt 干净（仓库另有若干 HEAD 即非 gofmt-clean 的文件，未改动）；新增 `subagent/subagent_test.go`、`subagent/manager_test.go`、`agent/unattended_test.go` 全部通过，覆盖 id 断言与路径穿越拒绝、批量创建与工作区隔离/env 标记、超时转后台不杀进程、`wait_seconds` 只等待不杀、kill 进程组（SIGTERM→SIGKILL 升级）、同 id 复用 run 递增且日志保留、运行中重复 id 报错、持久化恢复与 stale 标注、结果提取（不含 thinking、截断标记）、无人值守与 `--disabled-tools` 屏蔽。`go test ./... -short` 中 i18n（`TestRulesDirCustomizationNote` 等）、cmd、agent（`TestLineRendererTokenEvents` 等）、browser（`TestNetworkLoadingFailed`）、web 的失败已在 HEAD worktree 基线复现，属既有问题，与本特性无关；无新增第三方依赖（go.mod 未变）。
   - 运行时用例：`use-case/FEATURE-563/FEATURE-563-UC-0001.md`、`FEATURE-563-UC-0002.md`、`FEATURE-563-UC-0003.md`
   - 实测补丁 [BUILD-1137]：真机跑 `launch_sub_agent`（id=ls-test，执行 `ls -la`）发现「最终结果」为空。根因两层：① `agent/run_stream.go:1762` attempt_completion 是**同轮终止**工具，收尾轮不会再有 content；② `subagent/parse.go` 只认 content 事件，于是结果为空且工具轨迹被整段输出噪声污染。修法：结果提取加回退链——末段 content 为空时取“位于日志末尾的 attempt_completion”的结果（先 `meta.tool_summary`→`params.result`，缺失则取其后的结果回显事件文本），并剥掉 `[返回结果]` / 尾部 `[意图] …` 装饰，仍走 `truncateResult` 限长、不含 thinking；`toolName()` 不再把长正文当工具名（仅结构化名 / `[...]` 短标记 / 短单行，限长 64 字节）。单测新增 4 例（回退取 result、末段优先、截断含 UTF-8 边界、轨迹去噪），并用真实 `sub-agents/ls-test/run-1.jsonl` 复验通过。
+  - 实测补丁 [BUILD-1138]：run3 真机验收「最终结果为空」的根因是**子进程继承 config.json**（`show_tool=false`）而 `launch_sub_agent` 未传显示开关 → attempt_completion 的结果回显事件（`chan:\"tool\"`）不写入 `run-*.jsonl`，解析侧无正文可提取（子代理自身日志显示任务实际已完成）。修法（方案 A）：`subagent/launch.go` 每次启动默认追加 `--show-tool on --show-llm-content on`（机器可读 JSON 流不受交互显示开关影响），并由 `Manager.SetStreamFlags(enabled)`（`subagent/subagent.go`）经 `Agent.SetSubAgentStreamFlags`（`agent/agent.go`）与 `main.go` 接线——仅当操作者显式传 `--show-tool off` / `--show-llm-content off` 时才不追加。单测新增 `TestStartInjectsMachineReadableStreamFlags`（默认含开关、显式关闭不含、`--unattended on`/`--output-format json` 仍在）。
 
 ## v0.76.4 — hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）
 

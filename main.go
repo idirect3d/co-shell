@@ -53,7 +53,7 @@ import (
 
 const version = "0.77.0"
 
-const build = "1137"
+const build = "1138"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1544,6 +1544,11 @@ func main() {
 
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
+
+	// Sub-agent JSON logs stay machine-readable (tool events included) even when
+	// the interactive display is off; an explicit --show-tool off /
+	// --show-llm-content off opts out (FEATURE-563).
+	ag.SetSubAgentStreamFlags(flags.showTool != "off" && flags.showLlmContent != "off")
 
 	// Apply persistent shell session enabled setting
 	ag.SetShellEnabled(cfg.LLM.ShellSessionEnabled)

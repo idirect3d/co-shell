@@ -169,6 +169,9 @@ type Manager struct {
 	cmds   map[string]*execHandle
 	done   map[string]chan struct{}
 	loaded bool
+	// noStream drops the default machine-readable display flags from launches
+	// (set only when the operator explicitly switched the display off).
+	noStream bool
 }
 
 // execHandle couples a running command with its kill bookkeeping.
@@ -194,6 +197,17 @@ func NewManager(opts Options) *Manager {
 func (m *Manager) SetPersister(p Persister) {
 	m.mu.Lock()
 	m.opts.Persister = p
+	m.mu.Unlock()
+}
+
+// SetStreamFlags controls whether every launch carries the machine-readable
+// display flags (--show-tool on --show-llm-content on). The parent recovers a
+// sub-agent's final answer from its tool_call events, so those events must be
+// emitted even when the interactive display is off; pass false only when the
+// operator explicitly disabled the display (FEATURE-563).
+func (m *Manager) SetStreamFlags(enabled bool) {
+	m.mu.Lock()
+	m.noStream = !enabled
 	m.mu.Unlock()
 }
 

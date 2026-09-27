@@ -950,6 +950,15 @@ func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
 
+// SetSubAgentStreamFlags forwards the machine-readable stream decision to the
+// sub-agent manager: sub-agent JSON logs keep tool events unless the operator
+// explicitly switched the display off (FEATURE-563).
+func (a *Agent) SetSubAgentStreamFlags(enabled bool) {
+	if a.subAgentMgr != nil {
+		a.subAgentMgr.SetStreamFlags(enabled)
+	}
+}
+
 // unattendedToolNames are the tools an unattended run (FEATURE-563) must not
 // use: they park until a human acts (ask_user, render_ui waiting, ui_window) or
 // read the secret from the terminal (vault_add).

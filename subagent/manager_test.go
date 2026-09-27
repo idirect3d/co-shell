@@ -498,3 +498,56 @@ func TestPersistenceMarksDeadRunningRecordStale(t *testing.T) {
 		t.Errorf("status = %s, want stale for a dead \"running\" record", got.Status)
 	}
 }
+
+// TestStartInjectsMachineReadableStreamFlags verifies that every launch carries
+// the display flags the parent parser depends on — the child inherits
+// config.json, where show_tool/show_llm_content may be off (FEATURE-563) — and
+// that an explicit opt-out (SetStreamFlags(false)) drops them.
+func TestStartInjectsMachineReadableStreamFlags(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fixture requires a POSIX shell")
+	}
+	root := t.TempDir()
+	argsPath := filepath.Join(root, "args.txt")
+	script := filepath.Join(root, "fake-co-shell")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsPath + "\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	const streamBlock = "--show-tool\non\n--show-llm-content\non\n"
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+		want    bool
+	}{
+		{name: "default", enabled: true, want: true},
+		{name: "explicitly disabled", enabled: false, want: false},
+	} {
+		m := NewManager(Options{
+			Workspace:   filepath.Join(root, "ws-"+strings.ReplaceAll(tc.name, " ", "-")),
+			ExecPath:    script,
+			NoStoreLoad: true,
+		})
+		m.SetStreamFlags(tc.enabled)
+		if _, err := m.Start(context.Background(), []Task{{ID: "flags", Instruction: "run"}}, 10*time.Second); err != nil {
+			t.Fatalf("%s: Start: %v", tc.name, err)
+		}
+		data, err := os.ReadFile(argsPath)
+		if err != nil {
+			t.Fatalf("%s: read args: %v", tc.name, err)
+		}
+		got := string(data)
+		if has := strings.Contains(got, streamBlock); has != tc.want {
+			t.Errorf("%s: launch args = %q, contains stream flags = %v, want %v",
+				tc.name, got, has, tc.want)
+		}
+		if !strings.Contains(got, "--unattended\non\n") {
+			t.Errorf("%s: launch args = %q, want --unattended on", tc.name, got)
+		}
+		if !strings.Contains(got, "--output-format\njson\n") {
+			t.Errorf("%s: launch args = %q, want --output-format json", tc.name, got)
+		}
+		m.Close()
+	}
+}
