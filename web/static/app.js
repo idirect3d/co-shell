@@ -3153,8 +3153,11 @@ function renderSubAgents(rows) {
   lastSubAgents = Array.isArray(rows) ? rows : [];
   subAgentBody.textContent = '';
   const show = lastSubAgents.length > 0;
-  subAgentHead.hidden = !show;
-  subAgentBody.hidden = !show;
+  // The markup ships both blocks with class="hidden", so the toggle must go
+  // through the class list: setting the hidden *attribute* left the class in
+  // place (display:none) and the whole list stayed invisible.
+  subAgentHead.classList.toggle('hidden', !show);
+  subAgentBody.classList.toggle('hidden', !show);
   for (const row of lastSubAgents) {
     const line = document.createElement('div');
     line.className = 'subagent-item';

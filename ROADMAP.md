@@ -29,6 +29,7 @@
   - 交互决策（经 ask_user 确认）：版本 **v0.78.0**（新特性，minor 递增）、任务编号 **FEATURE-564**；面板显示条件＝当前会话存在子代理即显示（即使无主任务计划）；刷新机制＝B2（事件驱动 + 运行中子代理 jsonl tail watcher）；范围＝子代理记录绑定会话，只显示当前会话的子代理（含该会话已完成/历史）；进度口径＝已完成数取非 pending 终态步骤数（completed+cancelled+failed）；指令截断 30 字符。
   - 分支/版本：**FEATURE-564**（基于 main），版本 v0.78.0
   - 运行时修复（[BUILD-1140]）：首版只在 agent 事件（设会话 id / 子代理工具调用 / watcher tick）推送清单，而 `web/server.go` 的连接快照 `sendState` 只回放任务计划与运行状态——因此页面刷新 / 重连 / 重开标签页后，任务进展栏只剩计划、清单为空，直到下一次子代理活动（用户报障现象）。现按既有 `SetPlanProvider` 同构补 `Server.SetSubAgentsProvider(agent.SubAgentsSnapshot)`，`sendState` 在 state 帧之后追发一个 `sub_agents` 事件帧（复用前端既有渲染分支）；新增回归测试 `web/subagents_state_test.go`（有 provider → state + sub_agents 两帧且 meta 正确；无 provider → 仅 state 帧）。
+  - 运行时修复（[BUILD-1141]）：清单节点在 `index.html` 中自带 `class="hidden"`（CSS `display:none`），而 `renderSubAgents()` 只切换了 `hidden` **属性**——class 上的 `hidden` 从未移除，于是 DOM 里有行数据但元素始终不可见（浏览器实测：`#subAgentBody` computed `display:none`、高度 0；手工去掉该 class 后立即 `display:block`、4 行全显）。现改为 `classList.toggle('hidden', !show)`，与项目 `.hidden` 约定一致。
 
 
 
