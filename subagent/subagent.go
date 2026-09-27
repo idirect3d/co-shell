@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-26
-// Last Modified: 2026-04-26
+// Last Modified: 2026-09-27
 //
 // MIT License
 //
@@ -24,246 +24,339 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Package subagent provides the ability to launch and manage sub-agent processes.
+// Package subagent launches and manages co-shell sub-agent processes
+// (FEATURE-563).
 //
-// A sub-agent is an independent co-shell process that runs in its own workspace,
-// sharing the same terminal (stdin/stdout/stderr) with the parent agent.
-// The parent agent monitors the sub-agent's execution and collects its results.
+// A sub-agent is an independent co-shell process running in its own workspace
+// directory ({parent-workspace}/sub-agents/{id}/) in unattended mode. The
+// manager keeps a process table (id/pid/status/run/…), persists it through the
+// provided Persister so it survives a restart, and exposes the table so the
+// parent agent can inject it into <environment_details>.
+//
+// The manager never blocks indefinitely: Start waits at most waitTimeout and
+// then returns while the remaining processes keep running in the background
+// (they are not killed — killing is an explicit decision via Kill).
 package subagent
 
 import (
-	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/idirect3d/co-shell/i18n"
 )
 
-// SubAgentInfo holds the metadata for a registered sub-agent.
-type SubAgentInfo struct {
-	// ID is the sequential number (1, 2, 3, ...).
-	ID int `json:"id"`
+// Status is the lifecycle status of a sub-agent process.
+type Status string
 
-	// Workspace is the absolute path to the sub-agent's workspace directory.
-	Workspace string `json:"workspace"`
+// Process lifecycle statuses.
+const (
+	// StatusRunning means the process is alive.
+	StatusRunning Status = "running"
+	// StatusCompleted means the process exited with code 0.
+	StatusCompleted Status = "completed"
+	// StatusFailed means the process exited with a non-zero code.
+	StatusFailed Status = "failed"
+	// StatusKilled means the process was terminated by Kill (whole group).
+	StatusKilled Status = "killed"
+	// StatusStale means the record was restored from the store after a parent
+	// restart and the process is no longer alive.
+	StatusStale Status = "stale"
+)
 
-	// Purpose describes what this sub-agent is used for.
-	Purpose string `json:"purpose"`
+// Bounds for the caller-provided wait timeout (seconds).
+const (
+	MinWaitSeconds = 1
+	MaxWaitSeconds = 600
+)
 
-	// CreatedAt is the timestamp when the sub-agent was created.
-	CreatedAt string `json:"created_at"`
+// storeKey is the memory key holding the persisted process table.
+const storeKey = "subagent:procs"
 
-	// LastInstruction is the last instruction given to this sub-agent.
-	LastInstruction string `json:"last_instruction"`
-}
+// defaultResultLimit caps how many bytes of the sub-agent's final output are
+// kept/injected, so a verbose sub-agent cannot blow up the parent context.
+const defaultResultLimit = 8 * 1024
 
-// SubAgentConfig holds the configuration for launching a sub-agent.
-type SubAgentConfig struct {
-	// Workspace is the path to the sub-agent's workspace directory.
-	Workspace string
+// idPattern restricts sub-agent ids: they are used as directory names, so path
+// separators, dots and whitespace are rejected (path-traversal guard).
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
 
-	// Instruction is the natural language instruction or system command to execute.
+// Task is one sub-agent launch request.
+type Task struct {
+	// ID is the caller-chosen sub-agent id (also the workspace folder name).
+	ID string
+	// Instruction is the one-shot instruction handed to the sub-agent.
 	Instruction string
+}
 
-	// TimeoutSeconds is the maximum time to wait for the sub-agent to complete.
-	// 0 means no timeout.
-	TimeoutSeconds int
+// Proc is one row of the sub-agent process table.
+type Proc struct {
+	ID          string    `json:"id"`
+	PID         int       `json:"pid"`
+	PGID        int       `json:"pgid"`
+	Workspace   string    `json:"workspace"`
+	Status      Status    `json:"status"`
+	Run         int       `json:"run"`
+	Instruction string    `json:"instruction"`
+	StartedAt   time.Time `json:"started_at"`
+	EndedAt     time.Time `json:"ended_at"`
+	ExitCode    int       `json:"exit_code"`
+	LogPath     string    `json:"log_path"`
+	ErrLogPath  string    `json:"err_log_path"`
+	Result      string    `json:"result"`
+	ToolCalls   []string  `json:"tool_calls"`
+	// WaitTimedOut records that the launch/wait window expired while this
+	// process was still running (it keeps running in the background).
+	WaitTimedOut bool `json:"wait_timed_out"`
+}
 
-	// ExecPath is the path to the co-shell executable.
-	// If empty, it will be determined from os.Executable().
+// Finished reports whether the process reached a terminal state.
+func (p *Proc) Finished() bool {
+	switch p.Status {
+	case StatusCompleted, StatusFailed, StatusKilled, StatusStale:
+		return true
+	}
+	return false
+}
+
+// Elapsed returns the process run time (until now while running).
+func (p *Proc) Elapsed() time.Duration {
+	end := p.EndedAt
+	if end.IsZero() {
+		end = time.Now()
+	}
+	if p.StartedAt.IsZero() {
+		return 0
+	}
+	return end.Sub(p.StartedAt)
+}
+
+// Persister persists the process table across restarts. It is implemented by
+// the agent layer (store.DualStore) so this package stays storage-agnostic.
+type Persister interface {
+	SaveMemory(key, value string) error
+	GetMemory(key string) (string, bool, error)
+}
+
+// Options configures a Manager.
+type Options struct {
+	// Workspace is the parent workspace root; sub-agent workspaces are created
+	// under {Workspace}/sub-agents/{id}/.
+	Workspace string
+	// ExecPath is the co-shell executable to spawn (defaults to os.Executable).
 	ExecPath string
-
-	// Purpose describes what this sub-agent is used for (for memory tracking).
-	Purpose string
-
-	// ImagePaths are paths to image files for multimodal input.
-	// These will be passed to the sub-agent via --image flag.
-	ImagePaths []string
-
-	// ConfirmToolOff indicates whether to pass --confirm-tool off to the sub-agent.
-	// When true, the sub-agent will skip command confirmation prompts.
-	ConfirmToolOff bool
+	// ConfigPath is the parent config file shared with sub-agents
+	// (CO_SHELL_CONFIG_PATH). Empty means "inherit the parent's env value".
+	ConfigPath string
+	// ResultLimit caps the bytes kept from a sub-agent's final output.
+	ResultLimit int
+	// Persister persists the process table; nil disables persistence.
+	Persister Persister
+	// NoStoreLoad skips loading the previous table on first use (tests).
+	NoStoreLoad bool
 }
 
-// SubAgentResult holds the result of a sub-agent execution.
-type SubAgentResult struct {
-	// Stdout contains the standard output from the sub-agent.
-	Stdout string
-
-	// Stderr contains the standard error from the sub-agent.
-	Stderr string
-
-	// ExitCode is the exit code of the sub-agent process.
-	ExitCode int
-
-	// OutputFiles lists the files found in the sub-agent's output/ directory.
-	OutputFiles []string
-
-	// Duration is the actual execution duration.
-	Duration time.Duration
-
-	// Err contains any error that occurred during execution.
-	Err error
-}
-
-// Manager manages sub-agent processes.
+// Manager owns the sub-agent process table.
 type Manager struct {
-	mu       sync.Mutex
-	execPath string
-	active   map[int]*context.CancelFunc
+	mu     sync.Mutex
+	opts   Options
+	procs  map[string]*Proc
+	cmds   map[string]*execHandle
+	done   map[string]chan struct{}
+	loaded bool
 }
 
-// NewManager creates a new sub-agent manager.
-func NewManager() *Manager {
-	execPath, _ := os.Executable()
+// execHandle couples a running command with its kill bookkeeping.
+type execHandle struct {
+	killed   bool          // set by Kill so the waiter keeps the killed status
+	exitWait chan struct{} // closed by the reaper once the process exited
+}
+
+// NewManager creates a manager. The process table is loaded lazily on first use.
+func NewManager(opts Options) *Manager {
+	if opts.ResultLimit <= 0 {
+		opts.ResultLimit = defaultResultLimit
+	}
 	return &Manager{
-		execPath: execPath,
-		active:   make(map[int]*context.CancelFunc),
+		opts:  opts,
+		procs: make(map[string]*Proc),
+		cmds:  make(map[string]*execHandle),
+		done:  make(map[string]chan struct{}),
 	}
 }
 
-// LaunchSubAgent launches a sub-agent process with the given configuration.
-// It monitors the process and collects results.
-func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubAgentResult, error) {
-	// Determine executable path
-	execPath := m.execPath
-	if cfg.ExecPath != "" {
-		execPath = cfg.ExecPath
-	}
-
-	// Ensure workspace exists
-	if err := os.MkdirAll(cfg.Workspace, 0755); err != nil {
-		return nil, fmt.Errorf("cannot create sub-agent workspace %q: %w", cfg.Workspace, err)
-	}
-
-	// Build command: co-shell -w <workspace> [--confirm-tool off] -- <instruction>
-	args := []string{
-		"-w", cfg.Workspace,
-	}
-
-	// If confirm-tool is off (parent approved all), pass it to sub-agent
-	if cfg.ConfirmToolOff {
-		args = append(args, "--confirm-tool", "off")
-	}
-
-	// Instruction as non-flag argument (after --)
-	args = append(args, "--", cfg.Instruction)
-
-	// Print the full command for debugging
-	fmt.Printf("\n🔧 Sub-agent command: %s %s\n\n", execPath, strings.Join(args, " "))
-
-	// Create context with timeout if specified
-	var cancel context.CancelFunc
-	if cfg.TimeoutSeconds > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(cfg.TimeoutSeconds)*time.Second)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-	defer cancel()
-
-	// Prepare command
-	cmd := exec.CommandContext(ctx, execPath, args...)
-
-	// Set environment: mark as sub-agent and pass config path
-	env := os.Environ()
-	env = append(env, "CO_SHELL_SUB_AGENT=true")
-	if configPath := os.Getenv("CO_SHELL_CONFIG_PATH"); configPath != "" {
-		env = append(env, "CO_SHELL_CONFIG_PATH="+configPath)
-	}
-	cmd.Env = env
-
-	// Share stdin/stdout/stderr with parent
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Record start time
-	startTime := time.Now()
-
-	// Track the process
+// SetPersister attaches/replaces the persister after construction.
+func (m *Manager) SetPersister(p Persister) {
 	m.mu.Lock()
-	pid := -1
-	m.active[pid] = &cancel
+	m.opts.Persister = p
 	m.mu.Unlock()
-
-	// Run the command
-	err := cmd.Run()
-
-	// Clean up tracking
-	m.mu.Lock()
-	delete(m.active, pid)
-	m.mu.Unlock()
-
-	duration := time.Since(startTime)
-
-	// Collect results
-	result := &SubAgentResult{
-		Duration: duration,
-		ExitCode: 0,
-	}
-
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			result.Err = fmt.Errorf("sub-agent timed out after %d seconds", cfg.TimeoutSeconds)
-			result.ExitCode = -1
-			return result, nil
-		}
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-			result.Stderr = string(exitErr.Stderr)
-		} else {
-			result.Err = err
-			result.ExitCode = -1
-		}
-	}
-
-	// Collect output files from workspace output/ directory
-	outputDir := filepath.Join(cfg.Workspace, "output")
-	if entries, err := os.ReadDir(outputDir); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				result.OutputFiles = append(result.OutputFiles, entry.Name())
-			}
-		}
-	}
-
-	return result, nil
 }
 
-// Close cancels all active sub-agent processes.
-func (m *Manager) Close() {
+// ValidateID reports whether id is a legal sub-agent id.
+func ValidateID(id string) error {
+	if !idPattern.MatchString(id) {
+		return fmt.Errorf("invalid sub-agent id %q: must match %s", id, idPattern.String())
+	}
+	return nil
+}
+
+// ParseTasks normalises and validates a batch of tasks.
+func ParseTasks(tasks []Task) ([]Task, error) {
+	if len(tasks) == 0 {
+		return nil, errors.New("at least one task is required")
+	}
+	seen := make(map[string]bool, len(tasks))
+	out := make([]Task, 0, len(tasks))
+	for _, t := range tasks {
+		id := strings.TrimSpace(t.ID)
+		if err := ValidateID(id); err != nil {
+			return nil, err
+		}
+		if seen[id] {
+			return nil, fmt.Errorf("duplicate sub-agent id %q in one batch", id)
+		}
+		if strings.TrimSpace(t.Instruction) == "" {
+			return nil, fmt.Errorf("sub-agent %q: instruction must not be empty", id)
+		}
+		seen[id] = true
+		out = append(out, Task{ID: id, Instruction: t.Instruction})
+	}
+	return out, nil
+}
+
+// ValidateWaitSeconds checks the mandatory wait timeout.
+func ValidateWaitSeconds(seconds int) error {
+	if seconds < MinWaitSeconds || seconds > MaxWaitSeconds {
+		return fmt.Errorf("timeout_seconds must be between %d and %d, got %d",
+			MinWaitSeconds, MaxWaitSeconds, seconds)
+	}
+	return nil
+}
+
+// Lookup returns a copy of one process-table row.
+func (m *Manager) Lookup(id string) (*Proc, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	for _, cancel := range m.active {
-		(*cancel)()
+	m.loadLocked()
+	p, ok := m.procs[id]
+	if !ok {
+		return nil, false
 	}
-	m.active = make(map[int]*context.CancelFunc)
+	cp := *p
+	return &cp, true
 }
 
-// ResultSummary returns a human-readable summary of the sub-agent result.
-func (r *SubAgentResult) ResultSummary() string {
-	var sb strings.Builder
+// List returns process-table rows (all when ids is empty), newest run first.
+func (m *Manager) List(ids []string) []*Proc {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.loadLocked()
 
-	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentDuration), r.Duration))
-
-	if r.Err != nil {
-		sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentError), r.Err))
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
 	}
+	out := make([]*Proc, 0, len(m.procs))
+	for id, p := range m.procs {
+		if len(want) > 0 && !want[id] {
+			continue
+		}
+		cp := *p
+		out = append(out, &cp)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].StartedAt.Equal(out[j].StartedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].StartedAt.After(out[j].StartedAt)
+	})
+	return out
+}
 
-	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentExitCode), r.ExitCode))
+// SubAgentDir returns the workspace directory of a sub-agent.
+func (m *Manager) SubAgentDir(id string) string {
+	return filepath.Join(m.opts.Workspace, "sub-agents", id)
+}
 
-	if len(r.OutputFiles) > 0 {
-		sb.WriteString(i18n.T(i18n.KeySubAgentOutputFiles))
-		for _, f := range r.OutputFiles {
-			sb.WriteString(fmt.Sprintf("  - %s\n", f))
+// ---------- persistence ----------
+
+// loadLocked restores the process table from the store once, marking records
+// whose process is gone as stale. Caller must hold m.mu.
+func (m *Manager) loadLocked() {
+	if m.loaded {
+		return
+	}
+	m.loaded = true
+	if m.opts.NoStoreLoad || m.opts.Persister == nil {
+		return
+	}
+	raw, ok, err := m.opts.Persister.GetMemory(storeKey)
+	if err != nil || !ok || strings.TrimSpace(raw) == "" {
+		return
+	}
+	var rows []*Proc
+	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
+		return
+	}
+	for _, row := range rows {
+		if row == nil || row.ID == "" {
+			continue
+		}
+		if row.Status == StatusRunning && !processAlive(row.PID) {
+			row.Status = StatusStale
+			if row.EndedAt.IsZero() {
+				row.EndedAt = time.Now()
+			}
+		}
+		m.procs[row.ID] = row
+	}
+}
+
+// saveLocked persists the table. Caller must hold m.mu.
+func (m *Manager) saveLocked() {
+	if m.opts.Persister == nil {
+		return
+	}
+	rows := make([]*Proc, 0, len(m.procs))
+	for _, p := range m.procs {
+		cp := *p
+		rows = append(rows, &cp)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	if data, err := json.Marshal(rows); err == nil {
+		_ = m.opts.Persister.SaveMemory(storeKey, string(data))
+	}
+}
+
+// ---------- helpers shared by the other files ----------
+
+// resultLimit is the configured cap for injected output.
+func (m *Manager) resultLimit() int {
+	if m.opts.ResultLimit > 0 {
+		return m.opts.ResultLimit
+	}
+	return defaultResultLimit
+}
+
+// OutputFiles lists the files a sub-agent produced under its own
+// {workspace}/output/ directory.
+func (m *Manager) OutputFiles(id string) []string {
+	dir := filepath.Join(m.SubAgentDir(id), "output")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			files = append(files, e.Name())
 		}
 	}
-
-	return sb.String()
+	sort.Strings(files)
+	return files
 }

@@ -166,10 +166,18 @@ type Agent struct {
 	boardSender BoardSender
 	// boardSt caches the hub message-board roster, dedupes delivered messages
 	// and tracks pending send acknowledgements (FEATURE-530).
-	boardSt               *boardState
-	memoryEnabled         bool // whether persistent memory tools are enabled
-	planEnabled           bool // whether task plan tools are enabled
-	subAgentEnabled       bool // whether sub-agent tools are enabled
+	boardSt         *boardState
+	memoryEnabled   bool // whether persistent memory tools are enabled
+	planEnabled     bool // whether task plan tools are enabled
+	subAgentEnabled bool // whether sub-agent tools are enabled
+	// disabledTools holds the tools this run may not use at all (FEATURE-563
+	// --disabled-tools plus the interactive tools unattended mode turns off).
+	// Such tools are neither advertised to the LLM nor executed.
+	disabledTools map[string]bool
+	// unattended marks an unattended run (FEATURE-563 --unattended): no tool may
+	// block on a human, so the interactive tools are disabled and the completion
+	// paths follow exit semantics.
+	unattended            bool
 	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
 	metaCapabilityEnabled bool // whether meta-capability awareness (FEATURE-466) is enabled
 

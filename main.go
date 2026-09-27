@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.76.4"
+const version = "0.77.0"
 
-const build = "1134"
+const build = "1136"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -116,6 +116,10 @@ type cliFlags struct {
 
 	// SubAgent enabled
 	subAgentEnabled string // "on"/"off"
+
+	// Unattended mode + run-level tool shielding (FEATURE-563)
+	unattended    string // "on"/"off"; empty means the default rule (on with a command, off otherwise)
+	disabledTools string // comma-separated tool names disabled for this run
 
 	// ToolCall enabled
 	toolCallEnabled string // "on"/"off"
@@ -296,6 +300,10 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "Enable sub-agent (overrides config file)")
 	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "Disable sub-agent (overrides config file)")
 
+	// Unattended mode + run-level tool shielding (FEATURE-563)
+	flag.StringVar(&f.unattended, "unattended", "", "Unattended mode (on/off; defaults to on when a command is given, off otherwise)")
+	flag.StringVar(&f.disabledTools, "disabled-tools", "", "Comma-separated tool names to disable for this run (e.g. ask_user,render_ui)")
+
 	// ToolCall enabled
 	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "Enable tool calls (on/off, overrides config file)")
 	flag.StringVar(&f.toolCallEnabled, "toolcall-disabled", "", "Disable tool calls (overrides config file)")
@@ -432,6 +440,22 @@ func parseFlags() cliFlags {
 	}
 
 	return f
+}
+
+// splitToolNames parses a comma-separated tool-name list (FEATURE-563
+// --disabled-tools). Surrounding spaces are ignored and empty entries dropped.
+func splitToolNames(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	names := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if name := strings.TrimSpace(p); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // loadConfigByPriority resolves the config file by searching candidate paths
@@ -622,6 +646,17 @@ func main() {
 		log.Info("Config loaded from: %s", configPath)
 		// Set environment variable so sub-agent processes inherit the config path
 		os.Setenv("CO_SHELL_CONFIG_PATH", configPath)
+	}
+
+	// FEATURE-563: an unattended parent hands its exit semantics to its
+	// sub-agents through the environment (a sub-agent shares the parent's config
+	// file but must never wait for a human, so it runs with those switches on).
+	// An explicit environment value therefore wins over the config file.
+	if v := strings.TrimSpace(os.Getenv("CO_SHELL_NO_TOOL_ACTION")); v != "" {
+		cfg.LLM.NoToolAction = v
+	}
+	if v := strings.TrimSpace(os.Getenv("CO_SHELL_COMPLETION_MODE")); v != "" {
+		cfg.LLM.CompletionMode = v
 	}
 
 	// Apply CLI overrides for model connection parameters.
@@ -836,6 +871,42 @@ func main() {
 		default:
 			io.ErrPrintf("Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
 		}
+	}
+
+	// FEATURE-563: unattended mode. A run started with a command (single-shot
+	// stdio) is unattended by default; an interactive REPL/serve run is not. An
+	// explicit --unattended always wins.
+	unattended := flags.command != ""
+	if flags.unattended != "" {
+		switch strings.ToLower(strings.TrimSpace(flags.unattended)) {
+		case "on", "1", "true", "yes":
+			unattended = true
+		case "off", "0", "false", "no":
+			unattended = false
+		default:
+			io.ErrPrintf("Warning: invalid --unattended value %q, use on|off\n", flags.unattended)
+		}
+	}
+	if unattended {
+		// Nobody is watching: auto-approve every tool call, end the turn both on a
+		// no-tool-call reply and on attempt_completion, and never wait for input.
+		// The interactive tools are dropped by the agent itself
+		// (agent.SetUnattended), see FEATURE-563.
+		if cfg.LLM.ToolModes == nil {
+			cfg.LLM.ToolModes = make(map[string]string)
+		}
+		cfg.LLM.ToolModes["default"] = "auto"
+		cfg.LLM.NoToolAction = "exit"
+		cfg.LLM.CompletionMode = "exit"
+		log.Info("Unattended mode enabled")
+	}
+
+	// FEATURE-563 recursion guard: a process that is itself a sub-agent must
+	// never nest further sub-agents. The launcher marks children with
+	// CO_SHELL_SUB_AGENT and already passes --subagent-enabled off; this also
+	// covers a child started by hand with the marker set.
+	if os.Getenv("CO_SHELL_SUB_AGENT") == "true" {
+		cfg.LLM.SubAgentEnabled = false
 	}
 
 	// Apply toolcall-enabled CLI override
@@ -1319,12 +1390,24 @@ func main() {
 	ag.SetVaultStore(s.Vault())
 	ag.SetModelManager(modelMgr)
 
+	// FEATURE-563: run-level tool shielding. --disabled-tools names the tools to
+	// drop; unattended mode additionally drops every tool that would block on a
+	// human (ask_user / render_ui / ui_window / vault_add).
+	if names := splitToolNames(flags.disabledTools); len(names) > 0 {
+		ag.SetDisabledTools(names)
+		log.Info("Tools disabled for this run: %s", strings.Join(names, ","))
+	}
+	if unattended {
+		ag.SetUnattended(true)
+	}
+
 	// FEATURE-528: --yolo turns the YOLO master switch on for this run. It is a
 	// pure boolean flag (present = on, default off); the state is runtime-only
-	// and is never written back to the config file.
-	if flags.yolo {
+	// and is never written back to the config file. FEATURE-563: an unattended
+	// run forces it on, because nobody is there to confirm a tool call.
+	if flags.yolo || unattended {
 		ag.SetYOLO(true)
-		log.Info("YOLO mode enabled by --yolo")
+		log.Info("YOLO mode enabled")
 	}
 
 	// FEATURE-481: inject the co-shell runtime environment (pid/version/build).

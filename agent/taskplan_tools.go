@@ -30,7 +30,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -250,25 +249,21 @@ func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{
 func (a *Agent) OnScheduledTaskTriggered(entry *scheduler.CronEntry) {
 	log.Info("Scheduled task #%d triggered: %s", entry.ID, entry.Instruction)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-
-	cfg := subagent.SubAgentConfig{
-		Workspace:      filepath.Join(a.workspacePath, "sub-agents", fmt.Sprintf("scheduled-%d", entry.ID)),
-		Instruction:    entry.Instruction,
-		TimeoutSeconds: 1800,
-		Purpose:        fmt.Sprintf("Scheduled task #%d: %s", entry.ID, entry.Instruction),
-		ConfirmToolOff: true,
-	}
-
-	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)
+	// FEATURE-563: scheduled tasks run as managed sub-agents, so they show up
+	// in the process table and can be inspected/killed like any other one.
+	id := fmt.Sprintf("scheduled-%d", entry.ID)
+	procs, err := a.subAgentMgr.Start(context.Background(),
+		[]subagent.Task{{ID: id, Instruction: entry.Instruction}},
+		subagent.MaxWaitSeconds*time.Second)
 	if err != nil {
-		log.Error("Scheduled task #%d failed: %v", entry.ID, err)
+		log.Error("Scheduled task #%d failed to launch: %v", entry.ID, err)
 		return
 	}
 
-	log.Info("Scheduled task #%d completed: duration=%s, exitCode=%d",
-		entry.ID, result.Duration, result.ExitCode)
+	for _, p := range procs {
+		log.Info("Scheduled task #%d sub-agent %s: status=%s exitCode=%d elapsed=%s",
+			entry.ID, p.ID, p.Status, p.ExitCode, p.Elapsed())
+	}
 }
 
 // persistSchedulerEntries saves all scheduler entries to memory for persistence across restarts.

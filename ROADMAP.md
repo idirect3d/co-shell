@@ -4,6 +4,31 @@
 
 ---
 
+## v0.77.0 — sub-agent 重构（批量创建 / 进程表 / 超时转后台 / 无人值守 / 状态注入）
+
+> **版本**: v0.77.0
+
+> **状态**: 🚧 开发中（分支 **FEATURE-563**）
+> **里程碑**: sub-agent 由「兄弟目录 + 同步阻塞 + 仅回传 output/ 文件」重构为可管理的协作模型——一次调用批量创建（主 agent 指定 id）、等待超时 1..600s 后进程转后台不杀、进程表 + 每个 sub-agent 状态注入 `<environment_details>`、可 kill（进程组）、同 id 复用重启、结果取「最后一轮 LLM 输出（不含 think）」；并新增无人值守模式（`--unattended`，带指令默认 on）封死一切阻断点；进程表写入 store 持久化。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-563 | 0.77.0 | P1 | sub-agent 重构：① `launch_sub_agent` 支持 tasks 数组批量创建 + 主 agent 指定 id（`^[A-Za-z0-9_-]{1,32}$` 防路径穿越）+ `timeout_seconds` 必填（1..600s）；② 超时不杀进程、转后台；③ 进程表（id/pid/status/run/起止时间/exit code/日志路径）+ `<sub_agents>` 注入 environment_details；④ 新增 `sub_agent_status`（含 wait_seconds）与 `kill_sub_agent`（SIGTERM→SIGKILL 杀进程组）；⑤ 同 id 复用同工作目录重启（run 递增、日志保留）；⑥ 结果 = 最后一轮 LLM 输出（不含 think，`--output-format json` 解析）；⑦ 子工作区 `{workspace}/sub-agents/{id}/`，共用主 agent config；⑧ 无人值守模式 `--unattended on|off` + `--disabled-tools`；⑨ 进程表 store 持久化 + stale 识别；⑩ 退出 kill 全部后台 sub-agent |
+
+> 当前 BUILD: 1136
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-563 sub-agent 重构（批量创建 / 进程表 / 超时转后台 / 无人值守 / 状态注入 / 持久化）** [BUILD-1136]
+  - 背景（用户需求）：现有 sub-agent 依赖「当前工作区兄弟目录」约定、同步阻塞等待、结果仅回传 exit code 与 `output/` 文件内容；且 `Manager.active` 以常量 `-1` 作 key（并发即互相覆盖，`Close()` 只能取消最后一个）。用户要求改为可批量创建、可超时转后台、可查询、可 kill、状态可见的协作模型。
+  - 交互决策（经 ask_user 确认）：版本 **v0.77.0**（新特性，minor 递增）、任务编号 **FEATURE-563**；复用＝同 id 已结束则同目录重启（run 递增）；结果＝最后一轮 LLM 输出（不含 think）；无人值守 `--unattended`（带指令默认 on、无指令默认 off）且包含禁用嵌套创建；进程表 **写入 store 持久化**；主 agent 退出时 kill 全部（含进程组）。
+  - 分支/版本：**FEATURE-563**（基于 main，v0.76.4 已发布），版本 v0.77.0
+  - 实现概要：新增/重构 `subagent/` 包（`subagent.go` 类型与状态机、`launch.go` 批量启动与进程组管理、`parse.go` JSON-Lines 结果解析、`status.go` 状态查询与注入块、`proc_unix.go`/`proc_windows.go` 平台进程操作），`Manager` 以 `map[id]*Proc` + `sync.Mutex` 管理批量任务（修复旧 active map 恒为 -1 的覆盖缺陷）；每个 sub-agent 独立工作目录 `{workspace}/sub-agents/{id}/` 与独立进程组（Setpgid/Setsid），stdout/stderr 落 `run-{N}.jsonl`/`run-{N}.err.log`；进程表写入 store（key `subagent:procs`），启动时恢复并对失效的 running 记录标注 `stale`；超时只返回后台标记不杀进程。`agent/subagent_tools.go` 提供 `launch_sub_agent` / `sub_agent_status` / `kill_sub_agent` 并在 `agent/tools.go` 注册；`agent/envelope.go` 注入 `<sub_agents>` 块，三个工具 description 提示 LLM 关注该块。`main.go` 新增 `--unattended on|off`（带指令默认 on、无指令默认 off）与 `--disabled-tools`，无人值守下强制 yolo、注入 `CO_SHELL_NO_TOOL_ACTION=exit`/`CO_SHELL_COMPLETION_MODE=exit`，配合 `agent/agent.go` run-level 工具屏蔽（ask_user/render_ui/ui_window/vault_add）与 sub-agent 递归防护；`agent/taskplan_tools.go` 适配新 API。
+  - 验证：`go build ./... && go vet ./...` 通过；本特性涉及文件 gofmt 干净（仓库另有若干 HEAD 即非 gofmt-clean 的文件，未改动）；新增 `subagent/subagent_test.go`、`subagent/manager_test.go`、`agent/unattended_test.go` 全部通过，覆盖 id 断言与路径穿越拒绝、批量创建与工作区隔离/env 标记、超时转后台不杀进程、`wait_seconds` 只等待不杀、kill 进程组（SIGTERM→SIGKILL 升级）、同 id 复用 run 递增且日志保留、运行中重复 id 报错、持久化恢复与 stale 标注、结果提取（不含 thinking、截断标记）、无人值守与 `--disabled-tools` 屏蔽。`go test ./... -short` 中 i18n（`TestRulesDirCustomizationNote` 等）、cmd、agent（`TestLineRendererTokenEvents` 等）、browser（`TestNetworkLoadingFailed`）、web 的失败已在 HEAD worktree 基线复现，属既有问题，与本特性无关；无新增第三方依赖（go.mod 未变）。
+  - 运行时用例：`use-case/FEATURE-563/FEATURE-563-UC-0001.md`、`FEATURE-563-UC-0002.md`、`FEATURE-563-UC-0003.md`
+
 ## v0.76.4 — hub Ctrl+C 退出卡死修复（Proxy.Close 自死锁 + 信号路径先关停子进程）
 
 > **版本**: v0.76.4

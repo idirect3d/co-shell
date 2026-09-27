@@ -63,7 +63,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 		systemPrompt:    systemPrompt,
 		maxIterations:   config.DefaultConfig().LLM.MaxIterations,
 		rules:           rules,
-		subAgentMgr:     subagent.NewManager(),
+		subAgentMgr:     subagent.NewManager(subagent.Options{Persister: s}),
 		taskPlanMgr:     taskplan.NewManager(s),
 		name:            "co-shell",
 		modelManager:    config.GetDefaultModelManager(),
@@ -950,6 +950,37 @@ func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
 
+// unattendedToolNames are the tools an unattended run (FEATURE-563) must not
+// use: they park until a human acts (ask_user, render_ui waiting, ui_window) or
+// read the secret from the terminal (vault_add).
+var unattendedToolNames = []string{"ask_user", "render_ui", "ui_window", "vault_add"}
+
+// SetDisabledTools records the tool names this run must not use (FEATURE-563
+// --disabled-tools). A disabled tool is dropped from the tool registry, so it
+// is neither advertised to the LLM nor executable.
+func (a *Agent) SetDisabledTools(names []string) {
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		if n != "" {
+			m[n] = true
+		}
+	}
+	a.disabledTools = m
+}
+
+// SetUnattended switches the run into unattended mode (FEATURE-563): no tool
+// may block on a human, so the interactive tools are dropped from the registry
+// alongside any --disabled-tools entry. The flag is written once at startup,
+// before any prompt is built.
+func (a *Agent) SetUnattended(enabled bool) {
+	a.unattended = enabled
+}
+
+// Unattended reports whether this run is unattended (FEATURE-563).
+func (a *Agent) Unattended() bool {
+	return a.unattended
+}
+
 // SetShellEnabled enables or disables shell session mode.
 // When enabled, it auto-starts a shell session.
 // When disabled, it auto-stops any active shell session.
@@ -1289,7 +1320,15 @@ func (a *Agent) rebuildSystemPrompt() {
 	}
 }
 
-func (a *Agent) SetWorkspacePath(path string) { a.workspacePath = path }
+// SetWorkspacePath sets the workspace root and forwards it to the sub-agent
+// manager, which nests sub-agent workspaces under {root}/sub-agents/{id}
+// (FEATURE-563).
+func (a *Agent) SetWorkspacePath(path string) {
+	a.workspacePath = path
+	if a.subAgentMgr != nil {
+		a.subAgentMgr.SetWorkspace(path)
+	}
+}
 func (a *Agent) SetImagePaths(paths []string) { a.imagePaths = paths }
 
 // ImagePaths returns the currently installed multimodal image paths

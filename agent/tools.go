@@ -412,38 +412,9 @@ Critical rules:
 		},
 		Callback: a.writeToFileTool,
 	})
-	// Add sub-agent tools only if sub-agent enabled
+	// FEATURE-563: managed sub-agent tools (batch launch / status / kill).
 	if a.subAgentEnabled {
-		subAgentTools := []llm.Tool{
-			{
-				Name:        "launch_sub_agent",
-				Description: "Launch a sub-agent process to communicate with another co-shell agent for information sharing. The target agent's workspace is a sibling folder of the current agent's workspace, identified by sub_agent_name. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to ask questions and get information from another agent — **this is equal information sharing, not task delegation**.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"meta": map[string]interface{}{
-							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
-						},
-						"sub_agent_name": map[string]interface{}{
-							"type":        "string",
-							"description": "Required: the name of the target co-shell agent. This name is used as the sibling workspace folder name.",
-						},
-						"instruction": map[string]interface{}{
-							"type":        "string",
-							"description": "The natural language instruction or system command for the sub-agent to execute.",
-						},
-						"timeout_seconds": map[string]interface{}{
-							"type":        "number",
-							"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
-						},
-					},
-					"required": []string{"meta", "sub_agent_name", "instruction"},
-				},
-				Callback: a.launchSubAgentTool,
-			},
-		}
-		tools = append(tools, subAgentTools...)
+		tools = append(tools, a.subAgentToolDefs()...)
 	}
 
 	// Add schedule_task tool only if sub-agent enabled (it depends on sub-agent)
@@ -1972,6 +1943,22 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				disabledExplicit[k] = true
 			}
 		}
+	}
+	// FEATURE-563: run-level tool shielding. The --disabled-tools entries and,
+	// in unattended mode, every tool that would block on a human are folded into
+	// the same filter, so a shielded tool is neither advertised to the LLM nor
+	// reachable by the executor (see executeTool).
+	if a.unattended {
+		for _, name := range unattendedToolNames {
+			disabledExplicit[name] = true
+		}
+	}
+	for name := range a.disabledTools {
+		if name == "default" {
+			disabledDefault = true
+			continue
+		}
+		disabledExplicit[name] = true
 	}
 	if disabledDefault || len(disabledExplicit) > 0 {
 		filtered := make([]llm.Tool, 0, len(tools))

@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-01
-// Last Modified: 2026-05-01
+// Last Modified: 2026-09-27
 //
 // MIT License
 //
@@ -28,103 +28,393 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/subagent"
 )
 
-// launchSubAgentTool launches a sub-agent process to communicate with another
-// co-shell agent. The target agent's workspace is a sibling folder of the
-// current agent's workspace, identified by sub_agent_name.
+// subAgentLogTailBytes caps how much of a sub-agent's JSON-Lines log tail is
+// handed back to the parent LLM by sub_agent_status.
+const subAgentLogTailBytes = 2000
+
+// errI18n builds an error from an i18n template (kept as a helper so vet's
+// printf checker never sees a non-constant format string).
+func errI18n(key string, args ...interface{}) error {
+	return errors.New(i18n.TF(key, args...))
+}
+
+// subAgentBlock renders the <sub_agents> process table injected into
+// <environment_details> (FEATURE-563). It is empty while no sub-agent has ever
+// been launched, in which case the block is omitted entirely.
+func (a *Agent) subAgentBlock() string {
+	if a.subAgentMgr == nil {
+		return ""
+	}
+	return a.subAgentMgr.StatusBlock()
+}
+
+// launchSubAgentTool starts one or more sub-agent processes in a single call
+// (FEATURE-563).
 //
-// Workspace layout:
-//
-//	{parent}/
-//	  {current_agent_name}/     <- current agent's workspace
-//	  {target_agent_name}/      <- target agent's workspace (sibling)
-//
-// The target agent's workspace must already exist. If not, an error is returned.
+// Every task carries a caller-chosen id that names the sub-agent workspace
+// ({workspace}/sub-agents/{id}) and is used afterwards by sub_agent_status and
+// kill_sub_agent. The call waits at most timeout_seconds; sub-agents still
+// running when that window expires keep running in the background.
 func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("launchSubAgentTool called: args=%v", args)
 
-	instruction, ok := args["instruction"].(string)
+	tasks, err := parseSubAgentTasks(args["tasks"])
+	if err != nil {
+		return "", err
+	}
+	timeoutSeconds, ok := subAgentIntArg(args["timeout_seconds"])
 	if !ok {
-		return "", fmt.Errorf("instruction argument is required")
+		return "", errI18n(i18n.KeySubAgentTimeoutRequired, subagent.MinWaitSeconds, subagent.MaxWaitSeconds)
+	}
+	if err := subagent.ValidateWaitSeconds(timeoutSeconds); err != nil {
+		return "", errI18n(i18n.KeySubAgentTimeoutRange, subagent.MinWaitSeconds, subagent.MaxWaitSeconds)
 	}
 
-	agentName, ok := args["sub_agent_name"].(string)
-	if !ok || agentName == "" {
-		return "", fmt.Errorf("sub_agent_name argument is required")
-	}
-
-	var timeout int
-	if t, ok := args["timeout_seconds"].(float64); ok {
-		timeout = int(t)
-	}
-
-	// Determine current workspace (parent of current agent's workspace folder)
-	currentWorkspace, err := os.Getwd()
+	procs, err := a.subAgentMgr.Start(ctx, tasks, time.Duration(timeoutSeconds)*time.Second)
 	if err != nil {
-		return "", fmt.Errorf("cannot get current workspace: %w", err)
+		if len(procs) == 0 {
+			return "", err
+		}
+		log.Warn("launch_sub_agent: partially started (%d process(es)): %v", len(procs), err)
 	}
 
-	// Target workspace is a sibling folder: {parent}/{agentName}
-	parentDir := filepath.Dir(currentWorkspace)
-	targetWorkspace := filepath.Join(parentDir, agentName)
-
-	// Verify the target agent's workspace exists
-	if _, statErr := os.Stat(targetWorkspace); os.IsNotExist(statErr) {
-		return "", fmt.Errorf("target agent %q workspace not found at %s. The target agent's workspace must exist before calling launch_sub_agent", agentName, targetWorkspace)
-	}
-
-	// FEATURE-304: sub-agent entry output is i18n-ized and can be hidden
-	// via OutputCategories["subagent"]=off.
 	if a.cfg == nil || a.cfg.OutputCategoryShown("subagent") {
-		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentCommunicate), a.name, agentName, targetWorkspace)
+		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentLaunched), len(procs))
 	}
 
-	cfg := subagent.SubAgentConfig{
-		Workspace:      targetWorkspace,
-		Instruction:    instruction,
-		TimeoutSeconds: timeout,
-		ImagePaths:     a.imagePaths,
-		ConfirmToolOff: a.approveAll,
-	}
-
-	log.Info("Launching sub-agent for agent '%s': workspace=%s, instruction=%s, timeout=%ds",
-		agentName, targetWorkspace, instruction, timeout)
-
-	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)
-	if err != nil {
-		log.Error("Failed to launch sub-agent for agent '%s': %v", agentName, err)
-		return "", fmt.Errorf("failed to launch sub-agent for agent '%s': %w", agentName, err)
-	}
-
-	// Build result summary
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Agent '%s' completed.\n", agentName))
-	sb.WriteString(result.ResultSummary())
+	sb.WriteString(i18n.TF(i18n.KeySubAgentLaunched, len(procs)))
+	a.appendSubAgentProcLines(&sb, procs, false)
+	if err != nil {
+		sb.WriteString("\n")
+		sb.WriteString(i18n.TF(i18n.KeySubAgentError, err))
+	}
+	return sb.String(), nil
+}
 
-	// Include output file contents if any
-	for _, f := range result.OutputFiles {
-		filePath := filepath.Join(targetWorkspace, "output", f)
-		data, readErr := os.ReadFile(filePath)
-		if readErr != nil {
-			sb.WriteString(fmt.Sprintf("\n  ⚠️ Cannot read output file %s: %v\n", f, readErr))
+// subAgentStatusTool reports the process table rows (FEATURE-563): status,
+// run, pid/exit code, elapsed time, the final answer of the sub-agent's last
+// LLM turn, its output files and the tail of its log. wait_seconds > 0 blocks
+// until the selected sub-agents finish — it never kills them.
+func (a *Agent) subAgentStatusTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("subAgentStatusTool called: args=%v", args)
+
+	ids, err := parseSubAgentIDs(args["ids"], false)
+	if err != nil {
+		return "", err
+	}
+	waitSeconds := 0
+	if raw, ok := args["wait_seconds"]; ok && raw != nil {
+		n, ok := subAgentIntArg(raw)
+		if !ok || n < 0 || n > subagent.MaxWaitSeconds {
+			return "", errI18n(i18n.KeySubAgentWaitRange, subagent.MaxWaitSeconds)
+		}
+		waitSeconds = n
+	}
+
+	var procs []*subagent.Proc
+	if waitSeconds > 0 {
+		procs = a.subAgentMgr.Wait(ids, time.Duration(waitSeconds)*time.Second)
+	} else {
+		procs = a.subAgentMgr.List(ids)
+	}
+	if len(procs) == 0 {
+		if len(ids) > 0 {
+			return "", errI18n(i18n.KeySubAgentUnknownID, strings.Join(ids, ", "))
+		}
+		return i18n.T(i18n.KeySubAgentNone), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(i18n.T(i18n.KeySubAgentStatusHeader))
+	a.appendSubAgentProcLines(&sb, procs, true)
+	return sb.String(), nil
+}
+
+// killSubAgentTool terminates the given sub-agents and their whole process
+// group (FEATURE-563): SIGTERM first, SIGKILL after a short grace period.
+func (a *Agent) killSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("killSubAgentTool called: args=%v", args)
+
+	ids, err := parseSubAgentIDs(args["ids"], true)
+	if err != nil {
+		return "", err
+	}
+	procs, err := a.subAgentMgr.Kill(ids)
+	if err != nil {
+		return "", err
+	}
+
+	if a.cfg == nil || a.cfg.OutputCategoryShown("subagent") {
+		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentKilled), len(procs))
+	}
+
+	var sb strings.Builder
+	sb.WriteString(i18n.TF(i18n.KeySubAgentKilled, len(procs)))
+	a.appendSubAgentProcLines(&sb, procs, false)
+	return sb.String(), nil
+}
+
+// appendSubAgentProcLines renders one line per process; with details=true it
+// also reports the tool-call trail, output files, final result and log tail.
+func (a *Agent) appendSubAgentProcLines(sb *strings.Builder, procs []*subagent.Proc, details bool) {
+	for _, p := range procs {
+		sb.WriteString("\n")
+		sb.WriteString(formatSubAgentProcLine(p))
+		if p.WaitTimedOut {
+			sb.WriteString("\n  ")
+			sb.WriteString(i18n.T(i18n.KeySubAgentWaitTimedOut))
+		}
+		if !details {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("\n📄 Output file: %s\n", f))
-		sb.WriteString(string(data))
-		if !strings.HasSuffix(string(data), "\n") {
-			sb.WriteString("\n")
+		if len(p.ToolCalls) > 0 {
+			sb.WriteString("\n  ")
+			sb.WriteString(i18n.TF(i18n.KeySubAgentToolCalls, strings.Join(p.ToolCalls, ", ")))
+		}
+		if a.subAgentMgr != nil {
+			if files := a.subAgentMgr.OutputFiles(p.ID); len(files) > 0 {
+				sb.WriteString("\n  ")
+				sb.WriteString(i18n.TF(i18n.KeySubAgentOutputList, strings.Join(files, ", ")))
+			}
+		}
+		sb.WriteString("\n  ")
+		sb.WriteString(i18n.T(i18n.KeySubAgentResultHeader))
+		sb.WriteString("\n")
+		if strings.TrimSpace(p.Result) == "" {
+			sb.WriteString("  ")
+			sb.WriteString(i18n.T(i18n.KeySubAgentResultNone))
+			continue
+		}
+		sb.WriteString(subAgentIndent(p.Result))
+	}
+}
+
+// formatSubAgentProcLine renders the one-line summary of a process row.
+func formatSubAgentProcLine(p *subagent.Proc) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "- id=%s status=%s run=%d", p.ID, p.Status, p.Run)
+	if p.Status == subagent.StatusRunning {
+		fmt.Fprintf(&sb, " pid=%d", p.PID)
+	} else {
+		fmt.Fprintf(&sb, " exit_code=%d", p.ExitCode)
+	}
+	fmt.Fprintf(&sb, " elapsed=%s", p.Elapsed().Round(time.Second))
+	if p.Workspace != "" {
+		fmt.Fprintf(&sb, " workspace=%s", p.Workspace)
+	}
+	return sb.String()
+}
+
+// subAgentIndent indents a multi-line block so it stays readable inside the
+// tool result.
+func subAgentIndent(text string) string {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = "  " + line
+	}
+	return strings.Join(lines, "\n")
+}
+
+// parseSubAgentTasks decodes the launch_sub_agent "tasks" argument.
+func parseSubAgentTasks(raw interface{}) ([]subagent.Task, error) {
+	var items []interface{}
+	switch t := raw.(type) {
+	case []interface{}:
+		items = t
+	case []map[string]interface{}:
+		items = make([]interface{}, 0, len(t))
+		for _, m := range t {
+			items = append(items, m)
 		}
 	}
+	if len(items) == 0 {
+		return nil, errI18n(i18n.KeySubAgentTasksRequired)
+	}
 
-	log.Info("Agent '%s' completed: duration=%s, exitCode=%d", agentName, result.Duration, result.ExitCode)
-	return sb.String(), nil
+	tasks := make([]subagent.Task, 0, len(items))
+	for i, item := range items {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, errI18n(i18n.KeySubAgentTaskShape, i)
+		}
+		id, _ := m["id"].(string)
+		id = strings.TrimSpace(id)
+		if err := subagent.ValidateID(id); err != nil {
+			return nil, errI18n(i18n.KeySubAgentInvalidID, id)
+		}
+		instruction, _ := m["instruction"].(string)
+		if strings.TrimSpace(instruction) == "" {
+			return nil, errI18n(i18n.KeySubAgentInstructionRequired, id)
+		}
+		tasks = append(tasks, subagent.Task{ID: id, Instruction: instruction})
+	}
+	return tasks, nil
+}
+
+// parseSubAgentIDs decodes an optional/required array of sub-agent ids. A bare
+// string is accepted as a single-element list for robustness.
+func parseSubAgentIDs(raw interface{}, required bool) ([]string, error) {
+	var items []interface{}
+	switch t := raw.(type) {
+	case nil:
+	case []interface{}:
+		items = t
+	case []string:
+		for _, s := range t {
+			items = append(items, s)
+		}
+	case string:
+		items = []interface{}{t}
+	}
+
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		s, ok := item.(string)
+		if !ok {
+			continue
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if err := subagent.ValidateID(s); err != nil {
+			return nil, errI18n(i18n.KeySubAgentInvalidID, s)
+		}
+		ids = append(ids, s)
+	}
+	if required && len(ids) == 0 {
+		return nil, errI18n(i18n.KeySubAgentIDsRequired)
+	}
+	return ids, nil
+}
+
+// subAgentIntArg coerces a tool argument to int (JSON numbers arrive as
+// float64; plain strings are accepted too).
+func subAgentIntArg(raw interface{}) (int, bool) {
+	switch n := raw.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	case string:
+		if v, err := strconv.Atoi(strings.TrimSpace(n)); err == nil {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// subAgentToolDefs returns the managed sub-agent tool definitions
+// (FEATURE-563): batch launch, status/result lookup and termination. They are
+// registered by buildTools only while sub-agent support is enabled.
+func (a *Agent) subAgentToolDefs() []llm.Tool {
+	return []llm.Tool{
+		{
+			Name: "launch_sub_agent",
+			Description: "Launch one or more sub-agent processes in a single call. Each task carries an id you choose " +
+				"(letters/digits/'_'/'-', max 32 chars); the id names the sub-agent workspace " +
+				"(<workspace>/sub-agents/<id>) and is used afterwards by sub_agent_status / kill_sub_agent. Every " +
+				"sub-agent runs its own co-shell in unattended mode and reports the final answer of its last LLM turn " +
+				"(thinking excluded). The call waits at most timeout_seconds; sub-agents still running then keep running " +
+				"in the background — their status is shown in the <sub_agents> block of <environment_details> and can be " +
+				"read with sub_agent_status. Re-using the id of a finished sub-agent restarts it in the same workspace " +
+				"with an incremented run (history logs kept); re-using the id of a running sub-agent fails.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					},
+					"tasks": map[string]interface{}{
+						"type":        "array",
+						"description": "Required: one entry per sub-agent to launch, each {id, instruction}. Ids must be unique within the batch.",
+						"items": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"id": map[string]interface{}{
+									"type":        "string",
+									"description": "Caller-chosen sub-agent id (letters/digits/'_'/'-', max 32 chars). Also the workspace folder name.",
+								},
+								"instruction": map[string]interface{}{
+									"type":        "string",
+									"description": "One-shot instruction the sub-agent executes autonomously.",
+								},
+							},
+							"required": []string{"id", "instruction"},
+						},
+					},
+					"timeout_seconds": map[string]interface{}{
+						"type":        "number",
+						"description": "Required: how long this call waits for the batch, 1..600 seconds. Sub-agents that exceed it keep running in the background.",
+					},
+				},
+				"required": []string{"meta", "tasks", "timeout_seconds"},
+			},
+			Callback: a.launchSubAgentTool,
+		},
+		{
+			Name: "sub_agent_status",
+			Description: "Report the status of launched sub-agents: status/running pid or exit code, run number, elapsed time, " +
+				"the final answer of their last LLM turn, their output file list and a log tail. The same summary is " +
+				"rendered in the <sub_agents> block of <environment_details>, so check that block first and only call this " +
+				"tool when you need the detailed result. wait_seconds > 0 blocks until the selected sub-agents finish " +
+				"(it never kills them); omit it to get the current snapshot.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					},
+					"ids": map[string]interface{}{
+						"type":        "array",
+						"description": "Optional: sub-agent ids to report. Omit to report every tracked sub-agent.",
+						"items":       map[string]interface{}{"type": "string"},
+					},
+					"wait_seconds": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional: wait up to this many seconds (0..600) for the selected sub-agents to finish before reporting. Never kills them.",
+					},
+				},
+				"required": []string{"meta"},
+			},
+			Callback: a.subAgentStatusTool,
+		},
+		{
+			Name: "kill_sub_agent",
+			Description: "Terminate sub-agent processes and their whole process group (SIGTERM, then SIGKILL after a short grace " +
+				"period). Their status becomes killed. Use the <sub_agents> block of <environment_details> to see which " +
+				"sub-agents are still running before killing them.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					},
+					"ids": map[string]interface{}{
+						"type":        "array",
+						"description": "Required: ids of the sub-agents to terminate.",
+						"items":       map[string]interface{}{"type": "string"},
+					},
+				},
+				"required": []string{"meta", "ids"},
+			},
+			Callback: a.killSubAgentTool,
+		},
+	}
 }
