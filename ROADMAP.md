@@ -21,11 +21,13 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-566 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）** [BUILD-1146]
+- [ ] **FEATURE-566 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）** [BUILD-1147]
   - 背景（用户需求）：FEATURE-565 交付后，子代理结束的唯一「通知」是刷新 Web UI 清单（`agent.onSubAgentProgress` → `pushSubAgents`，仅推前端），主 agent 完全感知不到；若 `launch_sub_agent` 等待超时转后台、或主 agent 回合已结束，子代理的结果就可能永远不进对话（「子代理白做」）。用户要求：**每个子代理结束时（成功或失败）都必须通知主 agent**——迭代中走动态感知，来不及则发正式 user message 起新迭代。
   - 交互决策（经 ask_user 确认）：任务归属＝先合并 FEATURE-565（v0.79.0 已合并 main + 标签），再新建 **FEATURE-566**、版本 **v0.80.0**；注入方式＝**复用现有动态感知**（写入动态事件队列，在下一次 LLM 调用的 `<user_dynamic_events>` 中注入，与 board_message / ui_action 一致）；空闲时＝**立即自动起一次新迭代**（通知作为正式 user message，无需用户参与）；通知内容＝**仅状态 + id/run + 提示调用 `sub_agent_status` 取结果**；粒度＝按完成先后**逐条**处理。
   - 实现概要（规划）：`subagent` 层在 `reap` 终态落定后（锁外）回调完成通知（新增 setter，进程表持久化语义不变）；`agent` 层新增 `onSubAgentCompleted`——`IsBusy()` 为真时 `AddDynamicEvent`（新增事件类型，`consumeDynamicEvents` 渲染为 `<sub_agent_done>` 条目），否则通过新的 IO 接口（Web 层实现＝向会话 `inputCh` 投递正式 user message）启动一次新迭代；无该能力的出口降级为打印 + 动态事件缓存；i18n（zh/en）新增文案；子代理进程自身带 `--subagent-enabled off`（`subagent/launch.go:204`）天然阻止递归。
   - 验证：`go build ./...`、`go vet ./...` 通过；新增单测覆盖「完成/失败必回调」「kill 不回调」「busy → 动态事件」「idle → 起新迭代」「跨会话丢弃」；`go test ./subagent/ ./agent/ ./web/` 全绿；UI 实测（隔离实例）确认通知出现在会话流并驱动主 agent 继续处理。
+  - 运行时验收（BUILD-1146，真实子代理，pid 20877）：A1（约 22s 完成）与 A2（约 44s 完成）均以 `launch_sub_agent(timeout_seconds=5)` 启动并回「等待超时 —— 进程已转入后台继续运行」；A1 完成通知确实以 `<user_dynamic_events><sub_agent_done id="A1" run="4" status="completed" exit_code="0" elapsed="22s">子代理 A1（run 4）已完成（exit 0，用时 22s）。请调用 sub_agent_status 取结果。</sub_agent_done></user_dynamic_events>` 注入主 agent 正在进行的迭代（UC-0003/0004/0005 通过）；被 `kill_sub_agent` 终止的 A3（status=killed, exit_code=-1）没有任何通知（UC-0006 通过）；`sub_agent_status` 能取得 A1/A2 各自的最终结果（A1-MARKER-OK / A2-MARKER-OK）。
+  - 运行时验收发现并修复（BUG-1147）：A2 的完成通知**从未送达主 agent**。根因＝`agent/dynamic_events.go` 的 `dynamicEventQueue.add` 合并守卫写成 `if ev.Kind != DynamicUserMessage`，而 Text 类事件（`sub_agent_done` / `board_message` / `ui_action`）的 `Path` 恒为空，于是同 Kind 的第二条事件被判为「重复路径事件」而被静默覆盖丢弃 —— UC-0007「多条按完成先后逐条处理」在真实运行下不成立，board 消息/组件动作同样受影响。修复＝合并只对**带路径**的事件生效（守卫改为 `ev.Path != ""`）；配套复现单测 `agent/dynamic_events_test.go` 的 `TestDynamicQueueKeepsTextEvents`（修复前 `drain len = 2, want 4` 必败，修复后通过）。[BUILD-1147]
   - 运行时用例：`use-case/FEATURE-566/FEATURE-566-UC-0001.md` ~ `FEATURE-566-UC-0012.md`（升序：空闲起新迭代 / 失败也通知 / 迭代中动态注入 / 超时不吞通知 / 通知体量 / kill 不通知 / 多条逐条处理 / 会话隔离 / 端到端闭环 / 进程退出边界 / 终端降级 / 不递归去重）
   - 分支/版本：**FEATURE-566**（基于 main），版本 v0.80.0
 

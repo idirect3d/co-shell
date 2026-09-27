@@ -113,8 +113,11 @@ func (q *dynamicEventQueue) add(ev DynamicEvent) {
 	if ev.Time.IsZero() {
 		ev.Time = time.Now()
 	}
-	// Coalesce duplicate path events (clip/upload/open) by path.
-	if ev.Kind != DynamicUserMessage {
+	// Coalesce duplicate path events (clip/upload/open/view) by path. Text
+	// events (user message, board message, ui action, sub-agent notice) carry
+	// their payload in Text and leave Path empty, so they must never coalesce:
+	// two notices of the same kind are two distinct events (FEATURE-566).
+	if ev.Path != "" {
 		for i := range q.events {
 			if q.events[i].Kind == ev.Kind && q.events[i].Path == ev.Path {
 				q.events[i].Time = ev.Time
