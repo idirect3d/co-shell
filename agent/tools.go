@@ -2457,6 +2457,28 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		a.emitSupervisorReport(report)
 	}
 
+	// FEATURE-568: run the demo command BEFORE the completion-confirm dialog.
+	// The command (usually an `open <artifact>` style command) used to run only
+	// after the user confirmed completion, which made the user wait one extra
+	// step before the result was on screen. It now runs as soon as the
+	// supervisor approves the delivery, so the artifact is already open when the
+	// dialog appears. If the user then picks "continue" / "not done", the
+	// command has already run and is NOT run a second time.
+	var cmdOutput string
+	if command != "" {
+		log.Info("attemptCompletion: executing demo command: %s", command)
+		shell, shellArg := shellCmd()
+		cmd := exec.CommandContext(ctx, shell, shellArg, command)
+		output, err := cmd.CombinedOutput()
+		decoded := decodeToUTF8(output)
+		if err != nil {
+			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
+			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, decoded)
+		} else {
+			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_611), strings.TrimSpace(decoded))
+		}
+	}
+
 	// FEATURE-479: completion-confirm behavior mode (active/simple/exit).
 	//   active — show the full confirm dialog (LLM next_steps + next-step
 	//            suggestion + cancel + supplement + complete).
@@ -2619,22 +2641,6 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		log.Warn("attemptCompletion: failed to update session: %v", err)
 	} else {
 		log.Info("attemptCompletion: session updated with title=%q, keywords=%q", finalTitle, sessionKeywords)
-	}
-
-	// If a command was provided, execute it as a demo
-	var cmdOutput string
-	if command != "" {
-		log.Info("attemptCompletion: executing demo command: %s", command)
-		shell, shellArg := shellCmd()
-		cmd := exec.CommandContext(ctx, shell, shellArg, command)
-		output, err := cmd.CombinedOutput()
-		decoded := decodeToUTF8(output)
-		if err != nil {
-			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
-			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, decoded)
-		} else {
-			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_611), strings.TrimSpace(decoded))
-		}
 	}
 
 	// Mark the task as completed so RunStream knows this is the final answer
