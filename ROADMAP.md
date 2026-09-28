@@ -4,6 +4,33 @@
 
 ---
 
+## v0.81.0 — board 消息「必须回复」强制机制（回复义务 / 收尾门禁 / 超时重投）
+
+> **版本**: v0.81.0
+
+> **状态**: ✅ 已完成（2026-09-28 合并 main，标签 **v0.81.0**，BUILD-1150）
+> **里程碑**: 收到「需要回复」的 board 消息（`no_reply=false`）后，接收 agent 必须**留下一条回复**才算完成：① 本地产出**回复义务**并在 `<environment_details>` 的 `<board_replies>` 段每轮可见（防遗忘）；② 迭代收尾 `attempt_completion` 时若义务未清则**拒绝完成**（同一义务连续被拦 3 次后放行，防死锁）；③ 回复窗口超时后 hub **自动重投一次**（`board_redeliver_max`，默认 1），重投仍无回复才判 timeout 并通知发送方（带 redelivered 次数）；④ 整套强制由 `board-must-reply` 开关控制（默认开，关掉退化为软提醒）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-567 | 0.81.0 | P1 | ① `agent`：`boardState` 新增回复义务表（`AddBoardObligation/ResolveBoardObligation/PendingBoardObligations`），收到 `no_reply=false` 消息即登记、`board_send(reply_to=...)` ack 成功即清除；② `<environment_details>` 新增 `<board_replies pending="N">` 段（无义务时省略、零开销）；③ `attempt_completion` 前置门禁：有未回复义务则返回结构化 tool error 拒绝完成（含 message_id/from/剩余时间，中英双语），同一义务连续拦截 3 次后放行并记 warn（防死锁）；④ hub：`Awaiting` 增 `Redeliveries`，`SweepTimeouts` 到期时若未达 `board_redeliver_max` 则重投同 id 消息（`redelivery=N`、deadline 重置）而不判 timeout，超限才发 `board_timeout`；⑤ 配置 `board-must-reply`（默认开）与 hub 侧 `board_redeliver_max`（默认 1，0=旧行为）。 |
+
+> 当前 BUILD: 1150
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-567 board 消息「必须回复」强制机制（回复义务 / 收尾门禁 / 超时重投）**（已合并 main + 标签 v0.81.0，真机实测闭环）[BUILD-1150]
+  - 背景（用户需求）：通过 hub 消息机制给其他 agent 派活后，对方**做完事经常忘记回复**，发送方无从判断它是还在做、已完成还是失败，协作链路断在半路。
+  - 交互决策（经 ask_user 确认）：强制强度＝**硬门禁**（义务清单 + 收尾阻止完成）；超时＝**自动重投一次（次数可配，默认 1）**；生效范围＝**配置项 `board-must-reply` 控制（默认开，可关）**；标注方式＝**不新增参数**，沿用「未写 `no_reply` 即需要回复」。版本归属经用户确认＝**v0.81.0**。
+  - 实现概要：agent 侧义务表 + `<board_replies>` 注入 + `attempt_completion` 门禁（3 次放行降级）；hub 侧 `Awaiting.Redeliveries` + 重投（重投不产生第二条义务、重投窗口内发送方不收 timeout）；i18n（zh/en）新增门禁与重投文案。
+  - 验证要点：义务登记/清除单测、门禁拒绝与 3 次放行单测、`<board_replies>` 段落单测、hub 重投与 `redeliver_max=0` 回归单测；`use-case/FEATURE-567/` 运行时用例（双 agent 实测：忘回被拦住→补回；全程不回→重投 1 次后 timeout）。
+  - 实测结论（2026-09-28，hub 0.81.0 / BUILD-1150）：m-95（30s 窗口）首次到期仅重投——接收方收到带 `redelivery="1"` 的同 id 帧且未见 timeout；二次到期才由发送方收到 `<board_timeout … redelivered="1"/>`；m-96（对方回信）触发门禁，`attempt_completion` 被拒且错误含 message_id/from/remaining（中英双语）；回复 m-97 后 `<board_replies>` 段消失。
+  - 分支/版本：**FEATURE-567**（基于 main），版本 v0.81.0
+
+---
+
 ## v0.80.0 — 子代理完成必须通知主 agent（迭代中动态感知注入 / 空闲时自动起新迭代）
 
 > **版本**: v0.80.0

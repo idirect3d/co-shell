@@ -1457,6 +1457,8 @@ const (
 	KeyCol3SubAgentEnabled = "col3_sub_agent_enabled"
 	KeyCol3BoardEnabled    = "col3_board_enabled"
 	KeyCol3BoardAckTimeout = "col3_board_ack_timeout"
+	// FEATURE-567: board reply-duty gate switch description.
+	KeyCol3BoardMustReply = "col3_board_must_reply"
 	// FEATURE-524: UI component/window rendering switch descriptions.
 	KeyCol3UIEnabled           = "col3_ui_enabled"
 	KeyCol3UIContextPrune      = "col3_ui_context_prune"

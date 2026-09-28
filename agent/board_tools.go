@@ -115,6 +115,10 @@ func (a *Agent) boardSendTool(_ context.Context, args map[string]interface{}) (s
 		}
 		return "", fmt.Errorf("hub rejected board_send: %s", reason)
 	}
+	// FEATURE-567: answering a message clears the reply duty it created.
+	if replyTo != "" {
+		a.ResolveBoardObligation(replyTo)
+	}
 	return boardAckSummary(ack, noReply), nil
 }
 

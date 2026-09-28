@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.80.0"
-	hubBuild   = "1148"
+	hubVersion = "0.81.0"
+	hubBuild   = "1150"
 )
 
 // config is the JSON config file shape.
@@ -65,6 +65,11 @@ type config struct {
 	// BoardDBPath is the message board database (bbolt). Default:
 	// hub-board.db next to the agent registry (FEATURE-530).
 	BoardDBPath string `json:"board_db_path,omitempty"`
+	// BoardRedeliverMax is how many times the hub re-sends a board message
+	// whose reply window elapsed before it reports a board_timeout
+	// (FEATURE-567). Unset = 1 re-delivery; 0 = never re-send, i.e. the
+	// behaviour before FEATURE-567.
+	BoardRedeliverMax *int `json:"board_redeliver_max,omitempty"`
 	// Lang is the Web UI language ("zh"/"en", FEATURE-559). Empty means
 	// auto-detect: --lang > LANG / LC_ALL > zh.
 	Lang string `json:"lang,omitempty"`
@@ -192,6 +197,11 @@ func main() {
 	board, err := gateway.NewBoard(boardStore)
 	if err != nil {
 		log.Fatalf("board: %v", err)
+	}
+	// FEATURE-567: how often an expired reply obligation is re-sent to its
+	// recipient before the message times out.
+	if cfg.BoardRedeliverMax != nil {
+		board.SetRedeliverMax(*cfg.BoardRedeliverMax)
 	}
 	// FEATURE-538: the roster "职责" is the agent's Agent描述, i.e. the
 	// agent-description section of {workspace}/IDENTITY.md. Agents report it

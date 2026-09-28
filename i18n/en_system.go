@@ -635,6 +635,7 @@ Usage:
   <{XML_TAG_PREFIX}timeout_seconds>600</{XML_TAG_PREFIX}timeout_seconds>
 </{XML_TAG_PREFIX}board_send>`
 	enMessages[KeyCol3BoardAckTimeout] = "Seconds board_send waits for the hub acknowledgement (default 5, range 5-86400)"
+	enMessages[KeyCol3BoardMustReply] = "board reply-duty gate(on|off): refuse attempt_completion while a board message still expects a reply (default on)"
 	enMessages[KeyCol3BoardEnabled] = "board collaboration(on|off)"
 	enMessages[KeySettingCmd_782] = "Board collaboration: %s"
 	enMessages[KeySettingCmd_783] = "✅ Board collaboration set to: %s"

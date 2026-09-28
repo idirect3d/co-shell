@@ -232,7 +232,7 @@ func (s *WebSession) handleBoardFrame(msg clientMessage) {
 		s.handleBoardDelivery(msg)
 	case "board_timeout":
 		s.ag.AddDynamicEvent(agent.DynamicBoardTimeout,
-			agent.BoardTimeoutXML(msg.MessageID, msg.AgentID, msg.Deadline))
+			agent.BoardTimeoutXML(msg.MessageID, msg.AgentID, msg.Deadline, msg.Redelivered))
 	}
 }
 
@@ -251,7 +251,9 @@ func (s *WebSession) applyBoardRoster(msg clientMessage) {
 // handleBoardDelivery dedupes and buffers one delivered message. A message id is
 // never injected twice (decision 6); the batch is flushed after a short window.
 func (s *WebSession) handleBoardDelivery(msg clientMessage) {
-	if !s.ag.MarkBoardMessageSeen(msg.ID) {
+	// FEATURE-567: a message the hub re-sent must reach the agent again even
+	// though its id was seen before, so its reply duty can be refreshed.
+	if msg.Redelivery == 0 && !s.ag.MarkBoardMessageSeen(msg.ID) {
 		return
 	}
 	bm := agent.BoardMessage{
@@ -266,6 +268,7 @@ func (s *WebSession) handleBoardDelivery(msg clientMessage) {
 		Timeout:      msg.Timeout,
 		Conversation: msg.Conv,
 		TS:           msg.BoardTS,
+		Redelivery:   msg.Redelivery,
 	}
 	if s.boardAgg == nil {
 		// The board was switched on after this session started: deliver at once.
@@ -286,6 +289,11 @@ func (s *WebSession) flushBoardMessages(batch []agent.BoardMessage) {
 func (s *WebSession) deliverBoardMessages(batch []agent.BoardMessage) {
 	if len(batch) == 0 {
 		return
+	}
+	// FEATURE-567: every message that expects a reply becomes a duty of this
+	// agent until it answers with board_send(reply_to=...).
+	for _, m := range batch {
+		s.ag.AddBoardObligation(m)
 	}
 	if s.ag.IsBusy() {
 		for _, m := range batch {

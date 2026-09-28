@@ -80,6 +80,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
 		{Key: "board-ack-timeout", Value: strconv.Itoa(boardAckTimeoutValue(cfg)), Desc: i18n.T(i18n.KeyCol3BoardAckTimeout), Type: "number", Default: strconv.Itoa(5)},
+		{Key: "board-must-reply", Value: boolStr(cfg.BoardMustReply), Desc: i18n.T(i18n.KeyCol3BoardMustReply), Type: "bool", Default: boolStr(defCfg.BoardMustReply)},
 		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
 		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
 		{Key: "ui-context-prune", Value: boolStr(cfg.UIContextPrune), Desc: i18n.T(i18n.KeyCol3UIContextPrune), Type: "bool", Default: boolStr(defCfg.UIContextPrune)},

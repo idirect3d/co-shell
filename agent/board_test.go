@@ -270,7 +270,7 @@ func TestBoardMessageRenderers(t *testing.T) {
 		!strings.HasSuffix(xmlForm, "</board_message>") {
 		t.Fatalf("unexpected xml form: %s", xmlForm)
 	}
-	tout := BoardTimeoutXML("m-12", "agent-b", 1700000000)
+	tout := BoardTimeoutXML("m-12", "agent-b", 1700000000, 0)
 	if !strings.Contains(tout, `message_id="m-12"`) || !strings.Contains(tout, `agent="agent-b"`) {
 		t.Fatalf("unexpected timeout form: %s", tout)
 	}

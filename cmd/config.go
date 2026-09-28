@@ -407,6 +407,26 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				h.cfg.BoardAckTimeout = 0
 				return "board-ack-timeout reset to default (5s)"
 			}},
+		// FEATURE-567: the reply-duty gate is ON by default, so its reset turns
+		// it back on (syncedOnOffParam would too, but the config field is
+		// persisted explicitly here).
+		{Name: "board-must-reply", Options: []string{"on", "off"},
+			CurrentValue: onOffFunc(&h.cfg.BoardMustReply),
+			SetValue: func(v string) (string, error) {
+				if err := setBoolPtr(&h.cfg.BoardMustReply, v); err != nil {
+					return "", err
+				}
+				if err := h.cfg.Save(); err != nil {
+					return "", err
+				}
+				h.agent.SetConfig(h.cfg)
+				return i18n.TF(i18n.KeySettingsUpdated, "board-must-reply", v), nil
+			},
+			ResetValue: func() string {
+				h.cfg.BoardMustReply = true
+				h.agent.SetConfig(h.cfg)
+				return i18n.TF(i18n.KeySettingsUpdated, "board-must-reply", "on")
+			}},
 		{Name: "board-enabled", Options: []string{"on", "off"},
 			CurrentValue: onOffFunc(&h.cfg.BoardEnabled),
 			SetValue: func(v string) (string, error) {

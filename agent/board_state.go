@@ -84,6 +84,9 @@ type BoardMessage struct {
 	Timeout      int      `json:"timeout"`
 	Conversation string   `json:"conversation"`
 	TS           int64    `json:"ts"`
+	// Redelivery counts how often the hub re-sent this message after its reply
+	// window elapsed (FEATURE-567); 0 for a first delivery.
+	Redelivery int `json:"redelivery,omitempty"`
 }
 
 // BoardDelivery mirrors one recipient's delivery outcome in a board_sent ack.
@@ -115,6 +118,10 @@ type boardState struct {
 	seenRing []string
 
 	pending map[string]chan *BoardAck
+
+	// obligations holds the delivered messages that still expect a reply
+	// (FEATURE-567), keyed by message id.
+	obligations map[string]*boardObligation
 }
 
 // boardStateFor returns the agent's board state, creating it on first use.
@@ -123,8 +130,9 @@ func (a *Agent) boardStateFor() *boardState {
 	defer a.mu.Unlock()
 	if a.boardSt == nil {
 		a.boardSt = &boardState{
-			seen:    map[string]bool{},
-			pending: map[string]chan *BoardAck{},
+			seen:        map[string]bool{},
+			pending:     map[string]chan *BoardAck{},
+			obligations: map[string]*boardObligation{},
 		}
 	}
 	return a.boardSt
@@ -308,6 +316,10 @@ func BoardMessageText(m BoardMessage) string {
 		sb.WriteString(" timeout=")
 		sb.WriteString(strconv.Itoa(m.Timeout))
 	}
+	if m.Redelivery > 0 {
+		sb.WriteString(" redelivery=")
+		sb.WriteString(strconv.Itoa(m.Redelivery))
+	}
 	sb.WriteString("] ")
 	sb.WriteString(m.Content)
 	return sb.String()
@@ -342,6 +354,10 @@ func BoardMessageXML(m BoardMessage) string {
 	sb.WriteString(strconv.Quote(strconv.FormatBool(m.NoReply)))
 	sb.WriteString(" timeout=")
 	sb.WriteString(strconv.Quote(strconv.Itoa(m.Timeout)))
+	if m.Redelivery > 0 {
+		sb.WriteString(" redelivery=")
+		sb.WriteString(strconv.Quote(strconv.Itoa(m.Redelivery)))
+	}
 	sb.WriteString(">")
 	sb.WriteString(m.Content)
 	sb.WriteString("</board_message>")
@@ -350,7 +366,13 @@ func BoardMessageXML(m BoardMessage) string {
 
 // BoardTimeoutXML renders one board_timeout event (the hub reports that a
 // recipient never answered a message that expected a reply).
-func BoardTimeoutXML(messageID, agentID string, deadline int64) string {
+func BoardTimeoutXML(messageID, agentID string, deadline int64, redelivered int) string {
+	if redelivered > 0 {
+		return "<board_timeout message_id=" + strconv.Quote(messageID) +
+			" agent=" + strconv.Quote(agentID) +
+			" deadline=" + strconv.Quote(strconv.FormatInt(deadline, 10)) +
+			" redelivered=" + strconv.Quote(strconv.Itoa(redelivered)) + "/>"
+	}
 	return "<board_timeout message_id=" + strconv.Quote(messageID) +
 		" agent=" + strconv.Quote(agentID) +
 		" deadline=" + strconv.Quote(strconv.FormatInt(deadline, 10)) + "/>"

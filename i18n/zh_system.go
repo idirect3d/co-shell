@@ -660,6 +660,7 @@ Usage:
   <{XML_TAG_PREFIX}timeout_seconds>600</{XML_TAG_PREFIX}timeout_seconds>
 </{XML_TAG_PREFIX}board_send>`
 	zhMessages[KeyCol3BoardAckTimeout] = "board_send 等待 hub 回执的秒数（默认 5，范围 5-86400）"
+	zhMessages[KeyCol3BoardMustReply] = "board 回复义务门禁(on|off)：未答复的 board 消息会拒绝 attempt_completion（默认 on）"
 	zhMessages[KeyCol3BoardEnabled] = "公告板协作(on|off)"
 	zhMessages[KeySettingCmd_782] = "公告板协作: %s"
 	zhMessages[KeySettingCmd_783] = "✅ 公告板协作已设为: %s"

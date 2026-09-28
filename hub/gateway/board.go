@@ -138,6 +138,42 @@ type Awaiting struct {
 	AgentID   string `json:"agent_id"`
 	Deadline  int64  `json:"deadline"`
 	Status    string `json:"status"` // pending | answered | timeout
+	// Redeliveries counts how many times the hub re-sent the message after
+	// its reply window elapsed (FEATURE-567). Records persisted before this
+	// feature load as 0, i.e. as a message that is never re-sent.
+	Redeliveries int `json:"redeliveries,omitempty"`
+}
+
+// BoardRedeliverDefault is how many times the hub re-sends a message whose reply
+// window elapsed before it reports a timeout (FEATURE-567); 0 = never re-send.
+const BoardRedeliverDefault = 1
+
+// boardRedeliveryMaxWindow caps the reply window granted to a re-delivered
+// message (FEATURE-567).
+const boardRedeliveryMaxWindow = 300
+
+// boardRedelivery is one scheduled re-send of a message whose reply window
+// elapsed.
+type boardRedelivery struct {
+	agentID    string
+	msg        *Message
+	redelivery int
+}
+
+// redeliveryFrame is the board_message frame of a re-delivered message: the
+// original message fields plus the redelivery counter.
+type redeliveryFrame struct {
+	*Message
+	Redelivery int `json:"redelivery"`
+}
+
+// boardRedeliveryWindow returns the reply window granted to a re-delivered
+// message: the original window, capped at boardRedeliveryMaxWindow seconds.
+func boardRedeliveryWindow(timeout int) int64 {
+	if timeout <= 0 || timeout > boardRedeliveryMaxWindow {
+		return boardRedeliveryMaxWindow
+	}
+	return int64(timeout)
 }
 
 // Awaiting status values.
@@ -199,6 +235,9 @@ type Board struct {
 	awaiting  map[string]*Awaiting // key: messageID + "|" + agentID
 	seq       int
 	rosterRev int
+	// redeliverMax is how many times an expired reply obligation is re-sent
+	// before it becomes a timeout (FEATURE-567).
+	redeliverMax int
 
 	store    *BoardStore
 	link     func(id string) agentLink
@@ -215,9 +254,10 @@ func NewBoard(store *BoardStore) (*Board, error) {
 		agents:   make(map[string]*AgentInfo),
 		messages: make(map[string]*Message),
 		convs:    make(map[string]*conversation),
-		awaiting: make(map[string]*Awaiting),
-		store:    store,
-		now:      time.Now,
+		awaiting:     make(map[string]*Awaiting),
+		redeliverMax: BoardRedeliverDefault,
+		store:        store,
+		now:          time.Now,
 	}
 	if store != nil {
 		state, err := store.Load()
@@ -720,6 +760,18 @@ func (b *Board) trackAwaiting(msg *Message, deliveries []Delivery, deadline int6
 // awaitingKey builds the awaiting map key.
 func awaitingKey(messageID, agentID string) string { return messageID + "|" + agentID }
 
+// SetRedeliverMax sets how many times an expired reply obligation is re-sent to
+// its recipient before the hub reports a timeout (0 restores the behaviour from
+// before FEATURE-567). Negative values are clamped to 0.
+func (b *Board) SetRedeliverMax(n int) {
+	if n < 0 {
+		n = 0
+	}
+	b.mu.Lock()
+	b.redeliverMax = n
+	b.mu.Unlock()
+}
+
 // TimeoutEvent reports the recipients of one message that never answered.
 type TimeoutEvent struct {
 	MessageID    string   `json:"message_id"`
@@ -727,19 +779,41 @@ type TimeoutEvent struct {
 	From         string   `json:"from"`
 	Agents       []string `json:"agents"`
 	Deadline     int64    `json:"deadline"`
+	// Redelivered is how many times the message had already been re-sent to
+	// the recipients before it timed out (FEATURE-567).
+	Redelivered int `json:"redelivered,omitempty"`
 }
 
-// SweepTimeouts marks expired awaiting entries as timed out and returns one
-// event per affected message. The caller is responsible for delivering the
-// events to the original senders.
+// SweepTimeouts handles the reply obligations whose window elapsed: while a
+// message still has redeliveries left (FEATURE-567) the hub re-sends it to the
+// recipient and pushes the deadline back, and only a message whose redelivery
+// budget is used up becomes a timeout. It returns one event per message that
+// timed out; the caller is responsible for delivering the events to the
+// original senders.
 func (b *Board) SweepTimeouts() []TimeoutEvent {
 	now := b.nowUnix()
 	byMessage := map[string]*TimeoutEvent{}
+	var redeliver []boardRedelivery
 
 	b.mu.Lock()
 	for _, a := range b.awaiting {
 		if a.Status != AwaitingPending || a.Deadline > now {
 			continue
+		}
+		if a.Redeliveries < b.redeliverMax {
+			if msg, ok := b.messages[a.MessageID]; ok {
+				a.Redeliveries++
+				a.Deadline = now + boardRedeliveryWindow(msg.Timeout)
+				if b.store != nil {
+					b.storeErr("awaiting", b.store.SaveAwaiting(a))
+				}
+				redeliver = append(redeliver, boardRedelivery{
+					agentID:    a.AgentID,
+					msg:        msg,
+					redelivery: a.Redeliveries,
+				})
+				continue
+			}
 		}
 		a.Status = AwaitingTimeout
 		if b.store != nil {
@@ -760,10 +834,19 @@ func (b *Board) SweepTimeouts() []TimeoutEvent {
 			byMessage[a.MessageID] = ev
 		}
 		ev.Agents = append(ev.Agents, a.AgentID)
+		ev.Redelivered = a.Redeliveries
 	}
 	b.mu.Unlock()
 
+	// Re-deliveries are pushed without the board lock: an agent link may block.
+	for _, r := range redeliver {
+		b.notify(r.agentID, MsgTypeBoardMessage, redeliveryFrame{Message: r.msg, Redelivery: r.redelivery})
+	}
+
 	if len(byMessage) == 0 {
+		if len(redeliver) > 0 {
+			b.changed()
+		}
 		return nil
 	}
 	out := make([]TimeoutEvent, 0, len(byMessage))

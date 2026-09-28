@@ -216,6 +216,12 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 		sb.WriteString(roster)
 		sb.WriteString("\n")
 	}
+	// FEATURE-567: render the board messages that still expect a reply. The
+	// whole block is omitted while nothing is pending.
+	if replies := a.BoardObligationBlock(); replies != "" {
+		sb.WriteString(replies)
+		sb.WriteString("\n")
+	}
 	// FEATURE-563: render the sub-agent process table so the LLM always sees
 	// which sub-agents are running or finished. Omitted while none exists.
 	if subAgents := a.subAgentBlock(); subAgents != "" {

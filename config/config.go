@@ -1064,6 +1064,12 @@ type Config struct {
 	// BoardAckTimeout is how long the board_send tool waits for the hub's
 	// board_sent acknowledgement, in seconds (FEATURE-530, default 5).
 	BoardAckTimeout int `json:"board_ack_timeout,omitempty"`
+	// BoardMustReply makes a board message that expects a reply (no_reply is
+	// not set) a duty of its recipient (FEATURE-567): the duty is rendered in
+	// <environment_details> and attempt_completion is refused while it is
+	// unanswered. It is ON by default (hence no omitempty: an explicit false is
+	// persisted); turning it off keeps the soft reminder only.
+	BoardMustReply bool `json:"board_must_reply"`
 	// BoardAckTimeout is how long board_send waits for the hub's board_sent
 	// acknowledgement, in seconds (FEATURE-530, default 5). It is a system
 	// parameter exposed through :set / :config / the Web settings panel.
@@ -1216,6 +1222,8 @@ func DefaultConfig() *Config {
 
 		UIEnabled:      true,
 		UIContextPrune: true,
+		// FEATURE-567: the board reply-duty gate is on by default.
+		BoardMustReply: true,
 
 		// FEATURE-553: hide the local store and git metadata by default. A copy
 		// keeps this default list immutable if the caller edits the field.

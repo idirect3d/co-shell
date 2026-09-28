@@ -361,6 +361,36 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("SubAgent enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_128), status), nil
 
+	case "board-must-reply":
+		// FEATURE-567: a board message that expects a reply becomes a duty of
+		// this agent and blocks attempt_completion until it answers. On by
+		// default, so only an explicit "off" turns it off.
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.BoardMustReply {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("board-must-reply = %s (default on)", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.BoardMustReply = true
+		case "off", "0", "false", "no":
+			h.cfg.BoardMustReply = false
+		default:
+			return "", fmt.Errorf("usage: .set board-must-reply on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetConfig(h.cfg)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.BoardMustReply {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Board must-reply gate set to %s", status)
+		return fmt.Sprintf("board-must-reply = %s", status), nil
+
 	case "board-ack-timeout":
 		// FEATURE-530: how long the board_send tool waits for the hub ack.
 		cur := h.cfg.BoardAckTimeout

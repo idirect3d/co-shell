@@ -133,6 +133,10 @@ type clientMessage struct {
 	BoardTS     int64           `json:"ts,omitempty"`       // board_message: unix seconds
 	Seq         int             `json:"seq,omitempty"`      // board_message: hub sequence
 	Timeout     int             `json:"timeout,omitempty"`  // board_message: reply window (s)
+	// FEATURE-567: re-delivery marker of a board_message (0 = first delivery).
+	Redelivery int `json:"redelivery,omitempty"`
+	// FEATURE-567: how often the message was re-sent before a board_timeout.
+	Redelivered int `json:"redelivered,omitempty"`
 
 	// FEATURE-524: ui_action fields. UIID / UIActionID address the rendered
 	// component and the action it declared; Payload carries the structured

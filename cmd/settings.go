@@ -722,6 +722,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("intent-exposure-enabled", intentExposureStatus, i18n.T(i18n.KeyCol3IntentExposureEnabled)),
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
 		makeLine("board-enabled", boolStr(cfg.BoardEnabled), i18n.T(i18n.KeyCol3BoardEnabled)),
+		makeLine("board-must-reply", boolStr(cfg.BoardMustReply), i18n.T(i18n.KeyCol3BoardMustReply)),
 		makeLine("ui-enabled", boolStr(cfg.UIEnabled), i18n.T(i18n.KeyCol3UIEnabled)),
 		makeLine("ui-context-prune", boolStr(cfg.UIContextPrune), i18n.T(i18n.KeyCol3UIContextPrune)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),

@@ -229,6 +229,9 @@ func TestBoardNoReplySkipsAwaiting(t *testing.T) {
 // one timeout event once its window elapses.
 func TestBoardTimeoutSweep(t *testing.T) {
 	b, _ := newTestBoard(t, "agent-a", "agent-b", "agent-c")
+	// FEATURE-567: pin the pre-feature behaviour (no re-delivery) so this test
+	// keeps covering the plain timeout path.
+	b.SetRedeliverMax(0)
 	now := time.Unix(1_700_000_000, 0)
 	b.now = func() time.Time { return now }
 

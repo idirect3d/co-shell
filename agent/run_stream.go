@@ -1530,7 +1530,20 @@ iterationLoop:
 					toolCtx = ctx // fallback if not set
 				}
 				if !skipExec {
-					result, execErr = a.executeToolCall(toolCtx, tc)
+					// FEATURE-567: board messages that expect a reply are a duty of
+					// this agent, so attempt_completion is refused while one is
+					// still unanswered. The refusal goes back to the LLM as the
+					// tool result, so it can answer first and finish afterwards.
+					if tc.Name == "attempt_completion" {
+						if gateMsg, blocked := a.BoardCompletionGate(); blocked {
+							result = ""
+							execErr = fmt.Errorf("%s", gateMsg)
+						} else {
+							result, execErr = a.executeToolCall(toolCtx, tc)
+						}
+					} else {
+						result, execErr = a.executeToolCall(toolCtx, tc)
+					}
 				}
 				if execErr != nil {
 					errStr := execErr.Error()
