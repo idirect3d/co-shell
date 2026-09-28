@@ -140,3 +140,25 @@ func TestBrowserConfigJSONRoundTrip(t *testing.T) {
 		t.Errorf("BrowserExtraHTTPHeaders lost in round trip: %v", got.BrowserExtraHTTPHeaders)
 	}
 }
+
+// TestBrowserWindowModeConfig covers FEATURE-569: browser_window_mode defaults
+// to "minimized" and survives a config.json marshal/unmarshal cycle.
+func TestBrowserWindowModeConfig(t *testing.T) {
+	if got := DefaultConfig().LLM.BrowserWindowMode; got != "minimized" {
+		t.Errorf("BrowserWindowMode default = %q, want minimized", got)
+	}
+
+	cfg := DefaultConfig()
+	cfg.LLM.BrowserWindowMode = "maximized"
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	loaded := DefaultConfig()
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		t.Fatalf("unmarshal config: %v", err)
+	}
+	if loaded.LLM.BrowserWindowMode != "maximized" {
+		t.Errorf("BrowserWindowMode lost in round trip: %q", loaded.LLM.BrowserWindowMode)
+	}
+}

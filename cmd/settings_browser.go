@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/idirect3d/co-shell/browser"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -49,6 +50,7 @@ var browserSettingNames = map[string]bool{
 	"browser-timezone":           true,
 	"browser-extra-http-headers": true,
 	"browser-window-size":        true,
+	"browser-window-mode":        true,
 	"browser-download-dir":       true,
 	"browser-ignore-cert-errors": true,
 	"browser-extensions":         true,
@@ -90,6 +92,8 @@ func (h *SettingsHandler) handleBrowserSetting(subcommand string, args []string)
 		return h.setBrowserList(subcommand, &h.cfg.LLM.BrowserExtraHTTPHeaders, args, true)
 	case "browser-window-size":
 		return h.setBrowserWindowSize(subcommand, args)
+	case "browser-window-mode":
+		return h.setBrowserWindowMode(subcommand, args)
 	case "browser-viewport":
 		return h.setBrowserViewport(subcommand, args)
 	case "browser-dialog-policy":
@@ -181,6 +185,23 @@ func (h *SettingsHandler) setBrowserWindowSize(name string, args []string) (stri
 		return "", errors.New(".set browser-window-size WIDTH,HEIGHT (e.g. 1280,800)")
 	}
 	h.cfg.LLM.BrowserWindowSize = value
+	return h.saveBrowserSetting(name, value)
+}
+
+// setBrowserWindowMode reports or updates the initial window state applied to a
+// newly launched non-headless browser (FEATURE-569). An unknown value is
+// rejected so the stored configuration always stays usable.
+func (h *SettingsHandler) setBrowserWindowMode(name string, args []string) (string, error) {
+	if len(args) < 2 {
+		return browserSettingLine(name, h.cfg.LLM.BrowserWindowMode), nil
+	}
+	value := strings.TrimSpace(strings.Join(args[1:], ""))
+	switch value {
+	case browser.WindowModeMinimized, browser.WindowModeMaximized, browser.WindowModeNormal:
+	default:
+		return "", errors.New(".set browser-window-mode minimized|maximized|normal")
+	}
+	h.cfg.LLM.BrowserWindowMode = value
 	return h.saveBrowserSetting(name, value)
 }
 

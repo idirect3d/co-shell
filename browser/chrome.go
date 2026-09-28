@@ -132,6 +132,11 @@ func (m *ChromeManager) Start() (string, error) {
 
 	log.Info("Chrome browser started (headless=%v, port=%d)", m.headless, m.port)
 
+	// FEATURE-569: apply the configured initial window state (minimized /
+	// maximized / normal) to the process that was just launched. A reused
+	// instance never reaches this point, so its window is left untouched.
+	m.applyInitialWindowMode()
+
 	return debugURL, nil
 }
 

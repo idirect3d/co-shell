@@ -71,6 +71,9 @@ type ChromeConfig struct {
 	Viewport string
 	// DialogPolicy controls automatic JavaScript dialog handling (auto|accept|dismiss).
 	DialogPolicy string
+	// WindowMode is the initial window state of a newly launched non-headless
+	// browser: minimized|maximized|normal (FEATURE-569). Empty applies nothing.
+	WindowMode string
 	// ApplyOnConnect replays session-level settings on every new CDP connection.
 	ApplyOnConnect bool
 }
@@ -82,6 +85,7 @@ func DefaultChromeConfig() ChromeConfig {
 		WindowSize:     "1280,800",
 		Persist:        true,
 		DialogPolicy:   string(DialogAuto),
+		WindowMode:     WindowModeMinimized,
 		ApplyOnConnect: true,
 	}
 }
