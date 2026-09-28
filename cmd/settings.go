@@ -208,6 +208,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "browser-proxy", subcommand == "browser-user-agent",
 		subcommand == "browser-language", subcommand == "browser-timezone",
 		subcommand == "browser-extra-http-headers", subcommand == "browser-window-size",
+		subcommand == "browser-window-mode",
 		subcommand == "browser-download-dir", subcommand == "browser-ignore-cert-errors",
 		subcommand == "browser-extensions", subcommand == "browser-profile-dir",
 		subcommand == "browser-persist", subcommand == "browser-viewport",
@@ -742,6 +743,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("browser-timezone", browserDisplayValue(cfg.LLM.BrowserTimezone), i18n.T(i18n.KeyCol3BrowserTimezone)),
 		makeLine("browser-extra-http-headers", browserListDisplay(cfg.LLM.BrowserExtraHTTPHeaders), i18n.T(i18n.KeyCol3BrowserExtraHeaders)),
 		makeLine("browser-window-size", browserDisplayValue(cfg.LLM.BrowserWindowSize), i18n.T(i18n.KeyCol3BrowserWindowSize)),
+		makeLine("browser-window-mode", browserDisplayValue(cfg.LLM.BrowserWindowMode), i18n.T(i18n.KeyCol3BrowserWindowMode)),
 		makeLine("browser-download-dir", browserDisplayValue(cfg.LLM.BrowserDownloadDir), i18n.T(i18n.KeyCol3BrowserDownloadDir)),
 		makeLine("browser-ignore-cert-errors", browserOnOff(cfg.LLM.BrowserIgnoreCertErrors), i18n.T(i18n.KeyCol3BrowserIgnoreCertErrors)),
 		makeLine("browser-extensions", browserOnOff(cfg.LLM.BrowserExtensions), i18n.T(i18n.KeyCol3BrowserExtensions)),
@@ -1074,6 +1076,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.BrowserTimezone = def.LLM.BrowserTimezone
 	h.cfg.LLM.BrowserExtraHTTPHeaders = def.LLM.BrowserExtraHTTPHeaders
 	h.cfg.LLM.BrowserWindowSize = def.LLM.BrowserWindowSize
+	h.cfg.LLM.BrowserWindowMode = def.LLM.BrowserWindowMode
 	h.cfg.LLM.BrowserDownloadDir = def.LLM.BrowserDownloadDir
 	h.cfg.LLM.BrowserIgnoreCertErrors = def.LLM.BrowserIgnoreCertErrors
 	h.cfg.LLM.BrowserExtensions = def.LLM.BrowserExtensions

@@ -38,8 +38,8 @@ import (
 // every declared key is readable through handleBrowserSetting.
 func TestBrowserSettingInventory(t *testing.T) {
 	h := &SettingsHandler{cfg: config.DefaultConfig()}
-	if len(browserSettingNames) != 16 {
-		t.Fatalf("expected 16 browser settings, got %d", len(browserSettingNames))
+	if len(browserSettingNames) != 17 {
+		t.Fatalf("expected 17 browser settings, got %d", len(browserSettingNames))
 	}
 	for name := range browserSettingNames {
 		if !isBrowserSettingName(name) {

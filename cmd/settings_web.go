@@ -104,6 +104,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "browser-timezone", Value: browserDisplayValue(llm.BrowserTimezone), Desc: i18n.T(i18n.KeyCol3BrowserTimezone), Type: "string", Default: browserDisplayValue(def.BrowserTimezone)},
 		{Key: "browser-extra-http-headers", Value: browserListDisplay(llm.BrowserExtraHTTPHeaders), Desc: i18n.T(i18n.KeyCol3BrowserExtraHeaders), Type: "string", Default: browserListDisplay(def.BrowserExtraHTTPHeaders)},
 		{Key: "browser-window-size", Value: llm.BrowserWindowSize, Desc: i18n.T(i18n.KeyCol3BrowserWindowSize), Type: "string", Default: def.BrowserWindowSize},
+		{Key: "browser-window-mode", Value: llm.BrowserWindowMode, Desc: i18n.T(i18n.KeyCol3BrowserWindowMode), Type: "enum", Options: []string{"minimized", "maximized", "normal"}, Default: def.BrowserWindowMode},
 		{Key: "browser-download-dir", Value: browserDisplayValue(llm.BrowserDownloadDir), Desc: i18n.T(i18n.KeyCol3BrowserDownloadDir), Type: "string", Default: browserDisplayValue(def.BrowserDownloadDir)},
 		{Key: "browser-ignore-cert-errors", Value: boolStr(llm.BrowserIgnoreCertErrors), Desc: i18n.T(i18n.KeyCol3BrowserIgnoreCertErrors), Type: "bool", Default: boolStr(def.BrowserIgnoreCertErrors)},
 		{Key: "browser-extensions", Value: boolStr(llm.BrowserExtensions), Desc: i18n.T(i18n.KeyCol3BrowserExtensions), Type: "bool", Default: boolStr(def.BrowserExtensions)},

@@ -553,6 +553,9 @@ type LLMConfig struct {
 	BrowserExtraHTTPHeaders []string `json:"browser_extra_http_headers"`
 	// BrowserWindowSize: launch window size, "WIDTH,HEIGHT" (default "1280,800").
 	BrowserWindowSize string `json:"browser_window_size"`
+	// BrowserWindowMode: initial window state of a newly launched non-headless
+	// browser: minimized|maximized|normal (default "minimized"). Ignored in headless mode.
+	BrowserWindowMode string `json:"browser_window_mode"`
 	// BrowserDownloadDir: download directory. Empty uses workspace/download/browser.
 	BrowserDownloadDir string `json:"browser_download_dir"`
 	// BrowserIgnoreCertErrors: skip TLS certificate validation errors.
@@ -1191,6 +1194,7 @@ func DefaultConfig() *Config {
 
 			// FEATURE-556 Phase 2: browser configuration defaults.
 			BrowserWindowSize:     "1280,800",
+			BrowserWindowMode:     "minimized",
 			BrowserPersist:        true,
 			BrowserDialogPolicy:   "auto",
 			BrowserApplyOnConnect: true,

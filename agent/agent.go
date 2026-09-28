@@ -2199,6 +2199,7 @@ func (a *Agent) EnsureBrowserStarted() error {
 		Timezone:         a.cfg.LLM.BrowserTimezone,
 		ExtraHTTPHeaders: a.cfg.LLM.BrowserExtraHTTPHeaders,
 		WindowSize:       a.cfg.LLM.BrowserWindowSize,
+		WindowMode:       a.cfg.LLM.BrowserWindowMode,
 		DownloadDir:      downloadDir,
 		IgnoreCertErrors: a.cfg.LLM.BrowserIgnoreCertErrors,
 		Extensions:       a.cfg.LLM.BrowserExtensions,

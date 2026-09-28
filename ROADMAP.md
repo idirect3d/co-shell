@@ -4,6 +4,34 @@
 
 ---
 
+## v0.83.0 — 浏览器窗口打开模式可配置（最小化 / 最大化 / 默认）
+
+> **版本**: v0.83.0
+
+> **状态**: ✅ 已完成（2026-09-28 真机验证通过：默认 `minimized` 下浏览器工具正常可用；合并 main，标签 **v0.83.0**，BUILD-1153）
+> **里程碑**: 非无头（`browser-headless=off`）模式下，浏览器控制工具首次启动 Chrome 时按配置 `browser-window-mode` 决定窗口打开方式：`minimized`（最小化，**默认**）/ `maximized`（最大化）/ `normal`（保持系统默认）。实现方式为 **CDP**（`Browser.getWindowForTarget` + `Browser.setWindowBounds`），**不新增启动参数**；headless 模式下该配置不产生任何影响。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-569 | 0.83.0 | P1 | ① `config`：新增 `BrowserWindowMode`（json `browser_window_mode`，默认 `minimized`）；② `browser`：`ChromeConfig.WindowMode` + 连接后按模式经 CDP 设置窗口状态（headless 时跳过）；③ `agent` 把配置映射进 `ChromeConfig`；④ `:set browser-window-mode minimized|maximized|normal`（含设置列表显示、Web 设置页、i18n zh/en）；⑤ 单测覆盖默认值、取值校验、CDP 参数映射与 headless 跳过。 |
+
+> 当前 BUILD: 1153
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-569 浏览器窗口打开模式可配置（最小化 / 最大化 / 默认）**（已合并 main + 标签 v0.83.0，真机验证通过）[BUILD-1153]
+  - 背景（用户需求）：非无头模式下调用浏览器控制工具时，Chrome 窗口会抢焦点弹出并遮挡工作窗口；希望能配置初始窗口状态，**默认最小化**。
+  - 交互决策（经 ask_user 确认）：版本归属＝**v0.83.0**（新建 minor）；实现方式＝**仅用 CDP**（启动后设置窗口状态，不加启动参数）；参数名＝**browser-window-mode**，取值 `minimized`/`maximized`/`normal`，默认 `minimized`。
+  - 实现概要：① `config`：`LLMConfig.BrowserWindowMode`（json `browser_window_mode`，默认 `minimized`）；② `browser`：新增 `chrome_window.go`（`WindowMode*` 常量、`NormalizeWindowMode` 取值校验、`windowModeToApply`（headless 不作处理）、`SetWindowState` 通过 `Browser.getWindowForTarget` + `Browser.setWindowBounds{windowState}`），`ChromeManager.Start()` 在启动新进程后调用 `applyInitialWindowMode()`（含 3 次重试；**复用已有 Chrome 实例的路径不经过 Start，故不会改动其窗口状态**）；`ChromeConfig.WindowMode` + `DefaultChromeConfig()` 默认 `minimized`；③ `agent`：`browserCfg.WindowMode` 映射；④ `.set browser-window-mode minimized|maximized|normal`（`cmd/settings_browser.go`，非法值报错不落盘）、`:set` 白名单/状态列表/重置（`cmd/settings.go`）、Web 设置页枚举项（`cmd/settings_web.go`）、i18n zh/en；⑤ `BuildChromeArgs` **未改动**（不加任何启动参数，纯 CDP 实现）。
+  - 验证要点：`browser/chrome_window_test.go`（取值校验、headless/空值不产生 CDP 调用、三种模式的调用序列与 `windowState` 参数、失败不 panic、默认值=minimized）；`config/config_browser_test.go` 新增默认值与 JSON 往返断言；`cmd/settings_browser_test.go` 清单数 16→17；`go build ./... && go vet ./...` 全绿。
+  - 实测结果：2026-09-28，`go test ./browser/ -run 'WindowMode|WindowState|Normalize'` 6/6 PASS；`go test ./config/ -run BrowserWindowModeConfig` PASS；`go test ./cmd/ -run 'TestBrowserSettingInventory|TestBrowserSettingHelpers'` PASS；`go test ./... -short` 的失败项（agent 2 项、cmd 2 项、web 19 项）已用 main 基线 worktree 比对确认**均为基线既有失败**，与本次改动无关。
+  - 实测结果（2026-09-28，0.83.0/BUILD-1152 运行实例，窗口状态 `minimized`）：网页打开与截图验证正常；CDP 直连实测确认「窗口最小化 ≠ 无法截图」——最小化（`document.visibilityState=hidden`）下 `Page.captureScreenshot`（默认 `fromSurface=true`，与现有实现一致）成功 173,920 B、`fromSurface=false` 成功 175,628 B、`Page.printToPDF` 成功 463,004 B。此前首次截图超时的原因为：新拉起的浏览器尚无合成帧 + 工具层 CDP 调用 ctx deadline 到点（报错 `CDP call timed out (Page.captureScreenshot): context deadline exceeded`），**并非最小化本身必然导致**。
+  - 分支/版本：**FEATURE-569**（基于 main），版本 v0.83.0，合并 main + 标签 **v0.83.0**，BUILD-1153
+
+---
+
 ## v0.82.0 — attempt_completion 的 command 在用户确认前执行
 
 > **版本**: v0.82.0
