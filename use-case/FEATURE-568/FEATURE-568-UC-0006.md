@@ -14,5 +14,6 @@
 - `go vet ./...` 与 `go build ./...` 无告警/错误。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：2026-09-28 / 单元回归 / BUILD-1151
+- 结果：✅ 目标范围全部通过。`go test ./agent/ -run 'Feature568|AttemptCompletion' -v` → **11/11 PASS**（既有 6 个 attempt_completion 用例无需修改即通过）；`go build ./...` 与 `go vet ./...` 无错误无告警。
+- 全仓 `go test ./... -short` 补充说明：`agent`(2 例) / `i18n`(3 例) / `cmd`(2 例) / `web`(15+ 例) 存在失败，已用 **HEAD 纯净 worktree 对照复现**，确认为既有基线失败、与本改动无关（agent 2 例为 i18n 文案断言中文但环境为英文；web 为 WebSocket 会话帧类用例）。已记录、未修复（不属本任务范围）。

@@ -14,5 +14,5 @@
 - 步骤 3：分别返回对应错误（`result is required` / `session_title is required...` / `session_keywords is required...`），且都不执行 command。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：2026-09-28 / 单元测试（TestFeature568NoCommandNoOutput、TestFeature568ExitModeStillRunsCommand、TestFeature568ParamValidationSkipsCommand）/ BUILD-1151
+- 结果：✅ 三条均通过。步骤 1：exit 模式 `Ask` 调用次数 = 0、命令已执行、`completed=true`、消息含命令输出。步骤 2：无 `command` 时消息与 `fmt.Sprintf(i18n.T(KeySettingCmd_612), "done")` **完全相等**（无多余输出段）。步骤 3：缺 result / session_title / session_keywords 三子例均报错、均未执行命令（标记文件不存在、`Ask` 未被调用）。

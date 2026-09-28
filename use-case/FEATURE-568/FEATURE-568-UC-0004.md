@@ -15,5 +15,6 @@
 - 后端日志按序出现：`attemptCompletion: executing demo command: ...` → 之后才是交互（`Ask`）相关记录。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：待实测（产物：`work/co-shell-0.82.0.darwin.arm64`，v0.82.0 [BUILD-1151]）
+- 结果：⏳ **待运行时实测**（需 serve + 真实/桩 LLM 产出带 `command` 的 `attempt_completion`，本轮未构造）。
+- 覆盖说明：完成确认弹框由 `InteractionManager.Ask` 呈现（Web 为 `WebIO` 实现），而命令执行位置在其**上游**的 `attemptCompletionTool` 内，与通道无关（Web / TUI / 飞书共用同一入口），因此顺序保证与通道无关；UC-0001 已在同一入口完成顺序断言。

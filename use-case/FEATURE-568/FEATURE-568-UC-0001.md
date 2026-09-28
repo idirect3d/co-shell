@@ -15,5 +15,5 @@
 - 命令执行日志出现 `attemptCompletion: executing demo command:`。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：2026-09-28 / 单元测试（TestFeature568CommandRunsBeforeConfirmDialog）/ BUILD-1151
+- 结果：✅ 通过（PASS 0.02s）。`Ask`（弹框）被调用时标记文件已存在（`cmdDoneAtAsk[0]=true`）；`completed=true`；最终消息含命令输出 `FEATURE568-UC1`；日志出现 `attemptCompletion: executing demo command:`。

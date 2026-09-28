@@ -14,5 +14,5 @@
 - 步骤 4：标记文件产生；`Ask` 被调用且进入时文件已存在；`completed=true`；返回消息追加命令输出段。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：2026-09-28 / 代码位置核对（无 LLM 桩）/ BUILD-1151
+- 结果：⚠️ 未构造 supervisor 打回（`runSupervisorReview` 走“监督 LLM 不可用→强制放行”分支，无客户端时无法得到 `approved=false`）。已由**代码位置**保证：`if !approved { a.storeUserReply(feedback); return feedback, nil }`（`agent/tools.go:2448-2453`）位于命令执行块（`agent/tools.go:2460-2480`）**之前**，故打回时不执行命令；UC-0001 的顺序断言覆盖了「审查通过→弹框前执行」那一侧。

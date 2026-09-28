@@ -14,5 +14,5 @@
 - 临时文件行数仍为 1（命令只执行一次，未因用户选择继续而重复执行）。
 
 ## 实测记录
-- 时间 / 实例 / BUILD：
-- 结果：
+- 时间 / 实例 / BUILD：2026-09-28 / 单元测试（TestFeature568CommandRunsOnceWhenUserContinues）/ BUILD-1151
+- 结果：✅ 通过（PASS 0.01s）。进入 `Ask` 时标记文件已存在；`completed=false`；`taskInstructionCache="再改一下"`；标记文件恰好 1 行（命令只执行一次，未因用户选择继续而重复）。
