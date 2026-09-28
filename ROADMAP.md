@@ -4,6 +4,32 @@
 
 ---
 
+## v0.82.0 — attempt_completion 的 command 在用户确认前执行
+
+> **版本**: v0.82.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: `attempt_completion` 携带的可选 `command`（通常是 `open <成果文件>` 之类的成果展示命令）**改为在弹出「完成确认」对话之前执行**：supervisor 审查通过后立即执行该命令，再向用户（Web/TUI）弹出确认框；用户看到报告前，成果文件已经打开。若用户在弹框里选「继续 / 任务尚未达到目标」，命令也已执行过（不回溯撤销）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-568 | 0.82.0 | P2 | `agent/tools.go` 的 `attemptCompletionTool`：把 `command` 执行块从「确认返回且 confirmed=true 之后」前移到「supervisor 审查通过、弹确认框之前」；命令输出仍追加到最终完成消息；`completion-mode=exit`（无弹框）与 `command` 为空时行为不变。 |
+
+> 当前 BUILD: 1151
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-568 attempt_completion 的 command 在用户确认前执行**（待用户验证）[BUILD-1151]
+  - 背景（用户需求）：目前 `attempt_completion` 的 `command`（一般是 `open` 成果文件）要等用户在界面点「确认完成」之后才执行，用户必须再等一步才能看到成果，体验割裂。
+  - 交互决策（经 ask_user 确认）：版本归属＝**v0.82.0**（新建 minor）；任务类型＝**FEATURE-568**；执行时机＝**supervisor 审查通过后、弹出「完成确认」弹框之前**——用户随后选「继续/未达标」时命令也已执行过。
+  - 实现概要：`attemptCompletionTool` 中把 `if command != "" { ... }` 命令执行块上移，紧跟在 `emitSupervisorReport` 之后、`CompletionMode` 分支（`interactionManager().Ask`）之前；`cmdOutput` 仍拼接到最终完成消息 `KeySettingCmd_612`。
+  - 验证要点：单测断言 `Ask`（弹框）被调用时命令已执行（用标记文件/顺序记录型 InteractionManager）；`mode=exit` 与空 `command` 两条回归路径；`go build ./... && go vet ./...`。
+  - 分支/版本：**FEATURE-568**（基于 main），版本 v0.82.0
+
+---
+
 ## v0.81.0 — board 消息「必须回复」强制机制（回复义务 / 收尾门禁 / 超时重投）
 
 > **版本**: v0.81.0
