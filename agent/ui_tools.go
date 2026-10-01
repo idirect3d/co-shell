@@ -113,7 +113,7 @@ func (a *Agent) buildRenderUITool() llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"tree": map[string]interface{}{
 					"type":        "object",
@@ -474,7 +474,7 @@ func (a *Agent) buildUIWindowTool() llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"action": map[string]interface{}{
 					"type":        "string",

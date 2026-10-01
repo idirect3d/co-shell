@@ -373,7 +373,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"tasks": map[string]interface{}{
 						"type":        "array",
@@ -414,7 +414,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"ids": map[string]interface{}{
 						"type":        "array",
@@ -440,7 +440,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"ids": map[string]interface{}{
 						"type":        "array",
