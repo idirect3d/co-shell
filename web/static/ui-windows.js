@@ -82,6 +82,7 @@
       surface: surface === "panel" ? "panel" : "float",
       summary: "",
       size: "",
+      maximized: false, // true while the window sits in the panel because ⛶ sent it there
       tree: "",
       holder: holder,
       host: host,
@@ -130,6 +131,11 @@
     }
     shell.dataset.windowName = rec.name;
     rec.shell = shell;
+    // The ⛶ button only exists on float shells, so its label never changes: the
+    // toggling counterpart (⭯ / 还原窗口) is the panel header button, which is
+    // where a maximized window can be clicked again.
+    var maxBtn = shell.querySelector(".ui-window-max");
+    if (maxBtn) maxBtn.title = t("最大化", "Maximize");
     return shell;
   }
 
@@ -312,10 +318,16 @@
     if (panelFloatBtn) {
       var act = activeWindow();
       var toFloat = !!act && act.surface === "panel";
-      panelFloatBtn.textContent = toFloat ? "⇱" : "⇲";
-      panelFloatBtn.title = toFloat
-        ? t("收成浮窗", "Collapse to a floating window")
-        : t("展开为面板", "Expand to the panel");
+      if (toFloat && act.maximized) {
+        panelFloatBtn.textContent = "⭯";
+        panelFloatBtn.title = t("还原窗口", "Restore window");
+      } else if (toFloat) {
+        panelFloatBtn.textContent = "⇱";
+        panelFloatBtn.title = t("收成浮窗", "Collapse to a floating window");
+      } else {
+        panelFloatBtn.textContent = "⇲";
+        panelFloatBtn.title = t("展开为面板", "Expand to the panel");
+      }
     }
     updateList();
   }
@@ -405,6 +417,8 @@
         name: windows[i].name,
         title: windows[i].title,
         surface: windows[i].surface,
+        size: windows[i].size || "",
+        max: !!windows[i].maximized,
         tree: windows[i].tree || "",
         summary: windows[i].summary || ""
       });
@@ -489,6 +503,8 @@
       var w = data.windows[i];
       if (!w || !w.name) continue;
       var rec = newRecord(w.name, w.title || "", w.surface);
+      rec.size = w.size || "";
+      rec.maximized = !!w.max;
       rec.tree = w.tree || "";
       rec.summary = w.summary || "";
       out.windows.push(rec);
@@ -558,11 +574,41 @@
     return closeWindow(shell.dataset.windowName || "");
   }
 
+  // maximizeFromShell sends the floating window owning the clicked ⛶ to the
+  // panel surface: that is what "maximize" means for a window here, it takes
+  // over the main area. The size preset stays on the record untouched, so
+  // restoring puts the window back in the corner exactly as it was.
+  function maximizeFromShell(el) {
+    var shell = el && el.closest ? el.closest(".ui-window[data-window-name]") : null;
+    if (!shell) return false;
+    var rec = find(shell.dataset.windowName || "");
+    if (!rec || rec.surface !== "float") return false;
+    rec.maximized = true;
+    if (!setSurface(rec.name, "panel")) {
+      rec.maximized = false;
+      return false;
+    }
+    refresh(); // the panel header button becomes ⭯ / 还原窗口
+    persist();
+    return true;
+  }
+
+  // restoreMaximized is the toggle half of ⛶: it brings the maximized window
+  // back to the corner with the size it had before it was maximized.
+  function restoreMaximized() {
+    var rec = activeWindow();
+    if (!rec || !rec.maximized || rec.surface !== "panel") return false;
+    rec.maximized = false;
+    return setSurface(rec.name, "float");
+  }
+
   // toggleSurface flips the active window between the panel and the corner,
-  // which is what the ⇱/⇲ button in the panel header does.
+  // which is what the ⇱/⇲ button in the panel header does. A window that was
+  // maximized with ⛶ is restored instead, so the same header button undoes it.
   function toggleSurface() {
     var rec = activeWindow();
     if (!rec) return false;
+    if (rec.maximized) return restoreMaximized();
     return setSurface(rec.name, rec.surface === "panel" ? "float" : "panel");
   }
 
@@ -594,14 +640,19 @@
     panelListBtn = document.getElementById("uiPanelList");
     var tpl = shellTemplate();
     if (tpl) cloneSource = tpl.cloneNode(true);
-    // ✕ closes the window that owns the shell it sits in. The listener is
-    // delegated on the document because only the first float window adopts
-    // #uiWindow: every later one is a clone whose ids were stripped, so an
-    // id-based binding would never fire for it (and it dies together with the
-    // adopted template, which unmount removes from the DOM).
+    // ✕ closes the window that owns the shell it sits in, ⛶ maximizes it. The
+    // listener is delegated on the document because only the first float window
+    // adopts #uiWindow: every later one is a clone whose ids were stripped, so
+    // an id-based binding would never fire for it (and it dies together with
+    // the adopted template, which unmount removes from the DOM).
     document.addEventListener("click", function (e) {
       var target = e.target;
       if (!target || typeof target.closest !== "function") return;
+      var maxBtn = target.closest(".ui-window-max");
+      if (maxBtn) {
+        maximizeFromShell(maxBtn);
+        return;
+      }
       var closeBtn = target.closest(".ui-window-close");
       if (closeBtn) closeFromShell(closeBtn);
     });
@@ -637,6 +688,8 @@
     applyWindowEvent: applyWindowEvent,
     closeWindow: closeWindow,
     closeFromShell: closeFromShell,
+    maximizeFromShell: maximizeFromShell,
+    restoreMaximized: restoreMaximized,
     activate: activate,
     setSurface: setSurface,
     toggleSurface: toggleSurface,
@@ -650,6 +703,7 @@
           name: windows[i].name,
           title: windows[i].title,
           surface: windows[i].surface,
+          maximized: !!windows[i].maximized,
           active: windows[i].name === activeName,
           summary: windows[i].summary
         });

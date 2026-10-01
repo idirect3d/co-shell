@@ -40,20 +40,20 @@
 
 > **版本**: v0.85.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1160；代码、单测、两轮浏览器实测（真实服务实例 + 独立静态镜像站）、浮窗 ✕ 缺陷修复、用例文档均已完成，待用户确认后合并 main）
+> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1161；代码、单测、多轮浏览器实测（真实服务实例 + 独立静态镜像站）、浮窗 ✕ 缺陷修复、浮窗最大化/还原按钮、用例文档均已完成，待用户确认后合并 main）
 > **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-571 | 0.85.0 | P1 | ① 后端 `agent/ui_tools.go`：`UITargetPanel` + `uiRenderTarget` 白名单；`render_ui` 增 `window` 窗口名；`ui_window` 增 `surface=panel|float` 与按名关闭；会话级窗口清单（Name/Title/Surface/Active/摘要/打开时间）与上限 8；② `events.go` 增 `MetaKeyUIWindowName/Surface` 与 `activate` 动作；`run_stream.go` 发带窗口名事件；`envelope.go` 在 `buildOpenedResources()` 追加 `<ui_windows>`（无窗口 `none`）；新增 `ui_window_state` 上行同步入口；③ 前端 `index.html`/`style.css` 新增 `#uiPanel`（铺满主消息区、z-index 低于 `.file-viewer`）+ tabs + 收成浮窗按钮 + ✕ + ≤720px 隐藏 tabs；④ `ui.js`/`app.js` 单浮窗扩为按名索引窗口表、tabs/滑动/Esc/✕/换形态、localStorage 跨会话恢复；⑤ i18n zh/en；⑥ `docs/ui-components.md` 新增 §10。 |
 
-> 当前 BUILD: 1160
+> 当前 BUILD: 1161
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1160]）
+- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1161]）
   - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
   - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
     - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
@@ -73,7 +73,9 @@
   - 实测复核（第二轮，独立静态镜像站 `tmp/feat570/site/feat571/`，静态服务 `http://127.0.0.1:28258/feat571/index.html`，[BUILD-1159]）：断言 1~9 全部通过——① `typeof window.UIWin=="object"`，`#uiPanel/#uiPanelTabs/#uiPanelClose/#uiPanelBody` 齐备且面板初始含 `hidden`；② `z-index` 面板 30 / `.file-viewer` 40（预览盖在面板之上）；③ `applyWindowEvent({action:open, surface:panel})` 后面板去 hidden、tabs=1；④ `render({ui_target:panel, ui_tree:callout})` 后 `#uiPanelBody` 文本含渲染内容；⑤ 再 `open(surface:float)` 后 tabs=2，点击首个 tab 后 `.ui-panel-tab.active`=「看板A」；⑥ Escape 后面板 `hidden`；⑦ 按会话写入 `localStorage["co-shell-ui-windows:S-571"]`（277B，含每窗 tree JSON），刷新页面后 `setSession('S-571')` 恢复 windows=2（A2/B2，active=A2）、tabs=2 且面板内容复原；⑧ `<ui_windows>none</ui_windows>` 由 environment_details 证明注入生效；⑨ 控制台无 JS 异常（仅静态站无后端的 `api/bootstrap`、`logos/dark`、`api/tree` 404 与 WebSocket 404 环境噪声）。未覆盖（受静态站无后端所限）：面板与文件预览实际叠加、≤720px 窄屏 tabs 隐藏、✕ 与「收成浮窗」按钮点击、actions/waiting/四主题回归——其中前两类已由首轮真实实例实测与 CSS 断言间接覆盖。
   - 已知基线问题（非本任务引入，建议另立 FIX 任务）：`go test ./... -short` 中 `web` 包 10 个用例失败——`web/session_test.go` 的 `sessions` / `session_switch` / `yolo` / `interaction` 消息断言（`TestSessionList`、`TestSessionListPushedOnSetCurrent`、`TestSessionSwitch`、`TestSessionSwitchSwitchesContext`、`TestSessionDelete`、`TestWebIOAskInteraction*`×3、`TestYOLOGet`、`TestYOLOSet`）。已用 `git worktree add --detach work/tmp/base571 HEAD` 在**未含本任务改动的 HEAD 干净工作树**上复跑，同样失败，确证与本任务无关（本任务工作区改动仅 `main.go` / `cmd/co-shell-hub/main.go` 的 BUILD 常量与本文档）。其余包（`agent`、`store` 等）全绿；`go build ./...`、`go vet ./...` 均无错。
   - 缺陷修复（用户实测发现，[BUILD-1160]）：**面板窗口点「收成浮窗」（⇱）转为浮窗后，浮窗右上角 ✕ 点击无效**。根因：`ui-windows.js` 的关闭监听原先只绑在 `#uiWindowClose` 上——只有**接管 `#uiWindow` 模板壳的首个浮窗**具有该 id，而该模板壳在首个浮窗关闭时被 `unmount()` 移出 DOM；此后所有浮窗都是从 `cloneSource` 克隆、ids 被剥离的壳，其 ✕ 没有任何监听。修复：改为**文档级事件委托**（`document.addEventListener("click", …)` 匹配 `.ui-window-close` → `closeFromShell`），对模板壳与所有克隆壳一并生效。验证（独立静态镜像站）：模板壳 ✕（1→0）、收成浮窗后的克隆壳 ✕（1→0）、直接新建的克隆壳 ✕（1→0）均能关闭；Esc、面板头部 ✕、⇱ 形态切换三项回归均通过，控制台无 JS 异常。
-  - 分支/版本：**FEATURE-571**（基于 main），版本 v0.85.0
+  - 新增交互（用户需求，经 ask_user 确认 4 项，[BUILD-1161]）：**浮窗最大化/还原按钮**。需求：弹出窗口 ✕ 旁加一个最大化按钮，点击可恢复最大化状态。确认结果：① 最大化 = **把浮窗切为 panel 形态**（覆盖主信息区，即浮窗层与面板层互转）；② 切换式：同一按钮再点一次即还原到最大化前的尺寸，图标 `⛶`/`⭯` 与 tooltip 随之切换；③ 最大化状态随窗口清单**持久化**（刷新/切会话一并恢复）；④ 「并排 3 个 3D 图形块高度加倍」不需改程序（用户说明仅为一次功能测试）。
+    实现：`index.html` 浮窗标题栏在 ✕ 左侧加 `⛶`（`.ui-window-max`，克隆浮窗自动继承）→ `style.css` 让 `.ui-window-max` 复用 `.ui-window-close` 样式 → `ui-windows.js`：文档级事件委托分发 `.ui-window-max` → `maximizeFromShell()`（记 `maximized=true` + `setSurface(panel)`）与 `restoreMaximized()`（清标志 + 回浮窗，`rec.size` 未因最大化改变故尺寸自动复原），`toggleSurface()` 对最大化窗口优先走还原，`refresh()` 让面板头部按钮对这类窗口显示 `⭯`/「还原窗口」（普通 panel 窗口仍为 `⇱`/「收成浮窗」，agent 直接以 `surface=panel` 打开的窗口行为不变），`persist()`/`readStored()` 增写 `size`/`max` 两字段，`UIWin` 导出 `maximizeFromShell`/`restoreMaximized` 并在 `state()` 暴露 `maximized`。
+    实测（静态镜像站 `http://127.0.0.1:28258/feat571/index.html`）：标题栏子节点顺序 `title|max|close`，按钮文本 `⛶`、title「最大化」；点 `⛶` 后 `A/panel/MAX`、浮窗节点 1→0、面板头部 `⭯`/「还原窗口」；再点后 `A/float` 且尺寸与最大化前一致（`709x388`）、头部回 `⇲`；多窗独立（`A/float` + `B/panel/MAX`，tabs=2，活动 tab=WinB）；✕ 关闭浮窗无回归；localStorage 写入 `A/float/max=false/size=small`、`B/panel/max=true/size=medium`，刷新后 `setSession('S-571')` 恢复为 `A/float`(small) + `B/panel/MAX`（头部 `⭯`），点还原后 `B/float` 尺寸回到 `945x517`(medium)；控制台无 JS 异常（仅静态站无后端的 404 噪声）。
 
 ---
 

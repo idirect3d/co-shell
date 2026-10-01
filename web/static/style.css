@@ -3993,8 +3993,9 @@ select,
 .ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
 
 /* FEATURE-524 window mode: the single floating window opened by ui_window.
-   Fixed to the bottom-right, close button only (no drag/minimise/resize), and
-   nothing is persisted: a refresh or a session switch starts without it. */
+   Fixed to the bottom-right, maximise/close buttons only (no drag/minimise/
+   resize), and nothing is persisted: a refresh or a session switch starts
+   without it. */
 .ui-window {
   position: fixed;
   right: 16px;
@@ -4034,6 +4035,7 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ui-window-max,
 .ui-window-close {
   border: 0;
   background: transparent;
@@ -4044,6 +4046,7 @@ select,
   padding: 3px 7px;
   border-radius: 6px;
 }
+.ui-window-max:hover,
 .ui-window-close:hover { background: rgba(127, 127, 127, 0.22); }
 .ui-window-body {
   display: flex;
