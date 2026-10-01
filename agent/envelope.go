@@ -94,6 +94,11 @@ func (a *Agent) buildOpenedResources() string {
 		sb.WriteString("  <shell>none</shell>\n")
 	}
 
+	// FEATURE-571: the UI windows currently open (name | surface | active |
+	// title | content summary), or "none", so the LLM can tell whether to open
+	// a new window or update an existing one instead of guessing.
+	sb.WriteString(a.buildUIWindows())
+
 	sb.WriteString("</opened_resources>")
 	return sb.String()
 }

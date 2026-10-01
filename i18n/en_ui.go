@@ -47,9 +47,9 @@ func init() {
 
 	enMessages[KeyUINoRenderer] = `The current interface cannot render UI components; output was degraded to text.`
 
-	enMessages[KeyUIToolParamTarget] = `Optional string: the render target. stream (default) paints into the chat stream; window paints into the persistent window opened by ui_window (its content can be refreshed in place with update, and it outlives the turn).`
+	enMessages[KeyUIToolParamTarget] = `Optional string: the render target. stream (default) paints into the chat stream (it scrolls with the conversation); window paints into a bottom-right floating window; panel paints into a panel covering the main message area (same region as the file preview, layered below it, so closing the preview reveals the panel). Window content can be refreshed in place with update and outlives the turn; which window receives it is decided by the window parameter (or the active window).`
 
-	enMessages[KeyUIErrTarget] = `The target parameter of render_ui only accepts "stream" or "window"; got "%s".`
+	enMessages[KeyUIErrTarget] = `The target parameter of render_ui only accepts "stream", "window" or "panel"; got "%s".`
 
 	enMessages[KeyUIWindowDefaultTitle] = `Task window`
 
@@ -57,13 +57,31 @@ func init() {
 
 	enMessages[KeyUIWindowCloseSummary] = `Closed the UI window.`
 
-	enMessages[KeyUIErrWindowAction] = `The action parameter of ui_window only accepts "open" or "close"; got "%s".`
+	enMessages[KeyUIErrWindowAction] = `The action parameter of ui_window only accepts "open", "close" or "activate"; got "%s".`
 
 	enMessages[KeyUIErrWindowTitle] = `The ui_window title exceeds the length limit (%d characters); please shorten it.`
+
+	enMessages[KeyUIErrWindowName] = `Invalid window name: the length must be 1..%d characters and only letters, digits, CJK, spaces, -, _ and . are allowed (no leading or trailing space).`
+
+	enMessages[KeyUIErrWindowSurface] = `The surface parameter of ui_window only accepts "float" (bottom-right floating window) or "panel" (panel covering the main message area); got "%s".`
+
+	enMessages[KeyUIErrWindowMissing] = `No UI window named "%s": it may have been closed by the user. Check the <ui_windows> list of environment_details first, then decide between opening a new window and updating an existing one.`
+
+	enMessages[KeyUIErrWindowLimit] = `At most %d UI windows can stay open at once; close the ones you no longer need (ui_window(action="close", window="…")).`
+
+	enMessages[KeyUIWindowOpenNamedSummary] = `Opened the UI window "%s" (title "%s", surface %s, size preset %s). Opening the same name again reuses and updates it; write content with render_ui (target="panel" for the panel, target="window" for the floating window).`
+
+	enMessages[KeyUIWindowCloseNamedSummary] = `Closed the UI window "%s".`
+
+	enMessages[KeyUIWindowActivateSummary] = `The UI window "%s" is now the active window.`
 
 	enMessages[KeyUIErrWindowSize] = `The size parameter of ui_window only accepts "auto", "small", "medium" or "large"; got "%s".`
 
 	enMessages[KeyUIToolParamWindowTitle] = `Optional string: the window title (open only; defaults to "Task window").`
+
+	enMessages[KeyUIToolParamWindowName] = `Optional string: the window name (1..32 characters; letters, digits, CJK, spaces, -, _ and . only), used to address a window among several. Defaults to "default" on open and to the active window on close/activate.`
+
+	enMessages[KeyUIToolParamWindowSurface] = `Optional string: the window surface (open only). float (default) = bottom-right floating window; panel = panel covering the main message area (same region as the file preview, layered below it).`
 
 	enMessages[KeyUIToolParamWindowSize] = `Optional string: the window size preset (open only). auto (default) keeps the current content-driven size; small / medium / large take 1/2, 2/3 or all of the usable viewport (viewport minus the 32px margin). The frontend clamps to the viewport, so the window never overflows the screen.`
 
@@ -90,21 +108,25 @@ func init() {
 	enMessages[KeyUIErrFigureRange] = `figure: %s must be smaller than %s.`
 
 	enMessages[KeyUIToolUsageUIWindow] = `## ui_window
-Description: Open or close a persistent floating window (not a block inside the chat stream). Once open, you can render a component tree into it with render_ui(target="window"), keep working in the background and push intermediate results into the same window with render_ui(target="window", update="<id>"). The window stays open after the turn ends until you close it or the user clicks its close button. Use it for continuously updated panels: progress boards, intermediate results of a long task, or a form the user fills in and confirms repeatedly.
+Description: Create, name or close a persistent window (not a block inside the chat stream). Once open, you can render a component tree into it with render_ui(target="window"|"panel"), keep working in the background and push intermediate results into the same window with render_ui(..., update="<id>"). The window stays open after the turn ends until you close it or the user clicks its close button. Use it for continuously updated panels: progress boards, intermediate results of a long task, or a form the user fills in and confirms repeatedly.
+
+Surfaces: float = bottom-right floating window (default); panel = panel covering the main message area (same region as the file preview, layered below it, so closing the preview reveals the panel).
 
 Parameters:
-- action: "open" shows the window (an existing window is reused and its title updated); "close" dismisses it.
+- action: "open" creates or reuses a window and updates its title/surface; "close" dismisses it (the active window by default); "activate" brings an existing window to the front.
+- window: optional string, the window name (1..32 characters; letters, digits, CJK, spaces, -, _ and .); defaults to "default" on open and to the active window on close/activate.
 - title: optional string, the window title (open only).
 - size: optional string, the window size preset (open only): auto (default, keeps the current content-driven size) / small / medium / large, i.e. 1/2, 2/3 or all of the usable viewport; the frontend narrows it automatically when the viewport is small, so it never overflows. You never pass pixels.
 - meta: the transparency metadata object (intent/risk/risk_reason/affected_objects/progress).
 
 Rules:
-1. There is only one window: opening it again reuses the same window and updates the title, it never stacks a second one.
+1. Several windows can coexist (at most 8 per session). Before acting, read the <ui_windows> list of environment_details (name/surface/active/content summary) and update an existing window instead of creating a duplicate; opening the same name only reuses and updates that window.
 2. The content still comes from render_ui: target="window" renders new components, update="<id>" refreshes them in place.
 3. The window does not block you: unless a user action must be awaited (see render_ui's waiting parameter), keep calling tools and push as many updates as you need.
 4. A user action in the window starts a new turn by default; while a turn is running it is injected into that turn before your next LLM call. If the action declares blocking:true while you are waiting, it is returned as the wait result instead.
 5. As with the chat stream, frontends without window support (terminal, Feishu) degrade to text instead of failing.
 6. A size preset is a fraction of the current viewport, so the same preset yields different pixels on different screens; the backend does not clamp pixels — the frontend guarantees the window stays inside the visible area.
+7. The panel surface covers the main message area and the user can collapse it into the floating window or close it at any time; every such change is reported back, so the next <ui_windows> list already reflects it.
 
 Usage:
 <{XML_TAG_PREFIX}ui_window>
@@ -120,7 +142,11 @@ Parameters:
 - tree: the component tree root node; must be an object.
 - update: optional string, the id of an already rendered component to replace in place. It creates no new component block; the addressed component is swapped for tree at its current position (use it for refreshes such as advancing a progress bar or appending a table row).
 - waiting: optional boolean. true means wait for the user to interact after rendering, and their action is returned to you as this tool's result immediately (use it only when you genuinely need the user's choice before continuing); false or omitted means return immediately, and the user's later action starts a new conversation turn as a fresh user message (default, preferred).
+- target: optional string, the surface to paint on. stream (default, an inline block in the chat stream that scrolls away) / window (bottom-right floating window) / panel (panel covering the main message area, same region as the file preview and layered below it).
+- window: optional string, the window name (1..32 characters; letters, digits, CJK, spaces, -, _ and .); only meaningful for target=window/panel, defaults to the active window, and a missing window is created and activated automatically.
 - meta: the transparency metadata object (intent/risk/risk_reason/affected_objects/progress).
+
+**Window addressing**: before writing into a window, read the <ui_windows> list of environment_details (name/surface/active/content summary); if a suitable window exists, update it with render_ui(target=..., window="<name>"), otherwise create it with ui_window(action="open", window="<name>", surface="panel"|"float", title="…") (render_ui also creates it automatically) or pick a new name.
 
 Node shape:
 {type, id?, props?, children?, actions?}

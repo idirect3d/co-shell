@@ -217,6 +217,11 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		// connects and again on resize, so <runtime_info><viewport> can tell the
 		// LLM how much room the current surface has. Invalid sizes are ignored.
 		s.ag.SetViewport(msg.ViewportW, msg.ViewportH)
+	case "ui_window_state":
+		// FEATURE-571: the frontend mirrors every window change (✕/Esc close,
+		// tab switch, surface flip) and sends the full list on connect, so the
+		// agent-side registry behind <ui_windows> matches what the user sees.
+		s.ag.SyncUIWindowsPayload(msg.Windows, msg.Closed)
 	case "dynamic_event":
 		// FEATURE-471: a user-action event reported while a task is running
 		// (clip_object / upload_file / user_message / open_file). Enqueue it

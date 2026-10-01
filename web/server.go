@@ -108,6 +108,12 @@ type clientMessage struct {
 	Count  int `json:"count,omitempty"`
 	Before int `json:"before,omitempty"`
 
+	// FEATURE-571: ui_window_state — the frontend reports every window change
+	// (close, activate, surface flip) and the full list on connect, so the
+	// agent-side registry behind <ui_windows> never disagrees with the screen.
+	Windows json.RawMessage `json:"windows,omitempty"` // ui_window_state: [{name,title,surface,active,summary}]
+	Closed  []string        `json:"closed,omitempty"`  // ui_window_state: names the user closed
+
 	// FEATURE-530: board frames pushed by the hub (board_registered /
 	// board_roster / board_sent / board_message / board_timeout). Board frames
 	// are flat JSON — the type sits next to the fields — so each frame maps

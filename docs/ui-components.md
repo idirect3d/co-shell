@@ -224,6 +224,7 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 - 窗口内节点同样带 `data-ui-id` / `data-ui-tree-id`，因此既有的 `ui_update` 全局寻址（`findByUIID`）与动作上行（`uiTreeIDOf`）对窗口内容**无需改动即可工作**。
 - 关闭窗口会清空 body：此后指向窗口内 id 的 `ui_update` 找不到目标，落到既有告警分支（`console.warn`），不会复活游离 DOM。
 - 本期不做：多窗口、拖动/缩放/最小化、位置尺寸自定义、刷新或切会话后的恢复。刷新与切会话都会丢弃窗口（`app.js` 在 `session_switch` 前调用 `UI.closeWindow()`）。
+  **（v0.85.0 起本段限制由 §10 取代：单窗口 → 多窗口，切会话丢弃 → 按会话恢复；§8.1~8.3 的事件/动作/waiting 协议不变。）**
 
 ### 8.5 相关测试
 
@@ -331,3 +332,127 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 
 - 用例：`use-case/FEATURE-570/FEATURE-570-UC-XXXX.md`（基础渲染 / 坐标系 / 3D / 函数曲线 / 安全鲁棒 / 集成兼容 六组）。
 - 单测：`agent/uitree_test.go`（白名单、图元上下文、数值与规模上限）。
+
+---
+
+## 10. 主信息区覆盖面板与多窗口（FEATURE-571 / v0.85.0）
+
+> 本节把 §8 的「单实例右下浮窗」扩展为**多窗口 + 面板形态**：窗口不再只有一个，且可以落在**覆盖主信息区**的面板上（与文件预览同一区域、层级在其下）。§8.1~8.3 的事件/动作/waiting 协议继续有效；§8.4「本期不做」中关于单窗口与切会话丢弃的限制由本节取代。
+
+### 10.1 三种呈现面（target / surface）
+
+| 呈现面 | 触发 | 位置与行为 |
+| --- | --- | --- |
+| 对话流内联块 | `render_ui(tree)`（默认） | 作为消息流里的一块，随内容上卷 |
+| 右下角浮窗 | `render_ui(target="window")` 或窗口 `surface=float` | 固定右下角，不遮挡主信息区（§8 既有形态，样式复用 `.ui-window`） |
+| 主信息区面板 | `render_ui(target="panel")` 或窗口 `surface=panel` | **铺满主消息区**（覆盖层，与 `.file-viewer` 同区域），位置固定、不随内容上卷 |
+
+- `target` 与窗口的 `surface` 是同一概念的两种入口：`target` 是「这次渲染往哪个面去」，`surface` 是「这个窗口本身是什么形态」。二者不一致时以本次调用为准（渲染会顺带把窗口切到对应形态）。
+- **与文件/图片预览并存**：面板 `z-index` **低于** `.file-viewer`。预览打开时临时盖住面板，关掉预览后露出面板（面板本身不被关闭）；每个窗口/层各自有独立关闭按钮。
+
+### 10.2 多窗口模型与寻址
+
+窗口用**名字**寻址，缺省名为 `default`。
+
+| 操作 | 工具 | 说明 |
+| --- | --- | --- |
+| 创建 / 命名 / 改形态 | `ui_window(meta, action="open", title?, window?, surface?)` | `window` 缺省 `default`；同名窗口**不叠加**，而是激活并更新标题/形态 |
+| 关闭 | `ui_window(meta, action="close", window?)` | `window` 缺省关闭**当前活动窗口** |
+| 写内容 | `render_ui(meta, tree, target="panel"\|"window", window?, update?)` | `window` 缺省写入**当前活动窗口**；窗口不存在时自动按 `target` 建一个并激活 |
+
+- 窗口记录：`Name` / `Title` / `Surface`（`panel`\|`float`）/ `Active` / 内容摘要（最近一次渲染的根节点类型与 id）/ 打开时间。
+- **上限 8 个窗口**（`agent.UIMaxWindows`）：超出时 `ui_window(open)` 被拒并返回 i18n 错误，不静默丢弃。
+- 窗口**不阻塞**回合：除 `waiting=true` 外，agent 可边跑边推送。
+- 窗口名约束：长度 1~32 个字符；禁止控制字符与 `<` `>` `&` `"` `'` `\`；首尾不允许空白。合法示例：`default`、`行情看板`、`build-log`。
+
+### 10.3 面板结构与交互
+
+面板 DOM 位于 `#stream-wrap` 内，与 `.file-viewer` 同级：
+
+```html
+<div id="uiPanel" class="ui-panel">
+  <div class="ui-panel-head">
+    <div id="uiPanelTabs" class="ui-panel-tabs"><!-- 每个窗口一个 tab --></div>
+    <button id="uiPanelFloat">收成浮窗</button>   <!-- 切换 surface: panel ↔ float -->
+    <button id="uiPanelClose">✕</button>          <!-- 关闭活动窗口 -->
+  </div>
+  <div id="uiPanelBody" class="ui-panel-body"></div>
+</div>
+```
+
+| 交互 | 行为 |
+| --- | --- |
+| 点击 tab | 切换活动窗口（只切显示，不改各自内容与滚动位置） |
+| 左右滑动（指针/触摸横向拖拽） | 同上；窄屏（≤720px）隐藏 tabs 后仍保留此切换入口 |
+| 窄屏 ≤720px | 隐藏 tabs 条，头部保留 **≡ 窗口列表按钮** 作为显式切换入口 |
+| 收成浮窗 | 活动窗口 `surface: panel → float`：面板隐藏、该窗口出现在右下角；再次点击可切回面板 |
+| ✕ | 关闭**该窗口自己**（面板与浮窗各自有独立关闭按钮） |
+| `Esc` | 关闭**当前活动窗口**（面板打开时优先于其它 Esc 行为） |
+| 多窗口 | 多个面板/浮窗可同时存在；同一时刻有且仅有一个「活动窗口」（tabs 高亮、Esc 与 ✕ 的作用对象） |
+
+- 面板**一律铺满主消息区**（不做 2/3、全屏分档）。
+- 本期**不做**：窗口拖动/缩放、位置尺寸自定义、后端持久化窗口。
+
+### 10.4 事件与 Meta 扩展
+
+| 事件 | 通道 | Meta |
+| --- | --- | --- |
+| `ui_window` | `ChannelSystem` | `ui_window_action` = `open`/`close`/**`activate`**；`ui_window_name`；`ui_window_surface`（`panel`/`float`，仅 open）；`ui_window_title`（仅 open） |
+| `ui_render` / `ui_update` | `ChannelSystem` | 原有 `ui_id` + `ui_tree`/`ui_patch`；`ui_target`（**非 stream 时才有**）+ `ui_window_name`（非默认窗口时才有） |
+
+- 旧行为保持不变：`target` 缺省（stream）时事件形状与既有用例完全一致；终端等无窗口出口只输出降级文本，不报错。
+
+### 10.5 `<environment_details>` 的 `<ui_windows>` 清单
+
+`agent/envelope.go` 的 `buildOpenedResources()` 在 `<opened_resources>` 内追加：
+
+```xml
+<ui_windows>none</ui_windows>
+<!-- 或 -->
+<ui_windows>
+  - default | panel | active | 行情看板 | card(ui-3)
+  - log | float | | 构建日志 | table(ui-9)
+</ui_windows>
+```
+
+- 每行：`名字 | 形态 | 是否活动 | 标题 | 内容摘要`；无窗口时为 `none`。
+- `ui_window` 与 `render_ui` 的工具说明中写明：**先读该清单**再决定「新建窗口」还是「更新已有窗口」，避免重复 `open` 出多个同类窗口。
+
+### 10.6 跨会话恢复（localStorage）
+
+- 按**会话 id** 分键存储：窗口清单 + 每个窗口**最后渲染的整棵树**。
+- 切换会话：不再无条件 `UI.closeWindow()`；先按新会话 id 还原窗口清单与各窗内容，再与 `history` 重放出的 `ui_render`/`ui_window` 事件**按窗口名合并**（重放优先，它是更权威的时序）。
+- 刷新页面：连接建立后按会话 id 还原。
+- 后端**不持久化窗口**——「窗口」是前端的展示态，后端只维护会话级窗口清单用于生成 `<ui_windows>`。
+
+### 10.7 前后端清单同步
+
+前端在任何改变清单的动作后上行一条客户端消息：
+
+```json
+{"type":"ui_window_state","windows":[{"name":"default","title":"…","surface":"panel","active":true}],"closed":["log"]}
+```
+
+| 触发 | 同步内容 |
+| --- | --- |
+| ✕ / `Esc` 关闭 | 关闭的窗口名（`closed`） |
+| 切换 tab / 左右滑动 | 新的活动窗口名（`windows[].active`） |
+| 收成浮窗 / 展开为面板 | 该窗口的 `surface` |
+| 连接建立 / 切换会话 | **全量**清单 |
+
+后端据此维护会话级清单（`SetUIWindowClosed` / `SetUIWindowActive` / `SetUIWindowSurface`），保证 `<ui_windows>` 与用户所见一致。
+
+### 10.8 校验与错误（i18n）
+
+| 场景 | 结果 |
+| --- | --- |
+| `target` 非法 | 拒绝，`KeyUIErrTarget` |
+| `surface` 非法 | 拒绝，新增错误键（仅允许 `panel`/`float`） |
+| `window` 名非法（长度/字符集） | 拒绝，新增错误键 |
+| `close`/`render_ui` 指向不存在的窗口（且非自动创建） | 拒绝，新增错误键（窗口不存在） |
+| 新建窗口数超过 8 | 拒绝，新增错误键（超上限） |
+
+### 10.9 相关测试与用例
+
+- 单测：`agent/ui_tools_test.go`、`agent/ui_window_test.go`（新增：`target=panel`、窗口名解析与非法值、`surface` 校验、`<ui_windows>` 注入、超上限拒绝、清单状态同步），并保持既有 `ui_prune` / `ui_render_emit` / `ui_wait` 全绿。
+- 浏览器实测用例：`use-case/FEATURE-571/FEATURE-571-UC-XXXX.md`。

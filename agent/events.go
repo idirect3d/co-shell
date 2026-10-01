@@ -271,6 +271,11 @@ const (
 	// MetaKeyUIWindowSize carries the size preset of an open window
 	// (auto/small/medium/large); it is absent on close.
 	MetaKeyUIWindowSize = "ui_window_size"
+	// MetaKeyUIWindowName and MetaKeyUIWindowSurface carry which window an
+	// event addresses and the surface it lives on (FEATURE-571). The name is
+	// absent for the default window, the surface only on open.
+	MetaKeyUIWindowName    = "ui_window_name"
+	MetaKeyUIWindowSurface = "ui_window_surface"
 )
 
 // UIRenderEvent builds an EventUIRender event carrying one component tree
@@ -330,6 +335,44 @@ func UIWindowEvent(action, title, size string) StreamEvent {
 	meta := map[string]string{MetaKeyUIWindowAction: action}
 	if title != "" {
 		meta[MetaKeyUIWindowTitle] = title
+	}
+	if size != "" {
+		meta[MetaKeyUIWindowSize] = size
+	}
+	return StreamEvent{
+		Type:  EventUIWindow,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  meta,
+	}
+}
+
+// withUIWindowName stamps the addressed window name on a render/update event
+// (FEATURE-571). It is only set for a named window, so a default-window or
+// stream render keeps the pre-v0.85 wire shape exactly.
+func withUIWindowName(ev StreamEvent, name string) StreamEvent {
+	if name != "" && name != UIDefaultWindowName {
+		if ev.Meta == nil {
+			ev.Meta = map[string]string{}
+		}
+		ev.Meta[MetaKeyUIWindowName] = name
+	}
+	return ev
+}
+
+// UIWindowEventEx is UIWindowEvent for a named window on a given surface
+// (FEATURE-571). An empty name or surface is omitted, so the single-window
+// wire shape of FEATURE-524 is preserved byte for byte.
+func UIWindowEventEx(action, name, title, surface, size string) StreamEvent {
+	meta := map[string]string{MetaKeyUIWindowAction: action}
+	if name != "" {
+		meta[MetaKeyUIWindowName] = name
+	}
+	if title != "" {
+		meta[MetaKeyUIWindowTitle] = title
+	}
+	if surface != "" {
+		meta[MetaKeyUIWindowSurface] = surface
 	}
 	if size != "" {
 		meta[MetaKeyUIWindowSize] = size

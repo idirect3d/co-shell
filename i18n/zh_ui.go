@@ -47,9 +47,9 @@ func init() {
 
 	zhMessages[KeyUINoRenderer] = `当前界面不支持渲染 UI 组件，已降级为文本输出。`
 
-	zhMessages[KeyUIToolParamTarget] = `可选字符串：渲染目标。stream（默认）渲染在对话流里；window 渲染到 ui_window 打开的常驻窗口里（窗口内容可用 update 原地刷新，窗口不随回合结束消失）。`
+	zhMessages[KeyUIToolParamTarget] = `可选字符串：渲染目标。stream（默认）渲染在对话流里（随内容上卷）；window 渲染到右下角浮窗；panel 渲染到覆盖主信息区的面板（与文件预览同区域、层级在其下，预览关闭后露出面板）。窗口内容可用 update 原地刷新，窗口不随回合结束消失。写入哪个窗口由 window 参数（或当前活动窗口）决定。`
 
-	zhMessages[KeyUIErrTarget] = `render_ui 的 target 参数只支持 "stream" 或 "window"，收到「%s」。`
+	zhMessages[KeyUIErrTarget] = `render_ui 的 target 参数只支持 "stream"、"window" 或 "panel"，收到「%s」。`
 
 	zhMessages[KeyUIWindowDefaultTitle] = `任务窗口`
 
@@ -57,13 +57,31 @@ func init() {
 
 	zhMessages[KeyUIWindowCloseSummary] = `已关闭界面窗口。`
 
-	zhMessages[KeyUIErrWindowAction] = `ui_window 的 action 参数只支持 "open"、"close"，收到「%s」。`
+	zhMessages[KeyUIErrWindowAction] = `ui_window 的 action 参数只支持 "open"、"close"、"activate"，收到「%s」。`
 
 	zhMessages[KeyUIErrWindowTitle] = `ui_window 的 title 超过长度上限（%d 个字符），请精简。`
+
+	zhMessages[KeyUIErrWindowName] = `窗口名字不合法：长度需在 1~%d 个字符之间，且只能使用中英文、数字、空格、-、_、.（首尾不能是空格）。`
+
+	zhMessages[KeyUIErrWindowSurface] = `ui_window 的 surface 参数只支持 "float"（右下角浮窗）或 "panel"（覆盖主信息区的面板），收到「%s」。`
+
+	zhMessages[KeyUIErrWindowMissing] = `找不到界面窗口「%s」：它可能已被用户关闭。请先看 environment_details 的 <ui_windows> 确认现有窗口，再决定新建还是更新。`
+
+	zhMessages[KeyUIErrWindowLimit] = `同时最多只能打开 %d 个界面窗口，请先关闭不用的窗口（ui_window(action="close", window="…")）。`
+
+	zhMessages[KeyUIWindowOpenNamedSummary] = `已打开界面窗口「%s」（标题「%s」，形态 %s，尺寸档位 %s）；同名窗口会复用更新，用 render_ui 写入内容（面板 target="panel"，浮窗 target="window"）。`
+
+	zhMessages[KeyUIWindowCloseNamedSummary] = `已关闭界面窗口「%s」。`
+
+	zhMessages[KeyUIWindowActivateSummary] = `已把界面窗口「%s」切换为当前活动窗口。`
 
 	zhMessages[KeyUIErrWindowSize] = `ui_window 的 size 参数只支持 "auto"、"small"、"medium"、"large"，收到「%s」。`
 
 	zhMessages[KeyUIToolParamWindowTitle] = `可选字符串：窗口标题（仅 open 时使用，缺省为“任务窗口”）。`
+
+	zhMessages[KeyUIToolParamWindowName] = `可选字符串：窗口名字（1~32 字符，只能用中英文、数字、空格、-、_、.），用于多窗口寻址；open 缺省为 "default"，close/activate 缺省为当前活动窗口。`
+
+	zhMessages[KeyUIToolParamWindowSurface] = `可选字符串：窗口形态（仅 open 时使用）。float（默认）＝右下角浮窗；panel＝覆盖主信息区的面板（与文件预览同区域，层级在其下）。`
 
 	zhMessages[KeyUIToolParamWindowSize] = `可选字符串：窗口尺寸档位（仅 open 时使用）。auto（默认）保持内容驱动的现有尺寸；small / medium / large 分别取当前视口可用区（视口减去 32px 边距）的 1/2、2/3、全部。前端会按视口钳制，窗口绝不超出屏幕。`
 
@@ -90,10 +108,13 @@ func init() {
 	zhMessages[KeyUIErrFigureRange] = `figure 的 %s 必须小于 %s。`
 
 	zhMessages[KeyUIToolUsageUIWindow] = `## ui_window
-Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块）。窗口打开后，可以用 render_ui(target="window") 把组件树渲染进窗口，并在后台继续工作、持续用 render_ui(target="window", update="<id>") 把中间结果推回同一个窗口；窗口在整轮结束后仍然保留，直到你关闭它或用户点关闭按钮。适合“持续更新的面板”：进度看板、长任务的中间结果、需要用户反复填写/确认的表单。
+Description: 创建/命名/关闭常驻窗口（不是对话流里的块）。窗口打开后，可以用 render_ui(target="window"|"panel") 把组件树渲染进窗口，并在后台继续工作、持续用 render_ui(..., update="<id>") 把中间结果推回同一个窗口；窗口在整轮结束后仍然保留，直到你关闭它或用户点关闭按钮。适合“持续更新的面板”：进度看板、长任务的中间结果、需要用户反复填写/确认的表单。
+
+形态：float＝右下角浮窗（默认）；panel＝覆盖主信息区的面板（与文件预览同区域，层级在其下，预览关闭后露出面板）。
 
 参数:
-- action: "open" 打开窗口（已打开时复用同一窗口并更新标题）；"close" 关闭窗口。
+- action: "open" 创建或复用窗口并更新标题/形态；"close" 关闭窗口（缺省关当前活动窗口）；"activate" 把已有窗口切为当前活动窗口。
+- window: 可选字符串，窗口名字（1~32 字符，中英文/数字/空格/-/_.）；缺省 open 为 "default"，close/activate 为当前活动窗口。
 - title: 可选字符串，窗口标题（仅 open 时有效）。
 - size: 可选字符串，窗口尺寸档位（仅 open 时有效）：auto（默认，保持现有内容驱动尺寸）/ small / medium / large，分别取当前视口可用区的 1/2、2/3、全部；视口不足时前端自动收窄，绝不超出屏幕。你无需指定像素。
 - meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
@@ -105,6 +126,7 @@ Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块�
 4. 用户在窗口里的操作默认开启新一轮对话；若对话仍在运行，则该操作会在下一次 LLM 调用前即时注入当前回合。若该操作声明了 blocking:true 且你正在等待，它会直接作为等待结果返回。
 5. 与对话流一样，终端/飞书等不支持窗口的出口会降级为文本，不会报错。
 6. 尺寸档位按当前视口的比例计算：同一档位在不同屏幕上像素不同；后端不做像素钳制，由前端保证窗口始终落在可视区内。
+7. 多窗口：动手前先看 environment_details 的 <ui_windows> 清单（名字/形态/是否活动/内容摘要），已有合适窗口就直接 render_ui 写入，不要重复建窗；同名 open 只会复用并更新该窗口，不会叠加。整个会话最多同时开 8 个窗口。
 
 用法:
 <{XML_TAG_PREFIX}ui_window>
@@ -120,7 +142,11 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 - tree: 组件树根节点，必须是对象。
 - update: 可选字符串，要原地更新的已有组件 id。设置后不新建组件块，而是把该组件在原位置替换为 tree（适合“进度条推进、表格追加一行”这类刷新）。
 - waiting: 可选布尔值。true 表示渲染后等待用户操作，用户的动作会作为本工具的返回值立即返回给你（适合你确实需要用户先做选择才能继续的场景）；false 或不传表示立即返回，用户之后的动作会作为一条新的用户消息开启新一轮对话（默认，推荐）。
+- target: 可选字符串，渲染到哪个面。stream（默认，对话流内联块，随内容上卷）/ window（右下角浮窗）/ panel（覆盖主信息区的面板，与文件预览同区域、层级在其下）。
+- window: 可选字符串，窗口名字（1~32 字符，中英文/数字/空格/-/_.）；只在 target 为 window/panel 时有意义，缺省写入当前活动窗口；窗口不存在时会自动新建并激活。
 - meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
+
+**窗口寻址**：写入窗口前先读 environment_details 的 <ui_windows>（当前已打开窗口的名字/形态/是否活动/内容摘要）：已有合适窗口就直接 render_ui(target=..., window="<名字>") 更新它；否则先 ui_window(action="open", window="<名字>", surface="panel"|"float", title="…") 建窗（直接 render_ui 也会自动建窗），或指定一个新名字。
 
 组件树节点结构:
 {type, id?, props?, children?, actions?}

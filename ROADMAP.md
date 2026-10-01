@@ -15,7 +15,7 @@
 |------|------|------|------|
 | FEATURE-570 | 0.84.0 | P1 | ① 后端 `agent/uitree.go`：白名单新增 `figure` + 8 种图元（point/segment/polygon/ellipse/axes/label/path/function），新增 figure 子树上下文校验与数值/规模上限；② 前端新增 `web/static/ui-expr.js`（手写递归下降表达式解析器，禁用 eval/new Function）与 `web/static/ui-figure.js`（2D/3D SVG 渲染器 + 坐标系映射 + 坐标轴/网格/刻度 + 下载 SVG）；③ `style.css` 主题化样式块、`index.html` 引入脚本；④ i18n zh/en 组件清单与错误键；⑤ `docs/ui-components.md` 增补 figure 章节。 |
 
-> 当前 BUILD: 1157
+> 当前 BUILD: 1158
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -33,6 +33,44 @@
   - 增强三实测记录 [BUILD-1157]（静态验证站 28258，页面内 `browser_evaluate` 断言）：① 2D/3D 两图均存在 `.ui-fig-view` 与抓手，viewport 无滚动溢出（scrollWidth/Height 与 client 相等）；② 拖拽平移 dx/dy=+45/−25 与图元屏幕位移一致，重置回 `translate(0 0) scale(1)`；③ 滚轮放大 100%→125%，锚点漂移 0.1px（<5px）；④ 抓手拖动后 yaw/pitch 生效：2D 图包围盒 323×248→283×237（宽高比变化 8.3%）、3D 图 282×288→298×288（5.4%）；⑤ 旋转中心漂移：2D 4.7px、3D 0px（<8px）；⑥ 旋转期间画布 viewBox 与抓手位置不变（抓手恒在画布右上角，距右上边各 9px）；⑦ 「回正」后 tx/ty/yaw/pitch=0 且倍率保留（125% 标签与 transform 一致）；「重置」后倍率 100%、位移/视角归零且与初始包围盒误差 0px；⑧ 导出：默认与 125% 两种视角导出文本均含 view 层 transform 且长度不同（体现当前视角），抓手 9 个圆与 title 均已剔除；⑨ 交互全程浏览器控制台无异常；⑩ `node --check web/static/ui-figure.js` 与 `go build ./... && go vet ./...` 通过。
   - 分支/版本：**FEATURE-570**（基于 main），版本 v0.84.0
   - 合并发布：FEATURE-570 → main（BUILD-1157，版本号 v0.84.0）；用户实际试用确认后合并，产物 `work/co-shell-0.84.0.darwin.arm64`、`work/co-shell-hub-0.84.0.darwin.arm64`。
+
+---
+
+## v0.85.0 — render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）
+
+> **版本**: v0.85.0
+
+> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1158；代码、单测、浏览器实测、用例文档均已完成，待用户确认后合并 main）
+> **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-571 | 0.85.0 | P1 | ① 后端 `agent/ui_tools.go`：`UITargetPanel` + `uiRenderTarget` 白名单；`render_ui` 增 `window` 窗口名；`ui_window` 增 `surface=panel|float` 与按名关闭；会话级窗口清单（Name/Title/Surface/Active/摘要/打开时间）与上限 8；② `events.go` 增 `MetaKeyUIWindowName/Surface` 与 `activate` 动作；`run_stream.go` 发带窗口名事件；`envelope.go` 在 `buildOpenedResources()` 追加 `<ui_windows>`（无窗口 `none`）；新增 `ui_window_state` 上行同步入口；③ 前端 `index.html`/`style.css` 新增 `#uiPanel`（铺满主消息区、z-index 低于 `.file-viewer`）+ tabs + 收成浮窗按钮 + ✕ + ≤720px 隐藏 tabs；④ `ui.js`/`app.js` 单浮窗扩为按名索引窗口表、tabs/滑动/Esc/✕/换形态、localStorage 跨会话恢复；⑤ i18n zh/en；⑥ `docs/ui-components.md` 新增 §10。 |
+
+> 当前 BUILD: 1157
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1158]）
+  - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
+  - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
+    - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
+    - **D2 与文件预览并存**：面板在下、文件/图片预览临时盖在其上，关掉预览露出面板；每个窗口/层各自有独立关闭按钮。
+    - **D3 多窗口**：支持多窗口并存；面板顶部**标签栏 tabs** 点击或左右滑动切换；**窄屏（≤720px）隐藏 tabs，但仍保留切换入口**（左右滑动 + 头部 ≡ 列表按钮）。
+    - **D4 窗口寻址**：`ui_window(action="open", title="…")` 创建/命名窗口；`render_ui(target="panel", window="<名字>")` 定位到该窗口；缺省 = 当前活动窗口。
+    - **D5 environment_details 清单**：`<opened_resources>` 内新增 `<ui_windows>`（名字/形态/是否活动/内容摘要，未开窗为 `none`），并在 `ui_window` / `render_ui` 工具说明中提示 LLM **先读该清单再决定「新建窗口」还是「更新已有窗口」**。
+    - **D6 跨会话保留**：前端按会话把「窗口清单 + 每个窗口最后渲染的树」存 **localStorage**，切走再切回/刷新可恢复。
+    - **D7 交互**：面板头部加「收成右下角浮窗」切换按钮；支持 **Esc** 关闭；面板一律**铺满主消息区**（不做 2/3、全屏分档）。
+    - **D8 版本**：v0.85.0（FEATURE → minor 递增）。
+  - **不做**：窗口拖动/缩放（v1 不做）；后端持久化窗口（用 localStorage）；面板尺寸分档；不改文件预览层自身逻辑。
+  - 实施要点：窗口 = 名字 → 记录（Name/Title/Surface/Active/摘要/打开时间），上限 8；窗口名 1~32 字符、禁控制字符与 `<` `>` `&` `"` `'` `\`、首尾无空白；面板 `z-index` 低于 `.file-viewer`；`ui_window_state` 上行同步（✕/切标签/换形态/连接与会话切换时全量）；旧行为零回归（`target=stream`/`target=window`、`ui_update`、actions、waiting、四主题、窄窗折叠）。
+  - 验收标准：① `render_ui(target="panel")` 可渲染任意现有控件，且与文件预览并存；② 多窗口 tabs 点击/左右滑动切换，窄屏隐藏 tabs 仍可切换；③ 每窗独立 ✕、Esc 关闭，面板可收成浮窗并可切回；④ `<ui_windows>` 清单驱动新建 vs 更新，工具说明含该提示；⑤ 清单与每窗最后的树按会话存 localStorage，切走再切回/刷新可恢复；⑥ ✕/切标签/收成浮窗均同步后端清单，无前后端状态不一致；⑦ 零回归；⑧ `go build ./... && go vet ./... && go test ./...` 全绿且用例通过浏览器实测；⑨ 提交在 FEATURE-571 分支，用户确认后合并 main 并打 tag `v0.85.0`。
+  - 设计文档：`docs/ui-components.md` §10（主信息区覆盖面板与多窗口）。
+  - 用例文档：`use-case/FEATURE-571/FEATURE-571-UC-0001.md`（UC-0001 ~ UC-0033，33 条；其中 14 条已标注 `[已实测]`）。
+  - 实测记录（测试实例 `co-shell v0.85.0 [BUILD-1157] --serve --port 28259`）：panel 渲染自动开面板；两次 panel 渲染生成 tabs「面板一/面板二」且非活动 holder `display:none`；点 tab 切换并同步后端 `ui_window_state(active=p1)`；浮窗与面板并存（f1 宽 420px、偏移 16/16）；`ui_update` 命中隐藏的面板窗口；`⇱` 把活动窗口由 float 翻成 panel；Esc 关闭并发送 `closed` 名单（共 7 条 `ui_window_state`）；按会话写入 `localStorage["co-shell-ui-windows:<会话>"]`（含每窗 tree JSON）；刷新后 `setSession` 重建 tabs/holder/浮窗与树内容；切走再切回（内存桶）恢复一致；无窗口时 `#uiPanel` 为 `display:none` 不遮挡主区；控制台无 JS 报错。
+  - 分支/版本：**FEATURE-571**（基于 main），版本 v0.85.0
 
 ---
 

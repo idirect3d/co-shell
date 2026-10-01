@@ -712,6 +712,9 @@
     closeWindow: closeWindow,
     isWindowOpen: isWindowOpen,
     resizeWindow: resizeWindow,
+    // FEATURE-571: the multi-window registry reuses the clamp helper, so a size
+    // preset means the same pixels on every float window.
+    applyWindowSize: applyWindowSize,
     // t/fmtBytes are shared with ui-chart.js and ui-form.js (loaded after this
     // file); sendUIAction is the single outbound path for component actions.
     t: uiText,

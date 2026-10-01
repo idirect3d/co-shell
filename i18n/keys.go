@@ -2349,6 +2349,16 @@ const (
 	KeyUIToolUsageUIWindow    = "tool_usage_ui_window"
 	KeyUIToolParamWindowTitle = "ui_tool_param_window_title"
 	KeyUIToolParamWindowSize  = "ui_tool_param_window_size"
+	// FEATURE-571 (v0.85.0): multi-window + main-area panel.
+	KeyUIToolParamWindowName    = "ui_tool_param_window_name"
+	KeyUIToolParamWindowSurface = "ui_tool_param_window_surface"
+	KeyUIErrWindowName          = "ui_err_window_name"
+	KeyUIErrWindowSurface       = "ui_err_window_surface"
+	KeyUIErrWindowMissing       = "ui_err_window_missing"
+	KeyUIErrWindowLimit         = "ui_err_window_limit"
+	KeyUIWindowOpenNamedSummary    = "ui_window_open_named_summary"
+	KeyUIWindowCloseNamedSummary   = "ui_window_close_named_summary"
+	KeyUIWindowActivateSummary     = "ui_window_activate_summary"
 
 	// FEATURE-570: figure vector canvas - shape whitelist and numeric checks.
 	KeyUIErrShapeContext = "ui_err_shape_context"
