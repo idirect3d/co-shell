@@ -4,6 +4,32 @@
 
 ---
 
+## v0.87.0 — token 用量测试方案与各阶段基线测量（token 优化前置）
+
+> **版本**: v0.87.0
+
+> **状态**: 🚧 进行中（分支 FEATURE-577，基于 main v0.86.0）
+> **里程碑**: 建立可重复、可对比的 token 用量测试方案，测量并记录优化前各阶段基线用量（S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中），为后续 A/B/C/D1 优化提供同口径对比基准。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-577 | 0.87.0 | P0 | token 用量测试方案设计 + 各阶段基线测量与记录（口径 B：确定性代码级测量 + 真实端到端会话采样） |
+
+### 任务详情
+
+- [ ] **FEATURE-577 token 用量测试方案设计与各阶段基线测量**（进行中，分支 FEATURE-577；基线采集已完成，待用户确认）[BUILD-1173]
+  - 背景：见 `research/token优化设计方案.md`（A/B/C/D 方案）与 `research/token-baseline/基线方案.md`（上一轮仅覆盖 env 信封一项，工具 schema 与系统提示词未测）。
+  - 阶段划分（已确认冻结）：S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复注入 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中。
+  - 测量口径（已确认）：B = 确定性代码级测量（直调产品代码，0 API 成本，3 次运行结果一致）+ 真实端到端会话采样（固定任务 ≥10 轮 × ≥3 次）。
+  - 配置项决策（已确认）：新增 9 项开关默认开启（env_history_prune / env_history_full_keep=1 / env_history_lite_keep=1 / env_tool_batch_single / env_board_roster_brief / env_dir_change_detect / env_runtime_info_once / tool_desc_compact / tool_lazy_load），关闭即现状行为；`read_file_max_size` 0 → 65536；`context_reorganize_threshold` 代码默认 80 → **92**（config.json 现为 90，同步）；**本期不做 D2 分组懒加载**（只做 A/B/C/D1）。
+  - 交付物：测试方案文档、确定性测量工具（Go 测试）、3 次一致的原始测量日志、真实会话采样原始数据、各阶段基线报告。
+  - 已完成交付物：`research/token-baseline/测试方案.md`（方案）、`research/token-baseline/基线数据-各阶段.md`（基线报告）、`agent/token_baseline_test.go`（`TestTokenBaselineStages`）、`det-run-{1,2,3}.log`（3 次 md5 一致 = `acfd92ed8d1bb9c7fa7176173e501535`）、`s6w-repo-1.calls.csv` / `.summary.txt`（58 轮真实会话原始数据）、`parse_llm_log.py` / `run_s6.sh` / `fixed-task.txt`、`use-case/FEATURE-577/FEATURE-577-UC-{0001,0002}.md`。
+  - **基线关键数据（优化前）**：S0 系统提示词 39,410 B（通道①）/ 21,437 B（通道②，运行实例）；S1 工具 38 个 / schema 66,657 B / `meta` 说明 38 次 9,158 B（占 13.7%），生产实例 69 工具 / 98,576 B；S2 env 单份 L0 5,116 B（current_dir 2,351 + tools 1,623 + research 739 + 其他）／L1 400 B／L2 111 B；S3 同轮 N=3 时 15,348 B（B 方案 5,338 B，降 65.2%）；S4 累积斜率 **+5,116 B/轮**（50 轮 255,800 B，占 512K 49%），A 方案斜率 +111 B/轮（50 轮 10,844 B，降 95.8%）；S5 第 1 轮合成 111,183 B（固定开销占比 95.4%）、第 50 轮 361,867 B（固定开销 29.3%，占 512K 69%）；S6 真实会话 58 轮累计 prompt 13,400,749 / completion 83,359 / 缓存命中率 97.6% / cache-miss 315,437 / prompt 39,725→423,983 / 中位增量 +6,486 每轮 / env 条数 5→84（验证历史 env 逐条累积）。
+  - **未完成子项（需登记）**：S6 固定任务 `fixed-task.txt` ×3 × 2 组工作区的隔离采样三次均失败（`cannot initialize store: cannot open database: timeout`），原因为 `run` 子进程仍争用运行中 serve 实例持有的 `db/co-shell.db`，bbolt 路径非 cwd/`--workdir` 派生。后续办法：① 待实例停止时补跑；② 产品支持独立 DB/存储路径参数（如 `--db` / `--store-path`）后补跑；③ 以现有真实会话数据为 S6 基线，固定任务采样留到优化后一次性成对对比。需在优化对比前解决。
+  - 验收标准：① 测试方案经用户确认；② 确定性测量覆盖 S0–S5 且 3 次运行 md5 一致；③ 真实采样覆盖 S6 并留存原始数据；④ 基线报告给出各阶段基线与未来优化后同口径对比方法；⑤ `go build ./... && go vet ./... && go test ./...` 全绿；⑥ 提交在 FEATURE-577 分支（v0.87.0），用户确认后合并 main。
+
+---
+
 ## v0.86.0 — 可点击文件预览（LLM/工具输出中的本地文件路径）
 
 > **版本**: v0.86.0

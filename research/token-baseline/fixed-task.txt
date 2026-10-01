@@ -1,0 +1,19 @@
+请严格按下面 12 个步骤依次执行，每一步只做一件事。
+
+第 1 步：读取 file01.txt 的第 1-5 行
+第 2 步：读取 file02.txt 的第 1-5 行
+第 3 步：读取 file03.txt 的第 1-5 行
+第 4 步：读取 file04.txt 的第 1-5 行
+第 5 步：读取 file05.txt 的第 1-5 行
+第 6 步：读取 file06.txt 的第 1-5 行
+第 7 步：读取 file07.txt 的第 1-5 行
+第 8 步：读取 file08.txt 的第 1-5 行
+第 9 步：读取 file09.txt 的第 1-5 行
+第 10 步：读取 file10.txt 的第 1-5 行
+第 11 步：读取 file11.txt 的第 1-5 行
+第 12 步：读取 file12.txt 的第 1-5 行
+
+约束（必须遵守）：
+- 每个步骤必须是一次独立的 read_file 工具调用（start_line=1，end_line=5），禁止把多个文件合并到同一次调用；
+- 除 read_file 外不要使用任何其他工具（不要用 execute_command、search_files、list_files）；
+- 12 步全部完成后，调用 attempt_completion，用表格汇总这 12 个文件的第一行内容。
