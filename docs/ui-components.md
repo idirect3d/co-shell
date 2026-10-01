@@ -67,7 +67,7 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
   已有一次等待在挂起时，第二次 `waiting` 调用降级为普通回执，避免争抢同一动作
   （`agent/beginUIWait`）。
 
-## 5. 组件目录（12 个）
+## 5. 组件目录（13 个）
 
 | type | 关键 props | 说明 |
 | --- | --- | --- |
@@ -83,6 +83,7 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 | `file` | `path`, `name?`, `size?` | 文件卡片；`/api/open`、`/api/reveal` 动作 |
 | `form` | `title?`, `fields: [{name, label, type, options?, value?}]`, `submit` | 表单；提交后开启新一轮回合 |
 | `html` | `content` | **逃生舱**，沙箱 iframe 内运行（见 §6） |
+| `figure` | `xmin/xmax/ymin/ymax?`, `view?`, `axes?`, `grid?`, `download?`；子节点为图元 | **矢量绘图**；2D/3D 逻辑坐标几何示意图，手写 SVG（见 §9） |
 
 **两栅版式例**（左流程 / 右上图标 + 右下表单）：
 
@@ -228,3 +229,105 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 
 - Go 单测：`agent/ui_window_test.go`（UC-50 打开并 park、UC-51 `target=window` 与事件 Meta、UC-52 `blocking` 往返与 `<ui_action>` 注入、UC-53 等待通道、UC-54 生命周期事件、UC-55 单窗口与标题限长）。
 - 浏览器实测用例：`use-case/FEATURE-524/FEATURE-524-UC-0001.md` I 组 UC-50~UC-56。
+
+---
+
+## 9. 矢量绘图：`figure`（FEATURE-570 / BUILD-1154）
+
+### 9.1 一句话模型
+
+`figure` 是一块**逻辑坐标画布**：LLM 用数学坐标描述图元（点/线段/多边形/椭圆/坐标轴/标注/折线/函数曲线），前端把它们投影成一张 SVG 画出来。坐标一律以 **xyz** 为基准——只写 `[x,y]` 时按 2D 直出；任一图元带 z 分量时，整张图按**固定等轴测投影**绘制（视角由 `view` 预设或 `yaw`/`pitch` 指定）。图元是 `figure` 的 **children**，因此天然复用节点的 `id`/`update` 原地刷新与 `actions` 交互。
+
+代码落点：`agent/uitree.go`（白名单与校验）、`web/static/ui-figure.js`（渲染器）、`web/static/ui-expr.js`（函数表达式解析器）、`web/static/style.css`（`.ui-figure` 样式块）。
+
+### 9.2 画布 props
+
+| prop | 类型 | 默认 | 语义 |
+| --- | --- | --- | --- |
+| `title` | string | — | 图纸标题（左上角） |
+| `xmin` / `xmax` | number | `0` / `10` | x 轴显示范围（逻辑坐标） |
+| `ymin` / `ymax` | number | `0` / `10` | y 轴显示范围 |
+| `zmin` / `zmax` | number | `0` / `10` | z 轴范围（仅 3D 生效） |
+| `view` | `front\|top\|side\|iso` | `iso` | 3D 预设视角（仅 3D 生效） |
+| `yaw` / `pitch` | number（度） | 预设值 | 自定义视角，覆盖 `view` |
+| `axes` | bool | `true` | 是否画默认坐标轴（仍可用 `axes` 图元单独绘制） |
+| `grid` | bool | `true` | 是否画网格 |
+| `unit` | string | — | 刻度单位后缀 |
+| `width` / `height` | number | `720` / `420` | 逻辑画布尺寸（CSS 等比自适应容器） |
+| `download` | bool | `true` | 是否显示「下载 SVG」按钮 |
+
+### 9.3 图元目录（8 种，只能作为 `figure` 的 children）
+
+| type | props | 说明 |
+| --- | --- | --- |
+| `point` | `x`, `y`, `z?`, `label?`, `labelPos?`, `r?`, `filled?` | 点（可带标注） |
+| `segment` | `x1`,`y1`,`z1?`, `x2`,`y2`,`z2?`, `arrow?: false\|end\|start\|both`, `label?` | 线段 / 向量（可带箭头） |
+| `polygon` | `points: [[x,y,z?], …]`, `closed?`（默认 true）, `fill?`, `opacity?` | 多边形；`closed:false` 即折线 |
+| `ellipse` | `cx`, `cy`, `z?`, `rx`, `ry`, `rotation?`, `fill?` | 椭圆；`rx == ry` 即圆 |
+| `axes` | `x?`,`y?`,`z?`, `grid?`, `ticks?`, `step?`, `xlabel?`,`ylabel?`,`zlabel?`, `origin?` | 坐标轴；可移到任意原点，与 `figure.axes` 互补 |
+| `label` | `x`,`y`,`z?`, `text`, `anchor?: start\|middle\|end`, `dx?`, `dy?`, `size?` | 文字标注 |
+| `path` | `points: [[x,y,z?], …]`, `smooth?`, `dash?`, `arrow?` | 折线 / 轮廓 |
+| `function` | `expr`, `var?`（默认 `x`）, `from`, `to`, `z?`, `samples?`（≤400）, `exprZ?` | 函数曲线；3D 可给参数方程 |
+
+### 9.4 统一样式 props（所有图元通用）
+
+| prop | 取值 | 说明 |
+| --- | --- | --- |
+| `stroke` / `fill` | `accent` `info` `warn` `success` `error` `dim` `none` | **只接受语义色名**，映射为 CSS 类，四套主题自动一致（不接受任意 hex） |
+| `strokeWidth` | `1..6` | 线宽 |
+| `dash` | `solid` `dashed` `dotted` | 线型 |
+| `opacity` | `0..1` | 填充/描边透明度 |
+
+### 9.5 坐标系与投影
+
+- **2D**：`xmin/xmax/ymin/ymax` 等比映射到画布（**y 轴向上**，符合数学惯例），四周留内边距；图元超出声明范围时**自动扩边**（`viewBox` 放大），不裁剪、不丢失图形。
+- **2D/3D 判定**：整棵 `figure` 子树中只要有一个坐标带 z 分量，就走 3D。
+- **3D 投影**：`p' = Rz(yaw) · Rx(pitch) · p`，取 `x'`/`y'` 投影到画布；预设视角 `front(0,0)` / `top(0,90)` / `side(90,0)` / `iso(35,25)`。
+- **3D 顺序**：本期**不做深度排序 / 隐藏线 / 光照**，按 children 的声明顺序绘制（后声明的覆盖先声明的），LLM 用声明顺序表达遮挡关系。
+
+### 9.6 函数曲线与安全
+
+`function` 的 `expr` 由 `web/static/ui-expr.js` 求值——**手写词法 + 递归下降**，与项目"不引第三方库"一致：
+
+- **禁用** `eval` / `new Function` / 字符串 `setTimeout`；变量只由调用方注入（`x`、`t` 等），**不暴露任何宿主对象**（`window`/`document`/`constructor` 等一律解析失败）。
+- 文法：`expr := term (('+'|'-') term)*` → `term := factor (('*'|'/'|'%') factor)*` → `factor := unary ('^' factor)?` → `unary := ('-'|'+')? primary` → `primary := number | ident '(' args ')' | ident | '(' expr ')'`。
+- 函数白名单：`sin cos tan asin acos atan sinh cosh tanh sqrt abs log ln log10 exp floor ceil round min max pow sign atan2`；常量 `pi` `e`。
+- 上限：`expr` ≤ 500 字符、采样点 ≤ 400、递归深度 ≤ 32；**解析失败在图内降级为一行提示**（不废掉整张图），采样值非有限则跳过该点。
+
+### 9.7 交互与导出
+
+- 图元可声明 `actions`（`click` / `select`，`payload: point`），走既有 `ui_action` 上行通道；配合 `render_ui(waiting=true)` 可在同一回合内继续。
+- 「下载 SVG」：`XMLSerializer` + `Blob` + `a[download]`，纯前端、无新增接口；导出前用 `getComputedStyle` 把主题色**内联为实际颜色值**，脱离 CSS 也能打开。
+
+### 9.8 校验（后端）
+
+- 白名单新增 `figure` 与 8 种图元；**图元类型只在 `figure` 子树内合法**（`validateUINode` 增加父类型上下文），散落在 `card` 等处会被拒。
+- 数值必须有限（拒 NaN/Inf）；`rx`/`ry` ≥ 0；`opacity ∈ [0,1]`；`strokeWidth ∈ (0,6]`。
+- 规模：图元节点 ≤ 200（复用 `UIMaxTreeNodes`）、单图元点数 ≤ 400；错误信息 i18n 中英同步、可自纠。
+
+### 9.9 降级
+
+| 出口 | 行为 |
+| --- | --- |
+| 未注册 `figure` 的前端 bundle | `ui.js` 的未注册类型降级路径：原样显示 JSON 文本块 |
+| 终端 / 飞书 | 忽略 `ui_render` 事件，继续显示 LLM 的纯文本回复 |
+
+### 9.10 示例
+
+```json
+{"type":"figure","props":{"title":"单位圆与正弦","xmin":-1.5,"xmax":7,"ymin":-1.5,"ymax":1.5,"axes":true,"grid":true},
+ "children":[
+   {"type":"axes","props":{"origin":[0,0],"xlabel":"x","ylabel":"y"}},
+   {"type":"ellipse","props":{"cx":0,"cy":0,"rx":1,"ry":1,"stroke":"accent"}},
+   {"type":"point","props":{"x":1,"y":0,"label":"A(1,0)","filled":true}},
+   {"type":"segment","props":{"x1":0,"y1":0,"x2":1,"y2":0,"arrow":"end","stroke":"info"}},
+   {"type":"function","props":{"expr":"sin(x)","from":0,"to":6.28,"samples":160,"stroke":"warn"}}
+ ]}
+```
+
+3D 只需给坐标补上 z：`{"type":"point","props":{"x":1,"y":1,"z":1,"label":"P"}}`。
+
+### 9.11 相关测试与用例
+
+- 用例：`use-case/FEATURE-570/FEATURE-570-UC-XXXX.md`（基础渲染 / 坐标系 / 3D / 函数曲线 / 安全鲁棒 / 集成兼容 六组）。
+- 单测：`agent/uitree_test.go`（白名单、图元上下文、数值与规模上限）。
