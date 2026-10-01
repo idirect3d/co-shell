@@ -594,12 +594,17 @@
     panelListBtn = document.getElementById("uiPanelList");
     var tpl = shellTemplate();
     if (tpl) cloneSource = tpl.cloneNode(true);
-    var closeBtn = document.getElementById("uiWindowClose");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", function (e) {
-        closeFromShell(e.currentTarget);
-      });
-    }
+    // ✕ closes the window that owns the shell it sits in. The listener is
+    // delegated on the document because only the first float window adopts
+    // #uiWindow: every later one is a clone whose ids were stripped, so an
+    // id-based binding would never fire for it (and it dies together with the
+    // adopted template, which unmount removes from the DOM).
+    document.addEventListener("click", function (e) {
+      var target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      var closeBtn = target.closest(".ui-window-close");
+      if (closeBtn) closeFromShell(closeBtn);
+    });
     var panelCloseBtn = document.getElementById("uiPanelClose");
     if (panelCloseBtn) {
       panelCloseBtn.title = t("关闭", "Close");
