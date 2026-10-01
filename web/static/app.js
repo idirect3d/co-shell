@@ -1611,6 +1611,7 @@ function resetStreamView() {
   followOutput = true;
   msgVizPending = [];
   msgVizUsage = 0;
+  msgVizPrependAnchor = null;
   tokenStats.sessionIn = 0;
   tokenStats.sessionOut = 0;
   tokenStats.lastIn = 0;
@@ -2393,9 +2394,13 @@ function renderHistory(msg) {
     // oldest node, so the older page is prepended in order.
     insertAnchor = streamB.firstChild;
     prependingHistory = true;
+    // FIX-578: the msgviz track gets the same stable anchor as the message
+    // stream, so the prepended page's lines keep their chronological order.
+    msgVizPrependAnchor = msgVizTrack ? msgVizTrack.firstChild : null;
     for (const ev of events) {
       try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
     }
+    msgVizPrependAnchor = null;
     prependingHistory = false;
     insertAnchor = null;
     ensureTopSentinel();
@@ -2691,6 +2696,11 @@ let msgVizPending = [];
 let msgVizUsage = 0;
 // Horizontal pan offset (px) applied to the track when lines overflow.
 let msgVizPan = 0;
+// FIX-578: the track node a prepended (older) history page must insert its lines
+// BEFORE. It is captured once when that page starts; inserting before the LIVE
+// firstChild put each page's last line first, so every reloaded page drew its
+// context-usage trend upside down (the trend line appeared to bounce up/down).
+let msgVizPrependAnchor = null;
 
 // msgVizColor maps a block to its title-bar indicator colour. The palette is
 // FIXED to the dark-theme values (not read from the live CSS variables) so the
@@ -2778,10 +2788,11 @@ function msgVizFlush() {
       e.stopPropagation();
       if (p.box && p.box.scrollIntoView) p.box.scrollIntoView({ block: "nearest" });
     });
-    // FIX-509: the track reads left-to-right in chronological order, so a line
-    // for a prepended (older) page must go on the LEFT. Appending it put the
-    // replayed history on the right edge, reversing the time axis.
-    if (prependingHistory) msgVizTrack.insertBefore(line, msgVizTrack.firstChild);
+    // FIX-509/FIX-578: the track reads left-to-right in chronological order, so a
+    // line of a prepended (older) page must land on the LEFT of the existing
+    // lines while keeping the page's own order. The anchor captured when the page
+    // started is that stable insert point (null = the track was empty → append).
+    if (prependingHistory) msgVizTrack.insertBefore(line, msgVizPrependAnchor);
     else msgVizTrack.appendChild(line);
   }
   msgVizApplyPan();

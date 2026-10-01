@@ -4,6 +4,43 @@
 
 ---
 
+## v0.87.0 — token 用量测试方案与各阶段基线测量（token 优化前置）
+
+> **版本**: v0.87.0
+
+> **状态**: ✅ 已完成并合并 main（分支 FEATURE-577；tag `v0.87.0`，[BUILD-1175]）
+> **里程碑**: 建立可重复、可对比的 token 用量测试方案，测量并记录优化前各阶段基线用量（S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中），为后续 A/B/C/D1 优化提供同口径对比基准。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-577 | 0.87.0 | P0 | token 用量测试方案设计 + 各阶段基线测量与记录（口径 B：确定性代码级测量 + 真实端到端会话采样） |
+| FIX-578 | 0.87.0 | P0 | 消息可视化（msgviz）回放旧页时线条顺序被反转，导致 token 走势上下振荡；改为按页固定锚点插入 |
+
+### 任务详情
+
+- [X] **FEATURE-577 token 用量测试方案设计与各阶段基线测量**（已完成并合并 main，tag `v0.87.0`，[BUILD-1175]）
+  - 合并记录：FEATURE-577 → main（`--no-ff`，tag `v0.87.0`，BUILD-1175）；产物 `work/co-shell-0.87.0.darwin.arm64`、`work/co-shell-hub-0.87.0.darwin.arm64`（build 1175）。
+  - 验证记录（如实）：`go build ./... && go vet ./...` 通过；`go test ./...` 有 4 个包既有失败（agent / cmd / i18n / web，共 25 个用例，如 `TestLineRendererTokenEvents`、`TestSettingsJSONFillsDefaults`、`TestWebIO*`、`TestSession*`），已用 main 基线独立 worktree `/tmp/fe577-main` 对照确认为**基线既有失败、非本次引入**；本任务新增 `TestTokenBaselineStages`（agent）与 `TestFIX578MsgVizPrependKeepsChronologicalOrder`（web）均 PASS；故验收子项 ⑤「全绿」因基线既有失败未达成，其余子项均已达成。
+  - 背景：见 `research/token优化设计方案.md`（A/B/C/D 方案）与 `research/token-baseline/基线方案.md`（上一轮仅覆盖 env 信封一项，工具 schema 与系统提示词未测）。
+  - 阶段划分（已确认冻结）：S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复注入 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中。
+  - 测量口径（已确认）：B = 确定性代码级测量（直调产品代码，0 API 成本，3 次运行结果一致）+ 真实端到端会话采样（固定任务 ≥10 轮 × ≥3 次）。
+  - 配置项决策（已确认）：新增 9 项开关默认开启（env_history_prune / env_history_full_keep=1 / env_history_lite_keep=1 / env_tool_batch_single / env_board_roster_brief / env_dir_change_detect / env_runtime_info_once / tool_desc_compact / tool_lazy_load），关闭即现状行为；`read_file_max_size` 0 → 65536；`context_reorganize_threshold` 代码默认 80 → **92**（config.json 现为 90，同步）；**本期不做 D2 分组懒加载**（只做 A/B/C/D1）。
+  - 交付物：测试方案文档、确定性测量工具（Go 测试）、3 次一致的原始测量日志、真实会话采样原始数据、各阶段基线报告。
+  - 已完成交付物：`research/token-baseline/测试方案.md`（方案）、`research/token-baseline/基线数据-各阶段.md`（基线报告）、`agent/token_baseline_test.go`（`TestTokenBaselineStages`）、`det-run-{1,2,3}.log`（3 次 md5 一致 = `acfd92ed8d1bb9c7fa7176173e501535`）、`s6w-repo-1.calls.csv` / `.summary.txt`（58 轮真实会话原始数据）、`parse_llm_log.py` / `run_s6.sh` / `fixed-task.txt`、`use-case/FEATURE-577/FEATURE-577-UC-{0001,0002}.md`。
+  - **基线关键数据（优化前）**：S0 系统提示词 39,410 B（通道①）/ 21,437 B（通道②，运行实例）；S1 工具 38 个 / schema 66,657 B / `meta` 说明 38 次 9,158 B（占 13.7%），生产实例 69 工具 / 98,576 B；S2 env 单份 L0 5,116 B（current_dir 2,351 + tools 1,623 + research 739 + 其他）／L1 400 B／L2 111 B；S3 同轮 N=3 时 15,348 B（B 方案 5,338 B，降 65.2%）；S4 累积斜率 **+5,116 B/轮**（50 轮 255,800 B，占 512K 49%），A 方案斜率 +111 B/轮（50 轮 10,844 B，降 95.8%）；S5 第 1 轮合成 111,183 B（固定开销占比 95.4%）、第 50 轮 361,867 B（固定开销 29.3%，占 512K 69%）；S6 真实会话 58 轮累计 prompt 13,400,749 / completion 83,359 / 缓存命中率 97.6% / cache-miss 315,437 / prompt 39,725→423,983 / 中位增量 +6,486 每轮 / env 条数 5→84（验证历史 env 逐条累积）。
+  - **未完成子项（需登记）**：S6 固定任务 `fixed-task.txt` ×3 × 2 组工作区的隔离采样三次均失败（`cannot initialize store: cannot open database: timeout`），原因为 `run` 子进程仍争用运行中 serve 实例持有的 `db/co-shell.db`，bbolt 路径非 cwd/`--workdir` 派生。后续办法：① 待实例停止时补跑；② 产品支持独立 DB/存储路径参数（如 `--db` / `--store-path`）后补跑；③ 以现有真实会话数据为 S6 基线，固定任务采样留到优化后一次性成对对比。需在优化对比前解决。
+  - 验收标准：① 测试方案经用户确认；② 确定性测量覆盖 S0–S5 且 3 次运行 md5 一致；③ 真实采样覆盖 S6 并留存原始数据；④ 基线报告给出各阶段基线与未来优化后同口径对比方法；⑤ `go build ./... && go vet ./... && go test ./...` 全绿；⑥ 提交在 FEATURE-577 分支（v0.87.0），用户确认后合并 main。
+
+- [X] **FIX-578 消息指示器回放旧页时 token 走势被反转**（已完成并合并 main，tag `v0.87.0`，[BUILD-1175]）
+  - 现象：Web UI 顶部消息可视化（`#msgViz`）的上下文占用走势在会话恢复/向上翻页后出现「呼高呼低」；正确形态应是每回合内单调升到上限、到顶后回落，循环往复。
+  - 根因：`web/static/app.js` 的 `msgVizFlush()` 在 prepend 历史页时用 `msgVizTrack.insertBefore(line, msgVizTrack.firstChild)` 插入线条，插入点取「当前第一个子节点」，导致每翻一页，该页线条顺序被整体反转（页内最后一条落到最左），于是每页的走势被画反。
+  - 实测证据（运行实例浏览器内）：回放 token_iter 到达顺序为单调上升（39,725 → 366,543，升 100 次 / 降 3 次），而 `#msgVizTrack` 中旧页线条的 tooltip 占比呈 30 → 29 → 28 → 26 … → 19 的递减序列；DOM 仿真对比：旧逻辑 `3,2,1,A,B`（反转），新逻辑 `1,2,3,A,B`（正确）。
+  - 修复：新增 `msgVizPrependAnchor`，在旧页开始回放前捕获一次轨道首节点作为稳定插入锚点，页内线条统一插到该锚点之前（保持页内时序）；`resetStreamView()` 同步清空锚点。
+  - 回归测试：新增 `web/fix578_test.go`（源码级断言：不得再用 live firstChild 作插入点、必须捕获与清理锚点）。
+  - 验收：`go build ./... && go vet ./...` 通过；`go test ./web/ -run TestFIX578` 通过；需用户重启实例（静态资源内嵌）后确认走势恢复为锯齿上升形态。
+
+---
+
 ## v0.86.0 — 可点击文件预览（LLM/工具输出中的本地文件路径）
 
 > **版本**: v0.86.0
