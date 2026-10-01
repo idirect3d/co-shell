@@ -8,7 +8,7 @@
 
 > **版本**: v0.87.0
 
-> **状态**: 🚧 已完成开发与自测，**未合并 main、未打 tag**，待用户确认（分支 FEATURE-577，基于 main v0.86.0；[BUILD-1174]）
+> **状态**: ✅ 已完成并合并 main（分支 FEATURE-577；tag `v0.87.0`，[BUILD-1175]）
 > **里程碑**: 建立可重复、可对比的 token 用量测试方案，测量并记录优化前各阶段基线用量（S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中），为后续 A/B/C/D1 优化提供同口径对比基准。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -18,8 +18,9 @@
 
 ### 任务详情
 
-- [X] **FEATURE-577 token 用量测试方案设计与各阶段基线测量**（已完成开发与自测，**未合并 main、未打 tag**，待用户确认，[BUILD-1174]）
-  - 提交记录：代码提交在分支 FEATURE-577，**未合并 main、未打 tag**（待用户确认后才执行合并）；产物 `work/co-shell-0.87.0.darwin.arm64`、`work/co-shell-hub-0.87.0.darwin.arm64`（BUILD-1174）。
+- [X] **FEATURE-577 token 用量测试方案设计与各阶段基线测量**（已完成并合并 main，tag `v0.87.0`，[BUILD-1175]）
+  - 合并记录：FEATURE-577 → main（`--no-ff`，tag `v0.87.0`，BUILD-1175）；产物 `work/co-shell-0.87.0.darwin.arm64`、`work/co-shell-hub-0.87.0.darwin.arm64`（build 1175）。
+  - 验证记录（如实）：`go build ./... && go vet ./...` 通过；`go test ./...` 有 4 个包既有失败（agent / cmd / i18n / web，共 25 个用例，如 `TestLineRendererTokenEvents`、`TestSettingsJSONFillsDefaults`、`TestWebIO*`、`TestSession*`），已用 main 基线独立 worktree `/tmp/fe577-main` 对照确认为**基线既有失败、非本次引入**；本任务新增 `TestTokenBaselineStages`（agent）与 `TestFIX578MsgVizPrependKeepsChronologicalOrder`（web）均 PASS；故验收子项 ⑤「全绿」因基线既有失败未达成，其余子项均已达成。
   - 背景：见 `research/token优化设计方案.md`（A/B/C/D 方案）与 `research/token-baseline/基线方案.md`（上一轮仅覆盖 env 信封一项，工具 schema 与系统提示词未测）。
   - 阶段划分（已确认冻结）：S0 系统提示词 / S1 工具声明 / S2 单份 env 信封及分项 / S3 同轮多工具 env 重复注入 / S4 N 轮历史累积曲线 / S5 单轮请求合成总量 / S6 真实会话端到端 token 与缓存命中。
   - 测量口径（已确认）：B = 确定性代码级测量（直调产品代码，0 API 成本，3 次运行结果一致）+ 真实端到端会话采样（固定任务 ≥10 轮 × ≥3 次）。
@@ -30,7 +31,7 @@
   - **未完成子项（需登记）**：S6 固定任务 `fixed-task.txt` ×3 × 2 组工作区的隔离采样三次均失败（`cannot initialize store: cannot open database: timeout`），原因为 `run` 子进程仍争用运行中 serve 实例持有的 `db/co-shell.db`，bbolt 路径非 cwd/`--workdir` 派生。后续办法：① 待实例停止时补跑；② 产品支持独立 DB/存储路径参数（如 `--db` / `--store-path`）后补跑；③ 以现有真实会话数据为 S6 基线，固定任务采样留到优化后一次性成对对比。需在优化对比前解决。
   - 验收标准：① 测试方案经用户确认；② 确定性测量覆盖 S0–S5 且 3 次运行 md5 一致；③ 真实采样覆盖 S6 并留存原始数据；④ 基线报告给出各阶段基线与未来优化后同口径对比方法；⑤ `go build ./... && go vet ./... && go test ./...` 全绿；⑥ 提交在 FEATURE-577 分支（v0.87.0），用户确认后合并 main。
 
-- [X] **FIX-578 消息指示器回放旧页时 token 走势被反转**（已完成开发与自测，**未合并 main、未打 tag**，待用户确认；本会话沿用 FEATURE-577 分支，[BUILD-1174]）
+- [X] **FIX-578 消息指示器回放旧页时 token 走势被反转**（已完成并合并 main，tag `v0.87.0`，[BUILD-1175]）
   - 现象：Web UI 顶部消息可视化（`#msgViz`）的上下文占用走势在会话恢复/向上翻页后出现「呼高呼低」；正确形态应是每回合内单调升到上限、到顶后回落，循环往复。
   - 根因：`web/static/app.js` 的 `msgVizFlush()` 在 prepend 历史页时用 `msgVizTrack.insertBefore(line, msgVizTrack.firstChild)` 插入线条，插入点取「当前第一个子节点」，导致每翻一页，该页线条顺序被整体反转（页内最后一条落到最左），于是每页的走势被画反。
   - 实测证据（运行实例浏览器内）：回放 token_iter 到达顺序为单调上升（39,725 → 366,543，升 100 次 / 降 3 次），而 `#msgVizTrack` 中旧页线条的 tooltip 占比呈 30 → 29 → 28 → 26 … → 19 的递减序列；DOM 仿真对比：旧逻辑 `3,2,1,A,B`（反转），新逻辑 `1,2,3,A,B`（正确）。
