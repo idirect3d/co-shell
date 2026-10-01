@@ -60,7 +60,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1161]）
+- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1163]）
   - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
   - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
     - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
@@ -71,7 +71,7 @@
     - **D6 跨会话保留**：前端按会话把「窗口清单 + 每个窗口最后渲染的树」存 **localStorage**，切走再切回/刷新可恢复。
     - **D7 交互**：面板头部加「收成右下角浮窗」切换按钮；支持 **Esc** 关闭；面板一律**铺满主消息区**（不做 2/3、全屏分档）。
     - **D8 版本**：v0.85.0（FEATURE → minor 递增）。
-  - **不做**：窗口拖动/缩放（v1 不做）；后端持久化窗口（用 localStorage）；面板尺寸分档；不改文件预览层自身逻辑。
+  - **不做**：窗口缩放（v1 不做）；后端持久化窗口（用 localStorage）；面板尺寸分档；不改文件预览层自身逻辑。
   - 实施要点：窗口 = 名字 → 记录（Name/Title/Surface/Active/摘要/打开时间），上限 8；窗口名 1~32 字符、禁控制字符与 `<` `>` `&` `"` `'` `\`、首尾无空白；面板 `z-index` 低于 `.file-viewer`；`ui_window_state` 上行同步（✕/切标签/换形态/连接与会话切换时全量）；旧行为零回归（`target=stream`/`target=window`、`ui_update`、actions、waiting、四主题、窄窗折叠）。
   - 验收标准：① `render_ui(target="panel")` 可渲染任意现有控件，且与文件预览并存；② 多窗口 tabs 点击/左右滑动切换，窄屏隐藏 tabs 仍可切换；③ 每窗独立 ✕、Esc 关闭，面板可收成浮窗并可切回；④ `<ui_windows>` 清单驱动新建 vs 更新，工具说明含该提示；⑤ 清单与每窗最后的树按会话存 localStorage，切走再切回/刷新可恢复；⑥ ✕/切标签/收成浮窗均同步后端清单，无前后端状态不一致；⑦ 零回归；⑧ `go build ./... && go vet ./... && go test ./...` 全绿且用例通过浏览器实测；⑨ 提交在 FEATURE-571 分支，用户确认后合并 main 并打 tag `v0.85.0`。
   - 设计文档：`docs/ui-components.md` §10（主信息区覆盖面板与多窗口）。
@@ -5882,3 +5882,4 @@ v{major}.{minor}.{patch}
 | FEATURE- | 新特性或改进（New Feature/Enhancement） |
 | FIX- | Bug 修复（Bug Fix） |
 
+  - 实测复核（第三轮，标题栏拖动，[BUILD-1163]）：`web/static/ui-windows.js` 新增 `clampPos/applyPos/startDrag/dragFromShell` 与文档级 `pointerdown` 委托（与 ✕/⛶ 同款委托，克隆窗同样可拖）；`refresh()` 对已拖动窗口改用 `left/top` 定位、不再被层叠偏移覆盖；`persist()/readStored()` 增写 `pos`；`setSurface(panel)` 清空 `pos` 回到角落；`state()` 暴露 `pos`；`style.css` 追加 `.ui-window-head{cursor:move;touch-action:none}` 与 `.ui-window-dragging{user-select:none}`。静态镜像站实测（`http://127.0.0.1:28258/feat571/index.html`）：`cursor=move`、`touch-action=none`；模拟 pointerdown→move(-300,-200)→up 后位移精确为 dx=-300/dy=-200，`right/bottom` 切为 `auto`、`left/top` 写入内联样式；拖动中挂 `ui-window-dragging`、松手移除；越界拖到 (-9000,-9000) 被夹紧为 left=-372/top=-112（保留 48px 可抓取区）；`localStorage["co-shell-ui-windows:test-session"]` 写入 `pos:{left:-372,top:-112}`；`setSurface(panel)`→`setSurface(float)` 往返后 `pos` 清空、回到 `right/bottom:16px`。未覆盖：真实鼠标拖拽手感、多窗同时拖动、触屏拖动。

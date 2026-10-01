@@ -4300,3 +4300,8 @@ select,
 }
 .ui-panel-list button:hover { background: rgba(127, 127, 127, 0.18); }
 .ui-panel-list button.active { font-weight: 600; background: rgba(127, 127, 127, 0.22); }
+
+/* FEATURE-571: the title bar doubles as the drag handle of a floating window. */
+.ui-window-head { cursor: move; touch-action: none; }
+.ui-window-dragging { user-select: none; }
+.ui-window-dragging .ui-window-head { cursor: grabbing; }

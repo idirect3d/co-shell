@@ -83,6 +83,7 @@
       summary: "",
       size: "",
       maximized: false, // true while the window sits in the panel because ⛶ sent it there
+      pos: null, // {left, top} once the user dragged the window by its title bar
       tree: "",
       holder: holder,
       host: host,
@@ -246,6 +247,7 @@
       return true;
     }
     rec.surface = surface;
+    if (surface === "panel") rec.pos = null; // the panel owns the placement
     mount(rec);
     activate(rec.name, true);
     sync(null);
@@ -306,8 +308,19 @@
         rec.holder.classList.remove("hidden");
         if (rec.shell) {
           var idx = floatIndex(rec);
-          rec.shell.style.right = 16 + idx * FLOAT_STEP + "px";
-          rec.shell.style.bottom = 16 + idx * FLOAT_STEP + "px";
+          if (rec.pos) {
+            // A dragged window keeps the spot the user put it in: the cascade
+            // offset only decides where a window starts out.
+            rec.shell.style.right = "auto";
+            rec.shell.style.bottom = "auto";
+            rec.shell.style.left = rec.pos.left + "px";
+            rec.shell.style.top = rec.pos.top + "px";
+          } else {
+            rec.shell.style.left = "";
+            rec.shell.style.top = "";
+            rec.shell.style.right = 16 + idx * FLOAT_STEP + "px";
+            rec.shell.style.bottom = 16 + idx * FLOAT_STEP + "px";
+          }
           rec.shell.style.zIndex = String(60 + idx + (rec.name === activeName ? 5 : 0));
         }
       }
@@ -419,6 +432,7 @@
         surface: windows[i].surface,
         size: windows[i].size || "",
         max: !!windows[i].maximized,
+        pos: windows[i].pos || null,
         tree: windows[i].tree || "",
         summary: windows[i].summary || ""
       });
@@ -505,6 +519,9 @@
       var rec = newRecord(w.name, w.title || "", w.surface);
       rec.size = w.size || "";
       rec.maximized = !!w.max;
+      rec.pos = w.pos && typeof w.pos.left === "number" && typeof w.pos.top === "number"
+        ? { left: w.pos.left, top: w.pos.top }
+        : null;
       rec.tree = w.tree || "";
       rec.summary = w.summary || "";
       out.windows.push(rec);
@@ -612,6 +629,81 @@
     return setSurface(rec.name, rec.surface === "panel" ? "float" : "panel");
   }
 
+  // ------------------------------------------------------------ title drag
+
+  // DRAG_KEEP is how many pixels of a dragged window must stay inside the
+  // viewport on every side, so a window can never be dragged out of reach.
+  var DRAG_KEEP = 48;
+
+  function clampPos(left, top, w, h) {
+    var maxLeft = Math.max(0, global.innerWidth - DRAG_KEEP);
+    var maxTop = Math.max(0, global.innerHeight - DRAG_KEEP);
+    var minLeft = Math.min(0, DRAG_KEEP - w);
+    var minTop = Math.min(0, DRAG_KEEP - h);
+    return {
+      left: Math.round(Math.min(maxLeft, Math.max(minLeft, left))),
+      top: Math.round(Math.min(maxTop, Math.max(minTop, top)))
+    };
+  }
+
+  // applyPos writes a dragged position onto the shell, switching it from the
+  // bottom-right anchoring to left/top.
+  function applyPos(rec, pos) {
+    if (!rec || !rec.shell || !pos) return;
+    rec.shell.style.right = "auto";
+    rec.shell.style.bottom = "auto";
+    rec.shell.style.left = pos.left + "px";
+    rec.shell.style.top = pos.top + "px";
+  }
+
+  // startDrag begins a title-bar drag. The window is pinned to its current
+  // pixels first, so the move is a pure translation whatever the size preset
+  // (or the stylesheet default) put it at.
+  function startDrag(rec, ev) {
+    if (!rec || !rec.shell) return;
+    var rect = rec.shell.getBoundingClientRect();
+    var startX = ev.clientX, startY = ev.clientY;
+    var baseLeft = rect.left, baseTop = rect.top;
+    var w = rect.width, h = rect.height;
+    var moved = false;
+    rec.shell.classList.add("ui-window-dragging");
+
+    function onMove(e) {
+      var dx = e.clientX - startX;
+      var dy = e.clientY - startY;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return; // ignore jitter
+      moved = true;
+      applyPos(rec, clampPos(baseLeft + dx, baseTop + dy, w, h));
+    }
+
+    function onUp() {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+      rec.shell.classList.remove("ui-window-dragging");
+      if (!moved) return;
+      var box = rec.shell.getBoundingClientRect();
+      rec.pos = clampPos(box.left, box.top, box.width, box.height);
+      applyPos(rec, rec.pos);
+      persist();
+    }
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+  }
+
+  // dragFromShell resolves the window owning the grabbed title bar and starts
+  // the drag. Buttons inside the bar keep their own behaviour.
+  function dragFromShell(el, ev) {
+    var shell = el && el.closest ? el.closest(".ui-window[data-window-name]") : null;
+    if (!shell) return false;
+    var rec = find(shell.dataset.windowName || "");
+    if (!rec || rec.surface !== "float") return false;
+    startDrag(rec, ev);
+    return true;
+  }
+
   // ------------------------------------------------------------------- init
 
   function bindSwipe() {
@@ -655,6 +747,18 @@
       }
       var closeBtn = target.closest(".ui-window-close");
       if (closeBtn) closeFromShell(closeBtn);
+    });
+    // Dragging a window by its title bar. Delegated like the buttons above, so
+    // cloned shells (which have no ids) are draggable too. A press on a button
+    // inside the bar is left to the click handler.
+    document.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      var target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      if (target.closest(".ui-window-max") || target.closest(".ui-window-close")) return;
+      var head = target.closest(".ui-window-head");
+      if (!head) return;
+      if (dragFromShell(head, e)) e.preventDefault();
     });
     var panelCloseBtn = document.getElementById("uiPanelClose");
     if (panelCloseBtn) {
