@@ -485,8 +485,13 @@
       ev.stopPropagation();
       var payload = { type: "point", x: anchor[0], y: anchor[1] };
       if (isFinite(anchor[2])) payload.z = anchor[2];
+      // FEATURE-571: the primitive's own switch (or the figure-level one it
+      // inherits) decides whether it keeps accepting events this turn.
+      var continuous = typeof global.UI.actionContinuous === "function"
+        ? global.UI.actionContinuous(action, node, host)
+        : false;
       var sent = typeof global.UI.sendUIAction === "function"
-        ? global.UI.sendUIAction(action.id, payload, host, !!action.blocking)
+        ? global.UI.sendUIAction(action.id, payload, host, !!action.blocking, continuous)
         : false;
       if (sent) host.setAttribute("data-action-sent", "1");
     });
@@ -794,6 +799,12 @@
     return g;
   }
 
+  // Ellipse outline is sampled on its own XY plane, so a projected (3D) view
+  // can flatten the disc with the perspective instead of leaving it facing the
+  // viewer. A circle drawn on the plane must be sampled point by point: the
+  // native <ellipse> element only knows screen-space radii.
+  var ELLIPSE_STEPS = 64;
+
   function drawEllipse(sc, g, node) {
     var p = node.props || {};
     var st = styleOf(node);
@@ -805,20 +816,52 @@
     var ry = Math.abs(numOr(p.ry, 0)) * sc.map.scale;
     if (!(rx > 0) && !(ry > 0)) return g;
     var explicitFill = Object.prototype.hasOwnProperty.call(p, "fill") && str(p.fill) !== "";
-    var el2 = sv("ellipse", {
-      class: "ui-fig-stroke-" + st.stroke + " ui-fig-fill-" + (explicitFill ? st.fill : "none"),
-      cx: fx(cx), cy: fx(cy), rx: fx(Math.max(rx, 0.5)), ry: fx(Math.max(ry, 0.5)),
-      "stroke-width": String(st.width)
-    });
+    var cls = "ui-fig-stroke-" + st.stroke + " ui-fig-fill-" + (explicitFill ? st.fill : "none");
+    // A 3D figure (or a user-rotated map) must project the whole disc: sample
+    // the outline in the XY plane and project every point. Only the plain 2D
+    // view keeps the screen-space <ellipse> element.
+    var projected = sc.is3D || !!(sc.viewState && (sc.viewState.yaw || sc.viewState.pitch));
+    var el2;
+    if (projected) {
+      var rx0 = Math.abs(numOr(p.rx, 0));
+      var ry0 = Math.abs(numOr(p.ry, 0));
+      var cz = zVal(p.z);
+      var rot3 = numOr(p.rotation, 0) * Math.PI / 180;
+      var cosR = Math.cos(rot3);
+      var sinR = Math.sin(rot3);
+      var bx = numOr(p.cx, 0);
+      var by = numOr(p.cy, 0);
+      var pts = [];
+      for (var i = 0; i < ELLIPSE_STEPS; i++) {
+        var t = (i / ELLIPSE_STEPS) * Math.PI * 2;
+        var lx = rx0 * Math.cos(t);
+        var ly = ry0 * Math.sin(t);
+        var X = bx + lx * cosR - ly * sinR;
+        var Y = by + lx * sinR + ly * cosR;
+        var uv2 = sc.project([X, Y, cz]);
+        pts.push([fx(sc.map.toX(uv2[0])), fx(sc.map.toY(uv2[1]))]);
+      }
+      el2 = sv("path", {
+        class: cls,
+        d: toD(pts, true),
+        "stroke-width": String(st.width)
+      });
+    } else {
+      el2 = sv("ellipse", {
+        class: cls,
+        cx: fx(cx), cy: fx(cy), rx: fx(Math.max(rx, 0.5)), ry: fx(Math.max(ry, 0.5)),
+        "stroke-width": String(st.width)
+      });
+    }
     if (st.dash !== "solid") el2.setAttribute("stroke-dasharray", DASH_PATTERN[st.dash]);
     el2.setAttribute("opacity", String(st.opacity));
     if (explicitFill && !Object.prototype.hasOwnProperty.call(p, "opacity")) {
       el2.setAttribute("fill-opacity", "0.22");
     }
-    // Rotation is meaningless once the ellipse has been projected, so it is
-    // only honoured for a plain 2D figure.
+    // Rotation is baked into the sampled outline when projected, so the SVG
+    // rotate transform is only honoured for a plain 2D figure.
     var rot = numOr(p.rotation, 0);
-    if (!sc.is3D && rot) el2.setAttribute("transform", "rotate(" + fx(rot) + " " + fx(cx) + " " + fx(cy) + ")");
+    if (!projected && rot) el2.setAttribute("transform", "rotate(" + fx(rot) + " " + fx(cx) + " " + fx(cy) + ")");
     g.appendChild(el2);
     bindShapeActions(node, g, verts[0]);
     return g;
@@ -1370,6 +1413,13 @@
       sc.idPrefix = "co-fig-" + (++uid) + "-" + (node.id ? safeFileName(node.id) : "x");
 
       var wrap = el("div", "ui-figure");
+      // FEATURE-571: a switch declared on the figure is inherited by the
+      // primitives carrying the actions (resolved through
+      // closest("[data-ui-continuous]")); a primitive still overrides it
+      // through its own props/actions.
+      if (typeof props.continuous === "boolean") {
+        wrap.setAttribute("data-ui-continuous", props.continuous ? "1" : "0");
+      }
       var head = el("div", "ui-figure-head");
       var title = str(props.title);
       if (title) head.appendChild(el("span", "ui-figure-title", title));

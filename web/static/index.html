@@ -450,6 +450,20 @@
         <button class="fv-close" id="ivClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
     </div>
+    <!-- FEATURE-571: main-area panel. It reuses the file previewer's overlay
+         region but sits BELOW it (lower z-index), so a file/image preview
+         temporarily covers the panel and closing the preview reveals it again.
+         Several windows share the shell; the tab strip switches the active one
+         (hidden on narrow screens, where swipe and the list button take over). -->
+    <div id="uiPanel" class="ui-panel hidden" role="dialog" aria-label="task panel">
+      <div class="ui-panel-head">
+        <div class="ui-panel-tabs" id="uiPanelTabs"></div>
+        <button type="button" class="ui-panel-btn" id="uiPanelList" title="窗口列表">≡</button>
+        <button type="button" class="ui-panel-btn" id="uiPanelFloat" title="收成浮窗">⇱</button>
+        <button type="button" class="ui-panel-btn ui-panel-close" id="uiPanelClose" title="关闭">✕</button>
+      </div>
+      <div class="ui-panel-body" id="uiPanelBody"></div>
+    </div>
   </section>
 
   <aside id="plan-panel" class="hidden">
@@ -667,6 +681,7 @@
 <div id="uiWindow" class="ui-window hidden" role="dialog" aria-label="task window">
   <div class="ui-window-head">
     <span class="ui-window-title" id="uiWindowTitle"></span>
+    <button type="button" class="ui-window-max" id="uiWindowMax" aria-label="maximize window">⛶</button>
     <button type="button" class="ui-window-close" id="uiWindowClose" aria-label="close window">✕</button>
   </div>
   <div class="ui-window-body" id="uiWindowBody"></div>
@@ -681,5 +696,8 @@
 <script src="static/ui-layout.js"></script>
 <script src="static/usage-pop.js"></script>
 <script src="static/app.js"></script>
+<!-- FEATURE-571: multi-window registry + main-area panel. Loaded after app.js
+     so it can wrap renderUIBlock/applyUIWindow and the UI window helpers. -->
+<script src="static/ui-windows.js"></script>
 </body>
 </html>

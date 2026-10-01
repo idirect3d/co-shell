@@ -1683,7 +1683,7 @@ iterationLoop:
 				// window; it carries no tree, so it is emitted on its own event.
 				if execErr == nil && tc.Name == "ui_window" {
 					if req := a.takePendingUIWindow(); req != nil {
-						cb(UIWindowEvent(req.Action, req.Title, req.Size))
+						cb(UIWindowEventEx(req.Action, req.Name, req.Title, req.Surface, req.Size))
 					}
 				}
 

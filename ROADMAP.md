@@ -15,11 +15,18 @@
 |------|------|------|------|
 | FEATURE-570 | 0.84.0 | P1 | ① 后端 `agent/uitree.go`：白名单新增 `figure` + 8 种图元（point/segment/polygon/ellipse/axes/label/path/function），新增 figure 子树上下文校验与数值/规模上限；② 前端新增 `web/static/ui-expr.js`（手写递归下降表达式解析器，禁用 eval/new Function）与 `web/static/ui-figure.js`（2D/3D SVG 渲染器 + 坐标系映射 + 坐标轴/网格/刻度 + 下载 SVG）；③ `style.css` 主题化样式块、`index.html` 引入脚本；④ i18n zh/en 组件清单与错误键；⑤ `docs/ui-components.md` 增补 figure 章节。 |
 
-> 当前 BUILD: 1157
+> 当前 BUILD: 1158
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
+
+- [x] **FIX-572 render_ui 组件树被上下文裁剪成摘要后回灌，导致渲染失败且报错不指真因**（已完成，分支 FEATURE-571，[BUILD-1162]）
+  - 现象：同一窗口连续渲染时 table/chart 成功，之后 steps/progress/kv 连续 4 次失败，报 `组件节点缺少 type 字段。可用组件类型：…`；报错时树实为 `{"summary": …}`。
+  - 根因：`agent/ui_prune.go` 的 `UIContextPrune`（默认开）在 `buildContextMessages` 里把历史中每次 `render_ui` 的 `tree` 参数改写为 `{"summary": "<type> 组件树（N 个节点）已裁剪为摘要…"}`（第 45/84 行，`i18n.KeyUIPrunedTree`）；该形态被模型当作示例照抄回灌到下一次调用，`agent/uitree.go` 的 `validateUINode` 因此走到 `n.Type == ""` 分支；会话越长、被裁剪历史越多，回灌概率越高（表现为“长会话才触发”）。
+  - 修复：① `agent/uitree.go` 在 `ParseUITree` 入口用 `isPrunedTreeSummary` 识别“只有 summary、没有 type”，返回专用报错 `KeyUIErrTreePrunedSummary`（中英齐备，提示重提完整树 / 可关闭 `ui_context_prune`）；② `KeyUIPrunedTree` 文案补“仅供阅读，切勿照此形态提交 render_ui”；③ 新增单测 `TestUIUC02PrunedSummaryNamed`。
+  - 验证：`gofmt` 无差异；`go build ./... && go vet ./...` 通过；`go test ./agent/ -run 'UI|Prune'` 通过。
+  - 已知基线（与本修复无关）：`go test ./i18n/` 的 `TestRulesNoteMergesRulesFile` 失败（[zh] .rules/ note not found）。
 
 - [x] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（已完成，已合并 main，tag v0.84.0，[BUILD-1157]）
   - 背景（用户需求）：希望 render_ui 支持画示意图——点、线段、多边形、椭圆（圆）、坐标轴等，供 LLM 方便地输出几何/流程示意图。
@@ -33,6 +40,49 @@
   - 增强三实测记录 [BUILD-1157]（静态验证站 28258，页面内 `browser_evaluate` 断言）：① 2D/3D 两图均存在 `.ui-fig-view` 与抓手，viewport 无滚动溢出（scrollWidth/Height 与 client 相等）；② 拖拽平移 dx/dy=+45/−25 与图元屏幕位移一致，重置回 `translate(0 0) scale(1)`；③ 滚轮放大 100%→125%，锚点漂移 0.1px（<5px）；④ 抓手拖动后 yaw/pitch 生效：2D 图包围盒 323×248→283×237（宽高比变化 8.3%）、3D 图 282×288→298×288（5.4%）；⑤ 旋转中心漂移：2D 4.7px、3D 0px（<8px）；⑥ 旋转期间画布 viewBox 与抓手位置不变（抓手恒在画布右上角，距右上边各 9px）；⑦ 「回正」后 tx/ty/yaw/pitch=0 且倍率保留（125% 标签与 transform 一致）；「重置」后倍率 100%、位移/视角归零且与初始包围盒误差 0px；⑧ 导出：默认与 125% 两种视角导出文本均含 view 层 transform 且长度不同（体现当前视角），抓手 9 个圆与 title 均已剔除；⑨ 交互全程浏览器控制台无异常；⑩ `node --check web/static/ui-figure.js` 与 `go build ./... && go vet ./...` 通过。
   - 分支/版本：**FEATURE-570**（基于 main），版本 v0.84.0
   - 合并发布：FEATURE-570 → main（BUILD-1157，版本号 v0.84.0）；用户实际试用确认后合并，产物 `work/co-shell-0.84.0.darwin.arm64`、`work/co-shell-hub-0.84.0.darwin.arm64`。
+
+---
+
+## v0.85.0 — render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）
+
+> **版本**: v0.85.0
+
+> **状态**: ✅ 已完成（分支 FEATURE-571 已合并 main，tag `v0.85.0`，BUILD-1166；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复 + 控件「连续接收用户事件」开关 + figure ellipse 3D 投影修复均已完成）
+> **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-571 | 0.85.0 | P1 | ① 后端 `agent/ui_tools.go`：`UITargetPanel` + `uiRenderTarget` 白名单；`render_ui` 增 `window` 窗口名；`ui_window` 增 `surface=panel|float` 与按名关闭；会话级窗口清单（Name/Title/Surface/Active/摘要/打开时间）与上限 8；② `events.go` 增 `MetaKeyUIWindowName/Surface` 与 `activate` 动作；`run_stream.go` 发带窗口名事件；`envelope.go` 在 `buildOpenedResources()` 追加 `<ui_windows>`（无窗口 `none`）；新增 `ui_window_state` 上行同步入口；③ 前端 `index.html`/`style.css` 新增 `#uiPanel`（铺满主消息区、z-index 低于 `.file-viewer`）+ tabs + 收成浮窗按钮 + ✕ + ≤720px 隐藏 tabs；④ `ui.js`/`app.js` 单浮窗扩为按名索引窗口表、tabs/滑动/Esc/✕/换形态、localStorage 跨会话恢复；⑤ i18n zh/en；⑥ `docs/ui-components.md` 新增 §10。 |
+
+> 当前 BUILD: 1162
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（已完成，已合并 main 并打 tag `v0.85.0`，[BUILD-1166]）
+  - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
+  - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
+    - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
+    - **D2 与文件预览并存**：面板在下、文件/图片预览临时盖在其上，关掉预览露出面板；每个窗口/层各自有独立关闭按钮。
+    - **D3 多窗口**：支持多窗口并存；面板顶部**标签栏 tabs** 点击或左右滑动切换；**窄屏（≤720px）隐藏 tabs，但仍保留切换入口**（左右滑动 + 头部 ≡ 列表按钮）。
+    - **D4 窗口寻址**：`ui_window(action="open", title="…")` 创建/命名窗口；`render_ui(target="panel", window="<名字>")` 定位到该窗口；缺省 = 当前活动窗口。
+    - **D5 environment_details 清单**：`<opened_resources>` 内新增 `<ui_windows>`（名字/形态/是否活动/内容摘要，未开窗为 `none`），并在 `ui_window` / `render_ui` 工具说明中提示 LLM **先读该清单再决定「新建窗口」还是「更新已有窗口」**。
+    - **D6 跨会话保留**：前端按会话把「窗口清单 + 每个窗口最后渲染的树」存 **localStorage**，切走再切回/刷新可恢复。
+    - **D7 交互**：面板头部加「收成右下角浮窗」切换按钮；支持 **Esc** 关闭；面板一律**铺满主消息区**（不做 2/3、全屏分档）。
+    - **D8 版本**：v0.85.0（FEATURE → minor 递增）。
+  - **不做**：窗口缩放（v1 不做）；后端持久化窗口（用 localStorage）；面板尺寸分档；不改文件预览层自身逻辑。
+  - 实施要点：窗口 = 名字 → 记录（Name/Title/Surface/Active/摘要/打开时间），上限 8；窗口名 1~32 字符、禁控制字符与 `<` `>` `&` `"` `'` `\`、首尾无空白；面板 `z-index` 低于 `.file-viewer`；`ui_window_state` 上行同步（✕/切标签/换形态/连接与会话切换时全量）；旧行为零回归（`target=stream`/`target=window`、`ui_update`、actions、waiting、四主题、窄窗折叠）。
+  - 验收标准：① `render_ui(target="panel")` 可渲染任意现有控件，且与文件预览并存；② 多窗口 tabs 点击/左右滑动切换，窄屏隐藏 tabs 仍可切换；③ 每窗独立 ✕、Esc 关闭，面板可收成浮窗并可切回；④ `<ui_windows>` 清单驱动新建 vs 更新，工具说明含该提示；⑤ 清单与每窗最后的树按会话存 localStorage，切走再切回/刷新可恢复；⑥ ✕/切标签/收成浮窗均同步后端清单，无前后端状态不一致；⑦ 零回归；⑧ `go build ./... && go vet ./... && go test ./...` 全绿且用例通过浏览器实测；⑨ 提交在 FEATURE-571 分支，用户确认后合并 main 并打 tag `v0.85.0`。
+  - 设计文档：`docs/ui-components.md` §10（主信息区覆盖面板与多窗口）。
+  - 用例文档：`use-case/FEATURE-571/FEATURE-571-UC-0001.md`（UC-0001 ~ UC-0045，45 条；其中 18 条已标注 `[已实测]`）。
+  - 实测记录（测试实例 `co-shell v0.85.0 [BUILD-1157] --serve --port 28259`）：panel 渲染自动开面板；两次 panel 渲染生成 tabs「面板一/面板二」且非活动 holder `display:none`；点 tab 切换并同步后端 `ui_window_state(active=p1)`；浮窗与面板并存（f1 宽 420px、偏移 16/16）；`ui_update` 命中隐藏的面板窗口；`⇱` 把活动窗口由 float 翻成 panel；Esc 关闭并发送 `closed` 名单（共 7 条 `ui_window_state`）；按会话写入 `localStorage["co-shell-ui-windows:<会话>"]`（含每窗 tree JSON）；刷新后 `setSession` 重建 tabs/holder/浮窗与树内容；切走再切回（内存桶）恢复一致；无窗口时 `#uiPanel` 为 `display:none` 不遮挡主区；控制台无 JS 报错。
+  - 实测复核（第二轮，独立静态镜像站 `tmp/feat570/site/feat571/`，静态服务 `http://127.0.0.1:28258/feat571/index.html`，[BUILD-1159]）：断言 1~9 全部通过——① `typeof window.UIWin=="object"`，`#uiPanel/#uiPanelTabs/#uiPanelClose/#uiPanelBody` 齐备且面板初始含 `hidden`；② `z-index` 面板 30 / `.file-viewer` 40（预览盖在面板之上）；③ `applyWindowEvent({action:open, surface:panel})` 后面板去 hidden、tabs=1；④ `render({ui_target:panel, ui_tree:callout})` 后 `#uiPanelBody` 文本含渲染内容；⑤ 再 `open(surface:float)` 后 tabs=2，点击首个 tab 后 `.ui-panel-tab.active`=「看板A」；⑥ Escape 后面板 `hidden`；⑦ 按会话写入 `localStorage["co-shell-ui-windows:S-571"]`（277B，含每窗 tree JSON），刷新页面后 `setSession('S-571')` 恢复 windows=2（A2/B2，active=A2）、tabs=2 且面板内容复原；⑧ `<ui_windows>none</ui_windows>` 由 environment_details 证明注入生效；⑨ 控制台无 JS 异常（仅静态站无后端的 `api/bootstrap`、`logos/dark`、`api/tree` 404 与 WebSocket 404 环境噪声）。未覆盖（受静态站无后端所限）：面板与文件预览实际叠加、≤720px 窄屏 tabs 隐藏、✕ 与「收成浮窗」按钮点击、actions/waiting/四主题回归——其中前两类已由首轮真实实例实测与 CSS 断言间接覆盖。
+  - 已知基线问题（非本任务引入，建议另立 FIX 任务）：`go test ./... -short` 中 `web` 包 10 个用例失败——`web/session_test.go` 的 `sessions` / `session_switch` / `yolo` / `interaction` 消息断言（`TestSessionList`、`TestSessionListPushedOnSetCurrent`、`TestSessionSwitch`、`TestSessionSwitchSwitchesContext`、`TestSessionDelete`、`TestWebIOAskInteraction*`×3、`TestYOLOGet`、`TestYOLOSet`）。已用 `git worktree add --detach work/tmp/base571 HEAD` 在**未含本任务改动的 HEAD 干净工作树**上复跑，同样失败，确证与本任务无关（本任务工作区改动仅 `main.go` / `cmd/co-shell-hub/main.go` 的 BUILD 常量与本文档）。其余包（`agent`、`store` 等）全绿；`go build ./...`、`go vet ./...` 均无错。
+  - 缺陷修复（用户实测发现，[BUILD-1160]）：**面板窗口点「收成浮窗」（⇱）转为浮窗后，浮窗右上角 ✕ 点击无效**。根因：`ui-windows.js` 的关闭监听原先只绑在 `#uiWindowClose` 上——只有**接管 `#uiWindow` 模板壳的首个浮窗**具有该 id，而该模板壳在首个浮窗关闭时被 `unmount()` 移出 DOM；此后所有浮窗都是从 `cloneSource` 克隆、ids 被剥离的壳，其 ✕ 没有任何监听。修复：改为**文档级事件委托**（`document.addEventListener("click", …)` 匹配 `.ui-window-close` → `closeFromShell`），对模板壳与所有克隆壳一并生效。验证（独立静态镜像站）：模板壳 ✕（1→0）、收成浮窗后的克隆壳 ✕（1→0）、直接新建的克隆壳 ✕（1→0）均能关闭；Esc、面板头部 ✕、⇱ 形态切换三项回归均通过，控制台无 JS 异常。
+  - 新增交互（用户需求，经 ask_user 确认 4 项，[BUILD-1161]）：**浮窗最大化/还原按钮**。需求：弹出窗口 ✕ 旁加一个最大化按钮，点击可恢复最大化状态。确认结果：① 最大化 = **把浮窗切为 panel 形态**（覆盖主信息区，即浮窗层与面板层互转）；② 切换式：同一按钮再点一次即还原到最大化前的尺寸，图标 `⛶`/`⭯` 与 tooltip 随之切换；③ 最大化状态随窗口清单**持久化**（刷新/切会话一并恢复）；④ 「并排 3 个 3D 图形块高度加倍」不需改程序（用户说明仅为一次功能测试）。
+    实现：`index.html` 浮窗标题栏在 ✕ 左侧加 `⛶`（`.ui-window-max`，克隆浮窗自动继承）→ `style.css` 让 `.ui-window-max` 复用 `.ui-window-close` 样式 → `ui-windows.js`：文档级事件委托分发 `.ui-window-max` → `maximizeFromShell()`（记 `maximized=true` + `setSurface(panel)`）与 `restoreMaximized()`（清标志 + 回浮窗，`rec.size` 未因最大化改变故尺寸自动复原），`toggleSurface()` 对最大化窗口优先走还原，`refresh()` 让面板头部按钮对这类窗口显示 `⭯`/「还原窗口」（普通 panel 窗口仍为 `⇱`/「收成浮窗」，agent 直接以 `surface=panel` 打开的窗口行为不变），`persist()`/`readStored()` 增写 `size`/`max` 两字段，`UIWin` 导出 `maximizeFromShell`/`restoreMaximized` 并在 `state()` 暴露 `maximized`。
+    实测（静态镜像站 `http://127.0.0.1:28258/feat571/index.html`）：标题栏子节点顺序 `title|max|close`，按钮文本 `⛶`、title「最大化」；点 `⛶` 后 `A/panel/MAX`、浮窗节点 1→0、面板头部 `⭯`/「还原窗口」；再点后 `A/float` 且尺寸与最大化前一致（`709x388`）、头部回 `⇲`；多窗独立（`A/float` + `B/panel/MAX`，tabs=2，活动 tab=WinB）；✕ 关闭浮窗无回归；localStorage 写入 `A/float/max=false/size=small`、`B/panel/max=true/size=medium`，刷新后 `setSession('S-571')` 恢复为 `A/float`(small) + `B/panel/MAX`（头部 `⭯`），点还原后 `B/float` 尺寸回到 `945x517`(medium)；控制台无 JS 异常（仅静态站无后端的 404 噪声）。
 
 ---
 
@@ -5832,3 +5882,7 @@ v{major}.{minor}.{patch}
 | FEATURE- | 新特性或改进（New Feature/Enhancement） |
 | FIX- | Bug 修复（Bug Fix） |
 
+  - 实测复核（第三轮，标题栏拖动，[BUILD-1163]）：`web/static/ui-windows.js` 新增 `clampPos/applyPos/startDrag/dragFromShell` 与文档级 `pointerdown` 委托（与 ✕/⛶ 同款委托，克隆窗同样可拖）；`refresh()` 对已拖动窗口改用 `left/top` 定位、不再被层叠偏移覆盖；`persist()/readStored()` 增写 `pos`；`setSurface(panel)` 清空 `pos` 回到角落；`state()` 暴露 `pos`；`style.css` 追加 `.ui-window-head{cursor:move;touch-action:none}` 与 `.ui-window-dragging{user-select:none}`。静态镜像站实测（`http://127.0.0.1:28258/feat571/index.html`）：`cursor=move`、`touch-action=none`；模拟 pointerdown→move(-300,-200)→up 后位移精确为 dx=-300/dy=-200，`right/bottom` 切为 `auto`、`left/top` 写入内联样式；拖动中挂 `ui-window-dragging`、松手移除；越界拖到 (-9000,-9000) 被夹紧为 left=-372/top=-112（保留 48px 可抓取区）；`localStorage["co-shell-ui-windows:test-session"]` 写入 `pos:{left:-372,top:-112}`；`setSurface(panel)`→`setSurface(float)` 往返后 `pos` 清空、回到 `right/bottom:16px`。未覆盖：真实鼠标拖拽手感、多窗同时拖动、触屏拖动。
+  - [BUILD-1165] 控件「连续接收用户事件」开关：默认关闭时被触发元素单次禁用、回合结束（setRunning(false)）自动恢复；开关打开（控件层 `props.continuous` 或动作层 `actions[i].continuous` 覆盖，figure 图元缺省继承 figure）时可连续发送，运行中经用户动态注入进入当前回合。单点改造 `UI.sendUIAction`，覆盖 form/figure 等全部走该出站路径的控件；form 的禁用对象由整个 form 改为提交按钮。用例 UC-0034 起已追加。
+  - [BUILD-1166] figure 图元 ellipse 在 3D 视图下按所在平面投影：`drawEllipse` 新增投影分支——`sc.is3D` 或存在 yaw/pitch 时，以真实圆心/半径/rotation 在 XY 平面采样 64 点（平面内旋转后再逐点 `sc.project`）输出闭合 `<path>`，随 orbit 拖动实时重绘；2D 视图仍输出原生 `<ellipse>` + `rotate()`，逐字节不变。实测（静态镜像站 28258）：front 正圆（rmin/rmax=131.99/132.00）、top 塌缩为线（rmin=0）、iso 压扁（1.103，拖动后 2.959）、rotation 在 3D 下生效（2.758 vs 2.5），且与同平面 polygon 投影一致。用例 UC-0042 起已追加。
+- 实测复核（第四轮，浮窗默认居中，[BUILD-1164]）：`web/static/ui-windows.js` 新增 `centerPos(idx,w,h)`（`(innerWidth-w)/2`、`(innerHeight-h)/2`，叠加 `FLOAT_STEP=28` 级联偏移后经 `clampPos` 夹紧）；`refresh()` 中未拖动过的浮窗由 `right/bottom` 层叠改为 `left/top` 视口居中，已拖动窗口仍按 `rec.pos` 保留用户位置，面板形态不受影响；`style.css` 的 `.ui-window` 注释同步更新（`right/bottom` 降级为 JS 定位前兜底）。静态镜像站实测（`http://127.0.0.1:28258/feat571/index.html?v=3`）：视口 1450×808 下窗 420×160，首窗 left/top=515/324 恰为视口中心（中心偏差 0,0），第二窗 543/352 = 中心+28px 级联（偏差 0,0），内联 `right/bottom` 均为 `auto`。未覆盖：真实实例观感（需重启二进制后生效）、窄屏（<720px）居中效果。

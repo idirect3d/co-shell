@@ -20,25 +20,52 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"unicode"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 )
 
 // render_ui targets (FEATURE-524 window mode): where the tree is painted.
+// FEATURE-571 adds UITargetPanel: a window that covers the main message area
+// instead of floating in a corner.
 const (
 	// UITargetStream is the default surface: a block in the chat stream.
 	UITargetStream = "stream"
 	// UITargetWindow paints into the floating window opened by ui_window.
 	UITargetWindow = "window"
+	// UITargetPanel paints into the main-area overlay panel.
+	UITargetPanel = "panel"
 )
 
 // ui_window actions.
 const (
-	// UIWindowOpen shows the floating window (or reuses the open one).
+	// UIWindowOpen shows the window, or creates/updates the named one.
 	UIWindowOpen = "open"
 	// UIWindowClose dismisses it.
 	UIWindowClose = "close"
+	// UIWindowActivate brings an open window to the front (FEATURE-571).
+	UIWindowActivate = "activate"
+)
+
+// ui_window surfaces (FEATURE-571): where a window lives on screen. The
+// surface is chosen on open and can be flipped later by rendering with the
+// matching target (panel <-> float).
+const (
+	// UIWindowSurfaceFloat is the default: a fixed bottom-right floating window.
+	UIWindowSurfaceFloat = "float"
+	// UIWindowSurfacePanel covers the main message area.
+	UIWindowSurfacePanel = "panel"
+)
+
+// Window registry bounds (FEATURE-571).
+const (
+	// UIDefaultWindowName addresses the window when the LLM names none.
+	UIDefaultWindowName = "default"
+	// UIMaxWindows bounds how many windows one session may keep open at once.
+	UIMaxWindows = 8
+	// UIMaxWindowName bounds a window name in runes.
+	UIMaxWindowName = 32
 )
 
 // ui_window size presets (FEATURE-524). A preset is a fraction of the usable
@@ -99,7 +126,11 @@ func (a *Agent) buildRenderUITool() llm.Tool {
 				"target": map[string]interface{}{
 					"type":        "string",
 					"description": i18n.T(i18n.KeyUIToolParamTarget),
-					"enum":        []string{UITargetStream, UITargetWindow},
+					"enum":        []string{UITargetStream, UITargetWindow, UITargetPanel},
+				},
+				"window": map[string]interface{}{
+					"type":        "string",
+					"description": i18n.T(i18n.KeyUIToolParamWindowName),
 				},
 				"waiting": map[string]interface{}{
 					"type":        "boolean",
@@ -136,11 +167,35 @@ func (a *Agent) renderUITool(ctx context.Context, args map[string]interface{}) (
 		return "", err
 	}
 
+	// FEATURE-571: a window target also carries the window name. An empty name
+	// addresses the current window, falling back to the default one; the window
+	// is registered here so <ui_windows> lists what is being painted into and so
+	// an unnamed render followed by a named one keeps addressing the same
+	// window.
+	windowName := ""
+	if winSurface := uiSurfaceOfTarget(surface); winSurface != "" {
+		name, nameErr := uiWindowNameArg(args, false)
+		if nameErr != nil {
+			return "", nameErr
+		}
+		if name == "" {
+			name = a.activeUIWindowName()
+		}
+		if name == "" {
+			name = UIDefaultWindowName
+		}
+		if ensureErr := a.ensureUIWindow(name, "", winSurface); ensureErr != nil {
+			return "", ensureErr
+		}
+		windowName = name
+	}
+
 	if target := uiUpdateTarget(args); target != "" {
 		a.mu.Lock()
 		a.pendingUIUpdateID = target
 		a.pendingUIUpdateNode = root
 		a.pendingUITarget = surface
+		a.pendingUIWindowName = windowName
 		a.mu.Unlock()
 		return i18n.TF(i18n.KeyUIUpdateSummary, target, CountUINodes(root)), nil
 	}
@@ -150,7 +205,14 @@ func (a *Agent) renderUITool(ctx context.Context, args map[string]interface{}) (
 	a.pendingUITree = root
 	a.pendingUIID = id
 	a.pendingUITarget = surface
+	a.pendingUIWindowName = windowName
 	a.mu.Unlock()
+
+	// FEATURE-571: record what the window currently shows so <ui_windows> can
+	// tell the LLM which window holds which result.
+	if windowName != "" {
+		a.setUIWindowSummary(windowName, uiTreeSummary(root, id))
+	}
 
 	// waiting=true parks the call until the user acts on a rendered component:
 	// the action then becomes the tool result, so the agent continues in the
@@ -245,16 +307,28 @@ func (a *Agent) setUIEmitter(cb StreamCallback) {
 func (a *Agent) takeUIRenderEvent() (StreamEvent, bool) {
 	if target, node := a.takePendingUIUpdate(); node != nil {
 		if patchJSON, err := MarshalUITree(node); err == nil {
-			return UIUpdateEventTo(target, patchJSON, a.takePendingUITarget()), true
+			ev := UIUpdateEventTo(target, patchJSON, a.takePendingUITarget())
+			return withUIWindowName(ev, a.takePendingUIWindowName()), true
 		}
 		return StreamEvent{}, false
 	}
 	if root, uiID := a.takePendingUITree(); root != nil {
 		if treeJSON, err := MarshalUITree(root); err == nil {
-			return UIRenderEventTo(uiID, treeJSON, a.takePendingUITarget()), true
+			ev := UIRenderEventTo(uiID, treeJSON, a.takePendingUITarget())
+			return withUIWindowName(ev, a.takePendingUIWindowName()), true
 		}
 	}
 	return StreamEvent{}, false
+}
+
+// takePendingUIWindowName returns and clears the window name the parked tree or
+// update belongs to (FEATURE-571). An empty result means the default window.
+func (a *Agent) takePendingUIWindowName() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	name := a.pendingUIWindowName
+	a.pendingUIWindowName = ""
+	return name
 }
 
 // emitUIRender publishes the parked tree immediately, using the callback the
@@ -293,17 +367,98 @@ func uiRenderTarget(args map[string]interface{}) (string, error) {
 		return UITargetStream, nil
 	case UITargetWindow:
 		return UITargetWindow, nil
+	case UITargetPanel:
+		return UITargetPanel, nil
 	default:
 		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrTarget, s))
 	}
 }
 
-// uiWindowRequest is one parked ui_window call: the action to perform, the
-// window title and the size preset (both empty for close).
+// uiSurfaceOfTarget maps a render_ui target to the window surface it paints
+// into: the chat stream needs no window, window floats and panel covers the
+// main message area (FEATURE-571).
+func uiSurfaceOfTarget(target string) string {
+	switch target {
+	case UITargetWindow:
+		return UIWindowSurfaceFloat
+	case UITargetPanel:
+		return UIWindowSurfacePanel
+	default:
+		return ""
+	}
+}
+
+// uiWindowNameArg reads and validates the optional window name. When def is
+// true an empty name falls back to the default window; otherwise an empty
+// result means "the current window" and is resolved by the caller.
+func uiWindowNameArg(args map[string]interface{}, def bool) (string, error) {
+	name := strings.TrimSpace(uiStringArg(args, "window"))
+	if name == "" {
+		if def {
+			return UIDefaultWindowName, nil
+		}
+		return "", nil
+	}
+	if err := validateUIWindowName(name); err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
+// validateUIWindowName rejects names that would break the <ui_windows> list or
+// the tab label: a rune budget plus a whitelist (letters, digits, CJK, space,
+// dash, underscore, dot) so no control character, markup or quote can enter the
+// registry.
+func validateUIWindowName(name string) error {
+	if n := len([]rune(name)); n == 0 || n > UIMaxWindowName {
+		return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowName, UIMaxWindowName))
+	}
+	for _, r := range name {
+		switch {
+		case r == ' ' || r == '-' || r == '_' || r == '.':
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		case unicode.IsLetter(r) && unicode.Is(unicode.Han, r):
+		default:
+			return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowName, UIMaxWindowName))
+		}
+	}
+	return nil
+}
+
+// normalizeUIWindowSurface folds a ui_window surface argument to a known
+// surface. An empty value means "keep the current surface" (float for a new
+// window), so the caller can tell "not given" from "float".
+func normalizeUIWindowSurface(s string) (string, error) {
+	raw := s
+	switch surface := strings.ToLower(strings.TrimSpace(s)); surface {
+	case "":
+		return "", nil
+	case UIWindowSurfaceFloat, UIWindowSurfacePanel:
+		return surface, nil
+	default:
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowSurface, raw))
+	}
+}
+
+// uiSurfaceLabel renders a surface for a tool receipt: an empty surface ("keep
+// the current one") reads as the default float.
+func uiSurfaceLabel(surface string) string {
+	if surface == "" {
+		return UIWindowSurfaceFloat
+	}
+	return surface
+}
+
+// uiWindowRequest is one parked ui_window call (FEATURE-524, extended by
+// FEATURE-571 with the addressed window and its surface): the action to
+// perform, the target window name, the title, the size preset and the surface.
+// Title, size and surface stay empty for close/activate.
 type uiWindowRequest struct {
-	Action string
-	Title  string
-	Size   string
+	Action  string
+	Name    string
+	Title   string
+	Size    string
+	Surface string
 }
 
 // buildUIWindowTool declares the ui_window tool (FEATURE-524 window mode). It
@@ -323,12 +478,21 @@ func (a *Agent) buildUIWindowTool() llm.Tool {
 				},
 				"action": map[string]interface{}{
 					"type":        "string",
-					"description": "open: show the floating window; close: dismiss it.",
-					"enum":        []string{UIWindowOpen, UIWindowClose},
+					"description": "open: show or create the window; close: dismiss it; activate: bring an already open window to the front.",
+					"enum":        []string{UIWindowOpen, UIWindowClose, UIWindowActivate},
+				},
+				"window": map[string]interface{}{
+					"type":        "string",
+					"description": i18n.T(i18n.KeyUIToolParamWindowName),
 				},
 				"title": map[string]interface{}{
 					"type":        "string",
 					"description": i18n.T(i18n.KeyUIToolParamWindowTitle),
+				},
+				"surface": map[string]interface{}{
+					"type":        "string",
+					"description": i18n.T(i18n.KeyUIToolParamWindowSurface),
+					"enum":        []string{UIWindowSurfaceFloat, UIWindowSurfacePanel},
 				},
 				"size": map[string]interface{}{
 					"type":        "string",
@@ -347,8 +511,22 @@ func (a *Agent) buildUIWindowTool() llm.Tool {
 func (a *Agent) uiWindowTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	rawAction := strings.TrimSpace(uiStringArg(args, "action"))
 	action := strings.ToLower(rawAction)
-	if action != UIWindowOpen && action != UIWindowClose {
+	switch action {
+	case UIWindowOpen, UIWindowClose, UIWindowActivate:
+	default:
 		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowAction, rawAction))
+	}
+
+	// FEATURE-571: window names which window the action applies to. An empty
+	// name addresses the current window (the default one for open).
+	name, err := uiWindowNameArg(args, action == UIWindowOpen)
+	if err != nil {
+		return "", err
+	}
+	if name == "" {
+		if name = a.activeUIWindowName(); name == "" {
+			name = UIDefaultWindowName
+		}
 	}
 
 	title := strings.TrimSpace(uiStringArg(args, "title"))
@@ -360,26 +538,56 @@ func (a *Agent) uiWindowTool(ctx context.Context, args map[string]interface{}) (
 	if err != nil {
 		return "", err
 	}
+	surface, err := normalizeUIWindowSurface(uiStringArg(args, "surface"))
+	if err != nil {
+		return "", err
+	}
+
+	if action == UIWindowClose {
+		// The title, size and surface only belong to an open window.
+		title, size, surface = "", "", ""
+	}
+
+	// FEATURE-571: the registry mirrors what the user sees. A close takes
+	// effect at once (the frontend's own ✕ needs nothing more), while
+	// open/activate are parked for the stream loop, the only owner of the
+	// StreamCallback.
+	// Closing is idempotent on purpose: a window that is already gone (the user
+	// clicked ✕, or the page was refreshed) must not turn a defensive close into
+	// an error, and the event still tells the frontend to drop whatever it shows.
+	if action == UIWindowClose {
+		a.closeUIWindow(name)
+	} else if err := a.ensureUIWindow(name, title, surface); err != nil {
+		return "", err
+	} else if surface == "" {
+		// The receipt and the event must carry the effective surface, so the
+		// frontend can place the window even when the caller omitted it.
+		surface = a.uiWindowSurface(name)
+	}
+
+	// The registry owns the effective title (an open without a title keeps the
+	// current one), so read it before taking the lock: a.mu is not reentrant.
+	effectiveTitle := a.uiWindowTitle(name)
+
+	a.mu.Lock()
+	a.pendingUIWindow = &uiWindowRequest{Action: action, Name: name, Title: effectiveTitle, Size: size, Surface: surface}
+	a.mu.Unlock()
 
 	switch action {
 	case UIWindowClose:
-		// The title and the size only belong to an open window.
-		title = ""
-		size = ""
-	default:
-		if title == "" {
-			title = i18n.T(i18n.KeyUIWindowDefaultTitle)
+		if name == UIDefaultWindowName {
+			return i18n.T(i18n.KeyUIWindowCloseSummary), nil
 		}
+		return i18n.TF(i18n.KeyUIWindowCloseNamedSummary, name), nil
+	case UIWindowActivate:
+		return i18n.TF(i18n.KeyUIWindowActivateSummary, name), nil
 	}
-
-	a.mu.Lock()
-	a.pendingUIWindow = &uiWindowRequest{Action: action, Title: title, Size: size}
-	a.mu.Unlock()
-
-	if action == UIWindowClose {
-		return i18n.T(i18n.KeyUIWindowCloseSummary), nil
+	// The default window keeps the pre-v0.85 receipt; a named one (or an
+	// explicit surface) reports the name and the surface it now has.
+	if name == UIDefaultWindowName && surface == "" {
+		return i18n.TF(i18n.KeyUIWindowOpenSummary, title, size), nil
 	}
-	return i18n.TF(i18n.KeyUIWindowOpenSummary, title, size), nil
+	return i18n.TF(i18n.KeyUIWindowOpenNamedSummary, name, title, uiSurfaceLabel(surface), size), nil
 }
 
 // normalizeUIWindowSize folds a ui_window size argument to a known preset; an

@@ -138,6 +138,14 @@ type Agent struct {
 	// window mode).
 	pendingUIWindow *uiWindowRequest
 
+	// FEATURE-571 multi-window state: pendingUIWindowName is the window the
+	// parked tree/update addresses, uiWindows is the session-level registry
+	// (name/title/surface/content summary) that <ui_windows> reports to the LLM,
+	// and uiWindowActive names the window an unnamed render addresses.
+	pendingUIWindowName string
+	uiWindows           []*uiWindowState
+	uiWindowActive      string
+
 	// uiEmit is the StreamCallback RunStream installs for the duration of a
 	// turn. render_ui publishes its tree through it *before* parking a waiting
 	// call: the loop can only emit after the tool returns, and a waiting call

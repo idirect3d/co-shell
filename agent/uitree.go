@@ -148,6 +148,9 @@ func ParseUITree(raw string) (*UINode, error) {
 	if trimmed == "" {
 		return nil, fmt.Errorf("%s", i18n.T(i18n.KeyUIErrTreeEmpty))
 	}
+	if isPrunedTreeSummary(trimmed) {
+		return nil, fmt.Errorf("%s", i18n.T(i18n.KeyUIErrTreePrunedSummary))
+	}
 	var root UINode
 	dec := json.NewDecoder(strings.NewReader(trimmed))
 	if err := dec.Decode(&root); err != nil {
@@ -157,6 +160,23 @@ func ParseUITree(raw string) (*UINode, error) {
 		return nil, err
 	}
 	return &root, nil
+}
+
+// isPrunedTreeSummary reports whether raw is the receipt the context pruner
+// writes in place of a render_ui tree ({"summary": "..."} , agent/ui_prune.go).
+// That shape is exactly what a caller copies back when it re-uses a pruned
+// history entry, so it gets its own message instead of the generic "missing
+// type" one.
+func isPrunedTreeSummary(raw string) bool {
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &shape); err != nil {
+		return false
+	}
+	if _, ok := shape["type"]; ok {
+		return false
+	}
+	_, ok := shape["summary"]
+	return ok
 }
 
 // ValidateUITree checks the whole tree against the protocol limits and the

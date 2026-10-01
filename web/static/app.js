@@ -646,6 +646,10 @@ function wsConnect() {
     // sent explicitly so the replay does not depend on when the backend applied
     // the switch.
     else if (msg.kind === "session_switched") {
+      // FEATURE-571: this frame carries the current session id on connect and on
+      // every switch, so the window registry learns which session it paints
+      // before the history replay re-renders the windows.
+      if (window.UIWin && typeof UIWin.setSession === "function") UIWin.setSession(msg.message || "");
       resetStreamView();
       wsSend({ type: "history_get", count: pageBufferSize, value: msg.message || "" });
     }
@@ -1664,6 +1668,13 @@ function eventClass(ev) {
 // markup inside the tree stays inert text.
 function renderUIBlock(ev) {
   const m = ev.meta || {};
+  // FEATURE-571: window and panel targets belong to the multi-window registry,
+  // which creates the addressed window on demand, keeps it across surfaces and
+  // mirrors it back to the agent. A registry that cannot place the tree (no
+  // window markup) falls through to the FEATURE-524 single-window path below.
+  if (m.ui_target === "window" || m.ui_target === "panel") {
+    if (window.UIWin && typeof UIWin.render === "function" && UIWin.render(m)) return;
+  }
   // FEATURE-524 window mode: a tree rendered with target="window" belongs to
   // the floating window, not to the chat stream. The window is opened on
   // demand, so a render that races ahead of its ui_window event still lands in
@@ -1703,6 +1714,9 @@ function renderUIBlock(ev) {
 // updates the title, so repeated opens never stack overlays.
 function applyUIWindow(ev) {
   const m = ev.meta || {};
+  // FEATURE-571: the registry owns open/close/activate, including which window
+  // an action addresses and the surface it lives on.
+  if (window.UIWin && typeof UIWin.applyWindowEvent === "function" && UIWin.applyWindowEvent(m)) return;
   if (!window.UI || typeof UI.closeWindow !== "function" || typeof UI.openWindow !== "function") return;
   if (m.ui_window_action === "close") { UI.closeWindow(); return; }
   if (m.ui_window_action === "open") { UI.openWindow(m.ui_window_title || "", m.ui_window_size || ""); }
@@ -1715,6 +1729,10 @@ function applyUIWindow(ev) {
   const btn = document.getElementById("uiWindowClose");
   if (!btn) return;
   btn.addEventListener("click", function () {
+    // FEATURE-571: the button closes the window that owns its shell. The
+    // registry binds its own shells too; this path covers it and keeps the
+    // FEATURE-524 fallback for a bundle without ui-windows.js.
+    if (window.UIWin && typeof UIWin.closeFromShell === "function" && UIWin.closeFromShell(btn)) return;
     if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
   });
 })();
@@ -2871,6 +2889,12 @@ let sessionList = [];
 // updates the 💬 count. Called when the server pushes a "sessions" message.
 function renderSessionMenu(sessions) {
   sessionList = sessions || [];
+  // FEATURE-571: the sessions push also tells the window registry which
+  // session it is on, which is what makes the per-session window store work.
+  if (window.UIWin && typeof UIWin.setSession === "function") {
+    const cur = sessionList.find((s) => s.current);
+    if (cur) UIWin.setSession(cur.id);
+  }
   sbSessions.innerHTML = iconHTML("i-sessions", "ico-sb") + sessionList.length;
   sessionMenu.textContent = "";
   if (sessionList.length === 0) {
@@ -2916,7 +2940,11 @@ function renderSessionMenu(sessions) {
       if (s.current) return;
             // FEATURE-524 window mode: the window is not persisted, so a session
       // switch closes it instead of leaving a stale panel behind.
-      if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
+      // FEATURE-571: windows are kept per session, so a switch parks the
+      // current ones and restores the target session's instead of deleting
+      // them; the registry also mirrors the new list to the new agent.
+      if (window.UIWin && typeof UIWin.setSession === "function") UIWin.setSession(s.id);
+      else if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
       wsSend({ type: "session_switch", value: s.id });
     };
     sessionMenu.appendChild(row);
@@ -4614,6 +4642,12 @@ let running = false;
 // immediately for responsive feedback.
 function setRunning(v) {
   running = v;
+  // FEATURE-571: a control that fired an event stays disabled until the turn
+  // ends, so re-arm the blocked buttons/elements on the turn boundary (this is
+  // the only place that knows when the agent handed control back).
+  if (!v && window.UI && typeof window.UI.releasePendingActions === "function") {
+    window.UI.releasePendingActions();
+  }
   setIcon(sendBtn, v ? "i-pause" : "i-send");
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);

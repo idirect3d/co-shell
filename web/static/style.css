@@ -3992,9 +3992,9 @@ select,
 }
 .ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
 
-/* FEATURE-524 window mode: the single floating window opened by ui_window.
-   Fixed to the bottom-right, close button only (no drag/minimise/resize), and
-   nothing is persisted: a refresh or a session switch starts without it. */
+/* FEATURE-524 window mode: the floating windows opened by ui_window. The
+   right/bottom pair below is only the pre-JS fallback: ui-windows.js centres a
+   window the user has not dragged yet (FEATURE-571). */
 .ui-window {
   position: fixed;
   right: 16px;
@@ -4034,6 +4034,7 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ui-window-max,
 .ui-window-close {
   border: 0;
   background: transparent;
@@ -4044,6 +4045,7 @@ select,
   padding: 3px 7px;
   border-radius: 6px;
 }
+.ui-window-max:hover,
 .ui-window-close:hover { background: rgba(127, 127, 127, 0.22); }
 .ui-window-body {
   display: flex;
@@ -4159,3 +4161,155 @@ select,
 /* Export staging area: the clone must be inside the document for
    getComputedStyle to resolve, but it must never be visible. */
 .ui-figure-export { position: fixed; left: -10000px; top: 0; }
+
+/* ---------- FEATURE-571: main-area panel (multi-window) ---------- */
+
+/* The panel reuses the file previewer's overlay region (inside #stream-wrap)
+   but sits BELOW it (z-index 30 < .file-viewer's 40), so a file/image preview
+   temporarily covers the panel and closing the preview reveals it again. It
+   always fills the whole message area: there are no size presets. */
+.ui-panel {
+  position: absolute;
+  top: 35px; /* below the stream title bar, exactly like .file-viewer */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ui-panel.hidden { display: none; }
+.ui-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color, rgba(127, 127, 127, 0.35));
+  background: rgba(127, 127, 127, 0.10);
+  flex-shrink: 0;
+}
+.ui-panel-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ui-panel-tabs::-webkit-scrollbar { display: none; }
+.ui-panel-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.72;
+}
+.ui-panel-tab:hover { background: rgba(127, 127, 127, 0.18); opacity: 1; }
+.ui-panel-tab.active {
+  border-color: var(--border-color, rgba(127, 127, 127, 0.45));
+  background: rgba(127, 127, 127, 0.22);
+  opacity: 1;
+  font-weight: 600;
+}
+.ui-panel-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.ui-panel-btn:hover { background: rgba(127, 127, 127, 0.22); }
+.ui-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+  /* The body is the query container for the existing folding rules, so they
+     react to the panel width instead of the viewport width. */
+  container-type: inline-size;
+}
+.ui-panel-body > * { flex-shrink: 0; }
+
+/* FEATURE-571: narrow screens keep the switching entry points (swipe + the ≡
+   list button) but drop the tab strip, which has no room left to be legible. */
+@media (max-width: 720px) {
+  .ui-panel-tabs { display: none; }
+}
+
+/* FEATURE-571: a window that belongs to the same registry as the panel. Unlike
+   the panel it is not clipped by #stream-wrap, so a window "collapsed" from the
+   panel keeps its own placement and outside-click behaviour. */
+.ui-window[data-window-name] { /* marker only; styling is shared above */ }
+
+/* FEATURE-571: the holder owns the rendered tree of one window and is what
+   moves between the panel body and a float shell, so a surface flip never
+   rebuilds the tree. */
+.ui-win-holder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.ui-win-holder.hidden { display: none; }
+
+/* FEATURE-571: the window list behind the ≡ button — the switching entry point
+   that stays available when the tab strip is hidden on a narrow screen. */
+.ui-panel-list {
+  position: absolute;
+  top: 34px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  min-width: 140px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.45));
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+.ui-panel-list.hidden { display: none; }
+.ui-panel-list button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-panel-list button:hover { background: rgba(127, 127, 127, 0.18); }
+.ui-panel-list button.active { font-weight: 600; background: rgba(127, 127, 127, 0.22); }
+
+/* FEATURE-571: the title bar doubles as the drag handle of a floating window. */
+.ui-window-head { cursor: move; touch-action: none; }
+.ui-window-dragging { user-select: none; }
+.ui-window-dragging .ui-window-head { cursor: grabbing; }
+
+/* FEATURE-571: a control element that already fired an event in the current
+   turn. It stays disabled until the turn ends (UI.releasePendingActions
+   re-arms it), so one turn can never be flooded by repeated clicks. Elements
+   with a native disabled attribute dim through that state as well. */
+.ui-pending {
+  opacity: .5;
+  cursor: default;
+}

@@ -66,6 +66,24 @@ func TestUIUC02UnknownTypeRejected(t *testing.T) {
 	}
 }
 
+// UC-02b (FIX): a tree reduced to the context-pruner receipt is rejected with a
+// message that names the real cause instead of a missing type field.
+func TestUIUC02PrunedSummaryNamed(t *testing.T) {
+	raw := `{"summary":"card 组件树（3 个节点）已裁剪为摘要"}`
+	_, err := ParseUITree(raw)
+	if err == nil {
+		t.Fatal("a pruned summary must be rejected")
+	}
+	if !strings.Contains(err.Error(), "ui_context_prune") {
+		t.Fatalf("error %q must point at the pruned tree, not at a missing type", err.Error())
+	}
+
+	// A real tree that happens to carry a summary prop stays valid.
+	if _, err := ParseUITree(`{"type":"card","props":{"summary":"x"}}`); err != nil {
+		t.Fatalf("UC-02b: a typed tree must still parse: %v", err)
+	}
+}
+
 // UC-03: a tree deeper than UIMaxTreeDepth is rejected.
 func TestUIUC03DepthLimit(t *testing.T) {
 	raw := `{"type":"card"}`

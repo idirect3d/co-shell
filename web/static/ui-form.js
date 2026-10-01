@@ -163,12 +163,17 @@
         }
         // blocking travels with the action: it tells the backend that this
         // submit expects a parked render_ui(waiting=true) call to consume it
-        // (FEATURE-524 window mode).
+        // (FEATURE-524 window mode). FEATURE-571: the submit button — not the
+        // whole form — is the element blocked for the rest of the turn, and
+        // only when the action did not opt into continuous events; the shared
+        // path blocks it and re-arms it when the turn ends.
+        var continuous = typeof global.UI.actionContinuous === "function"
+          ? global.UI.actionContinuous(submitAction, node, submit)
+          : false;
         var sent = typeof global.UI.sendUIAction === "function"
-          ? global.UI.sendUIAction(submitAction.id, payload, form, !!(submitAction.blocking))
+          ? global.UI.sendUIAction(submitAction.id, payload, submit, !!(submitAction.blocking), continuous)
           : false;
         if (sent) {
-          submit.disabled = true;
           form.setAttribute("data-submitted", "1");
         }
       };
