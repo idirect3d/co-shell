@@ -88,7 +88,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"command": map[string]interface{}{
 						"type":        "string",
@@ -121,7 +121,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"command": map[string]interface{}{
 						"type":        "string",
@@ -148,7 +148,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 				},
 				"required": []string{"meta"},
@@ -163,7 +163,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"wait_ms": map[string]interface{}{
 						"type":        "number",
@@ -194,7 +194,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 				},
 				"required": []string{"meta"},
@@ -212,7 +212,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -239,7 +239,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -266,7 +266,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -289,7 +289,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -313,7 +313,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				},
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"instruct": map[string]interface{}{
 					"type":        "string",
@@ -339,7 +339,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				},
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"replacements": map[string]interface{}{
 					"type": "array",
@@ -397,7 +397,7 @@ Critical rules:
 				},
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"mode": map[string]interface{}{
 					"type":        "string",
@@ -427,7 +427,7 @@ Critical rules:
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"name": map[string]interface{}{
 						"type":        "string",
@@ -504,7 +504,7 @@ Critical rules:
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -526,7 +526,7 @@ Critical rules:
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
@@ -549,7 +549,7 @@ Critical rules:
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"keywords": map[string]interface{}{
 							"type":        "array",
@@ -577,7 +577,7 @@ Critical rules:
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
@@ -605,7 +605,7 @@ Critical rules:
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"settings": map[string]interface{}{
 					"type": "array",
@@ -648,7 +648,7 @@ Critical rules:
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 			},
 			"required": []string{"meta"},
@@ -668,7 +668,7 @@ Critical rules:
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"expression": map[string]interface{}{
 					"type":        "string",
@@ -701,7 +701,7 @@ When the completion-confirm switch is enabled (default), this tool presents the 
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"result": map[string]interface{}{
 					"type":        "string",
@@ -762,7 +762,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			"properties": map[string]interface{}{
 				"meta": map[string]interface{}{
 					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 				},
 				"summary_prompt": map[string]interface{}{
 					"type":        "string",
@@ -785,7 +785,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"url": map[string]interface{}{
 							"type":        "string",
@@ -804,7 +804,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"instruct": map[string]interface{}{
 							"type":        "string",
@@ -835,7 +835,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"x": map[string]interface{}{
 							"type":        "number",
@@ -870,7 +870,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"text": map[string]interface{}{
 							"type":        "string",
@@ -897,7 +897,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"expression": map[string]interface{}{
 							"type":        "string",
@@ -916,7 +916,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -931,7 +931,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"delta_x": map[string]interface{}{
 							"type":        "number",
@@ -954,7 +954,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -969,7 +969,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -984,7 +984,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -999,7 +999,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -1032,7 +1032,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 					},
 					"required": []string{"meta"},
@@ -1047,7 +1047,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"name": map[string]interface{}{
 							"type":        "string",
@@ -1074,7 +1074,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					"properties": map[string]interface{}{
 						"meta": map[string]interface{}{
 							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 						},
 						"name": map[string]interface{}{
 							"type":        "string",
@@ -1099,7 +1099,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"path": map[string]interface{}{
 						"type":        "string",
@@ -1122,7 +1122,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1141,7 +1141,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1160,7 +1160,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1179,7 +1179,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1227,7 +1227,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1265,7 +1265,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1308,7 +1308,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1335,7 +1335,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1370,7 +1370,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1421,7 +1421,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1452,7 +1452,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1588,7 +1588,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"path": map[string]interface{}{
 						"type":        "string",
@@ -1611,7 +1611,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1630,7 +1630,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1649,7 +1649,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1668,7 +1668,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1700,7 +1700,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1727,7 +1727,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1762,7 +1762,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1789,7 +1789,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1812,7 +1812,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -1849,7 +1849,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 					},
 					"id": map[string]interface{}{
 						"type":        "string",
@@ -2039,7 +2039,7 @@ func injectMetaParam(tool *llm.Tool) {
 	// Add the meta object parameter.
 	props["meta"] = map[string]interface{}{
 		"type":        "object",
-		"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+		"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
 	}
 
 	// Vision tools get an explicit instruct parameter for the vision model.

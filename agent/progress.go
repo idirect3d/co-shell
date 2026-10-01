@@ -28,9 +28,39 @@ package agent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/idirect3d/co-shell/taskplan"
 )
+
+// MissingProgressStep identifies a step that was still in progress in the task
+// plan but was left out of a tool call's progress report (FIX-574).
+type MissingProgressStep struct {
+	Index  int
+	Title  string
+	Status string
+}
+
+// ProgressReportError reports a rejected meta.progress report (FIX-574). It
+// carries the in-progress steps the report failed to cover, so the error text
+// can list them instead of falling back to the generic "missing required
+// parameters" template (which only talks about the tool's own arguments).
+type ProgressReportError struct {
+	Missing []MissingProgressStep
+}
+
+// Error implements the error interface with the missing steps spelled out, so
+// the LLM can add exactly those steps to meta.progress and re-send the call.
+func (e *ProgressReportError) Error() string {
+	parts := make([]string, 0, len(e.Missing))
+	for _, m := range e.Missing {
+		parts = append(parts, fmt.Sprintf("[%d] %q (status: %s)", m.Index, m.Title, m.Status))
+	}
+	return fmt.Sprintf(
+		"progress report must include the latest status of every in-progress step; missing step(s): %s",
+		strings.Join(parts, ", "),
+	)
+}
 
 // parseProgressSteps extracts the LLM's progress report from the tool call's
 // meta object (FEATURE-447). The meta.progress field is an array of objects
@@ -110,14 +140,20 @@ func (a *Agent) applyProgressReport(args map[string]interface{}) (*taskplan.Task
 		for _, s := range steps {
 			reported[s.Index] = true
 		}
-		var forgotten []int
+		var forgotten []MissingProgressStep
 		for i, st := range plan.Steps {
 			if st.Status == taskplan.StatusInProgress && !reported[i] {
-				forgotten = append(forgotten, i)
+				forgotten = append(forgotten, MissingProgressStep{
+					Index:  i,
+					Title:  st.Description,
+					Status: string(st.Status),
+				})
 			}
 		}
 		if len(forgotten) > 0 {
-			return nil, fmt.Errorf("progress report must include the latest status of every in-progress step; missing step(s) at index %v", forgotten)
+			// FIX-574: carry the missing steps so the caller can render an
+			// actionable error (still a hard failure: the call is rejected).
+			return nil, &ProgressReportError{Missing: forgotten}
 		}
 	}
 

@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -36,6 +37,22 @@ import (
 // and how to correct it.
 func formatToolError(toolName string, err error) string {
 	errMsg := err.Error()
+
+	// FIX-574: a rejected meta.progress report carries the in-progress steps the
+	// report left out. Spell them out so the LLM can add exactly those steps;
+	// the generic "missing required parameters" template below must NOT be used
+	// here — it only talks about the tool's own arguments.
+	var perr *ProgressReportError
+	if errors.As(err, &perr) {
+		return formatProgressReportError(toolName, perr)
+	}
+
+	// FIX-574: meta validation errors (meta.intent / meta.risk / meta.progress /
+	// a malformed progress array) belong to the transparency object, not to the
+	// tool's arguments, so they get their own message.
+	if isMetaValidationError(errMsg) {
+		return formatMetaError(toolName, errMsg)
+	}
 
 	// Check for missing required parameter errors
 	// Common patterns: "missing required parameter", "required field not present"
@@ -88,6 +105,53 @@ Please review the error and correct your approach. Check the tool definition for
 		toolName,
 		errMsg,
 	)
+}
+
+// isMetaValidationError reports whether the error comes from the transparency
+// meta validation (the meta object or its progress array) rather than from the
+// tool's own arguments (FIX-574).
+func isMetaValidationError(errMsg string) bool {
+	return strings.HasPrefix(errMsg, "meta.") ||
+		strings.HasPrefix(errMsg, "progress") ||
+		strings.Contains(errMsg, "meta object is required")
+}
+
+// formatProgressReportError renders a rejected meta.progress report (FIX-574):
+// it lists the in-progress steps the report failed to cover and states how to
+// fix the call. The call is still rejected — only the message is actionable.
+func formatProgressReportError(toolName string, perr *ProgressReportError) string {
+	var missing strings.Builder
+	for _, m := range perr.Missing {
+		fmt.Fprintf(&missing, "\n  [%d] %s (current status: %s)", m.Index, m.Title, m.Status)
+	}
+	return fmt.Sprintf(`Tool call "%s" was REJECTED: its meta.progress report did not cover every step that is still in progress.
+
+MISSING IN-PROGRESS STEPS (each MUST appear in meta.progress with its latest status):%s
+
+FIX: re-send the same call and make meta.progress include every step listed above,
+using the same index/description/status as the task plan (steps you have finished
+must be reported as completed).`,
+		toolName, missing.String())
+}
+
+// formatMetaError renders a meta validation failure (FIX-574): it lists the
+// required meta fields and the minimal shape of progress instead of the tool's
+// own parameters.
+func formatMetaError(toolName, errMsg string) string {
+	return fmt.Sprintf(`Tool call "%s" was REJECTED: the transparency meta object is missing or invalid.
+
+ERROR DETAILS: %s
+
+meta is REQUIRED on this tool call and must provide ALL fields:
+  - intent (string): what you are about to do
+  - risk ("low" | "medium" | "high"): your self-assessed risk level
+  - risk_reason (string): why that risk level
+  - affected_objects (array of absolute paths): what the call touches
+  - progress (array, at least 1 record): [{"index": 0, "description": "step text", "status": "in_progress"}]
+    one record per reported step; every step that is still in progress must be included.
+
+FIX: re-send the same call with a complete meta object as described above.`,
+		toolName, errMsg)
 }
 
 // getRequiredParamsDescription returns a description of required parameters for common tools.

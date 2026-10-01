@@ -4,6 +4,32 @@
 
 ---
 
+## v0.85.2 — 修复工具调用 meta.progress 规则冲突与误导性错误提示
+
+> **版本**: v0.85.2
+
+> **状态**: 🚧 编码完成，待用户实测确认（FIX-574，分支 `FIX-574`，[BUILD-1168]）
+> **里程碑**: ① 消除系统提示词中「未变化的步骤可以不传」与后端「所有 in_progress 步骤必须上报」的自相矛盾；② 保持“遗漏在办步骤即拒绝该次调用”的硬失败语义不变，但错误提示必须列出**被遗漏步骤的 index/描述/状态**并给出补齐动作，不再回填工具自身参数清单；③ 在工具 schema 的 meta 描述中写明 progress 最小形态。**不含 P0-B**（不放宽“progress 至少 1 条”的要求）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-574 | 0.85.2 | P0 | ① `i18n/zh_system.go`/`i18n/en_system.go`（meta 段 ×2 + task-progress 段）把 progress 规则统一为三段式唯一表述（本次变化的步骤 + 当前执行步骤 + 仍处于 in_progress 的步骤），删除“只报变化步骤、未变化可不传”的独立说法；② `agent/progress.go` 在拒绝 progress 报告时携带被遗漏步骤（index/描述/状态），`agent/tool_error.go` 新增 meta/progress 专属错误分支（列出遗漏步骤 + meta 五字段 + progress 最小形态 + 重发动作），不再套用“missing required parameters”模板；③ `agent/*_defs.go`、`agent/tools.go` 等工具的 meta 描述补写 progress 最小形态。依据 `research/会话初期工具调用报错分析.md`（P0-A/P1-A/P1-B）。运行时用例见 `use-case/FIX-574/FIX-574-UC-0001.md`。 |
+
+> 当前 BUILD: 1168
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-574 工具调用 meta.progress 规则冲突与误导性错误提示**（编码完成，待用户实测确认，[BUILD-1168]）
+  - 现象：会话初期（任务计划刚建立）工具调用报错偏多，主体为 `meta.progress is required...`、`missing step(s) at index [N]`、`meta.risk/affected_objects is required`；且错误提示讲的是工具自身参数（如 read_file 的 `path`），与真实原因无关。
+  - 根因（详见 `research/会话初期工具调用报错分析.md`）：系统提示词同段内“未变化的步骤可以不传”与“所有 in_progress 步骤必须体现”互相矛盾，模型按前者只上报当前步骤 → 被 `agent/progress.go`（FEATURE-452）判定遗漏而拒绝；`agent/tool_error.go` 又用 `contains("missing"/"required")` 粗分类，把所有 meta 类错误套上“缺少工具参数”模板。
+  - 修复：① 提示词收敛为三段式唯一规则（P0-A）；② 错误提示可执行化——仍拒绝，但列出被遗漏步骤的 index/描述/状态与 meta 五字段/最小形态，不再回填工具参数（P1-A）；③ 工具 schema 的 meta 描述内写明 progress 最小形态（P1-B）。
+  - 分支/版本：**FIX-574**（基于 main），版本 v0.85.2（FIX → patch 递增）
+  - 运行时用例：`use-case/FIX-574/FIX-574-UC-0001.md`
+
+---
+
 ## v0.85.1 — 修复窄/宽屏切换后底部控件错位（新建会话按钮跑到输入框右侧、状态条错乱）
 
 > **版本**: v0.85.1
