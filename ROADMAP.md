@@ -47,7 +47,7 @@
 
 > **版本**: v0.85.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1166；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复 + 控件「连续接收用户事件」开关 + figure ellipse 3D 投影修复均已完成，待用户确认后合并 main）
+> **状态**: ✅ 已完成（分支 FEATURE-571 已合并 main，tag `v0.85.0`，BUILD-1166；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复 + 控件「连续接收用户事件」开关 + figure ellipse 3D 投影修复均已完成）
 > **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -60,7 +60,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1166]）
+- [X] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（已完成，已合并 main 并打 tag `v0.85.0`，[BUILD-1166]）
   - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
   - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
     - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
@@ -75,7 +75,7 @@
   - 实施要点：窗口 = 名字 → 记录（Name/Title/Surface/Active/摘要/打开时间），上限 8；窗口名 1~32 字符、禁控制字符与 `<` `>` `&` `"` `'` `\`、首尾无空白；面板 `z-index` 低于 `.file-viewer`；`ui_window_state` 上行同步（✕/切标签/换形态/连接与会话切换时全量）；旧行为零回归（`target=stream`/`target=window`、`ui_update`、actions、waiting、四主题、窄窗折叠）。
   - 验收标准：① `render_ui(target="panel")` 可渲染任意现有控件，且与文件预览并存；② 多窗口 tabs 点击/左右滑动切换，窄屏隐藏 tabs 仍可切换；③ 每窗独立 ✕、Esc 关闭，面板可收成浮窗并可切回；④ `<ui_windows>` 清单驱动新建 vs 更新，工具说明含该提示；⑤ 清单与每窗最后的树按会话存 localStorage，切走再切回/刷新可恢复；⑥ ✕/切标签/收成浮窗均同步后端清单，无前后端状态不一致；⑦ 零回归；⑧ `go build ./... && go vet ./... && go test ./...` 全绿且用例通过浏览器实测；⑨ 提交在 FEATURE-571 分支，用户确认后合并 main 并打 tag `v0.85.0`。
   - 设计文档：`docs/ui-components.md` §10（主信息区覆盖面板与多窗口）。
-  - 用例文档：`use-case/FEATURE-571/FEATURE-571-UC-0001.md`（UC-0001 ~ UC-0033，33 条；其中 14 条已标注 `[已实测]`）。
+  - 用例文档：`use-case/FEATURE-571/FEATURE-571-UC-0001.md`（UC-0001 ~ UC-0045，45 条；其中 18 条已标注 `[已实测]`）。
   - 实测记录（测试实例 `co-shell v0.85.0 [BUILD-1157] --serve --port 28259`）：panel 渲染自动开面板；两次 panel 渲染生成 tabs「面板一/面板二」且非活动 holder `display:none`；点 tab 切换并同步后端 `ui_window_state(active=p1)`；浮窗与面板并存（f1 宽 420px、偏移 16/16）；`ui_update` 命中隐藏的面板窗口；`⇱` 把活动窗口由 float 翻成 panel；Esc 关闭并发送 `closed` 名单（共 7 条 `ui_window_state`）；按会话写入 `localStorage["co-shell-ui-windows:<会话>"]`（含每窗 tree JSON）；刷新后 `setSession` 重建 tabs/holder/浮窗与树内容；切走再切回（内存桶）恢复一致；无窗口时 `#uiPanel` 为 `display:none` 不遮挡主区；控制台无 JS 报错。
   - 实测复核（第二轮，独立静态镜像站 `tmp/feat570/site/feat571/`，静态服务 `http://127.0.0.1:28258/feat571/index.html`，[BUILD-1159]）：断言 1~9 全部通过——① `typeof window.UIWin=="object"`，`#uiPanel/#uiPanelTabs/#uiPanelClose/#uiPanelBody` 齐备且面板初始含 `hidden`；② `z-index` 面板 30 / `.file-viewer` 40（预览盖在面板之上）；③ `applyWindowEvent({action:open, surface:panel})` 后面板去 hidden、tabs=1；④ `render({ui_target:panel, ui_tree:callout})` 后 `#uiPanelBody` 文本含渲染内容；⑤ 再 `open(surface:float)` 后 tabs=2，点击首个 tab 后 `.ui-panel-tab.active`=「看板A」；⑥ Escape 后面板 `hidden`；⑦ 按会话写入 `localStorage["co-shell-ui-windows:S-571"]`（277B，含每窗 tree JSON），刷新页面后 `setSession('S-571')` 恢复 windows=2（A2/B2，active=A2）、tabs=2 且面板内容复原；⑧ `<ui_windows>none</ui_windows>` 由 environment_details 证明注入生效；⑨ 控制台无 JS 异常（仅静态站无后端的 `api/bootstrap`、`logos/dark`、`api/tree` 404 与 WebSocket 404 环境噪声）。未覆盖（受静态站无后端所限）：面板与文件预览实际叠加、≤720px 窄屏 tabs 隐藏、✕ 与「收成浮窗」按钮点击、actions/waiting/四主题回归——其中前两类已由首轮真实实例实测与 CSS 断言间接覆盖。
   - 已知基线问题（非本任务引入，建议另立 FIX 任务）：`go test ./... -short` 中 `web` 包 10 个用例失败——`web/session_test.go` 的 `sessions` / `session_switch` / `yolo` / `interaction` 消息断言（`TestSessionList`、`TestSessionListPushedOnSetCurrent`、`TestSessionSwitch`、`TestSessionSwitchSwitchesContext`、`TestSessionDelete`、`TestWebIOAskInteraction*`×3、`TestYOLOGet`、`TestYOLOSet`）。已用 `git worktree add --detach work/tmp/base571 HEAD` 在**未含本任务改动的 HEAD 干净工作树**上复跑，同样失败，确证与本任务无关（本任务工作区改动仅 `main.go` / `cmd/co-shell-hub/main.go` 的 BUILD 常量与本文档）。其余包（`agent`、`store` 等）全绿；`go build ./...`、`go vet ./...` 均无错。
