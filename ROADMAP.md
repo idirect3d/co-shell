@@ -8,7 +8,7 @@
 
 > **版本**: v0.85.1
 
-> **状态**: 🧪 待用户确认（分支 FIX-573，BUILD-1167；修复与自动验证已完成，等用户实测确认后合并）
+> **状态**: ✅ 已完成并合并 main（tag `v0.85.1`，[BUILD-1167]；修复 + 自动验证 + 用户实测确认均已完成）
 > **里程碑**: 修复 FEATURE-487 响应式搬迁控件在「还原」时用 `appendChild` 追加到父节点末尾、丢失原始兄弟位置，导致跨断点（窄↔宽）后 `#newSessionBtn` 跑到输入框**右侧**、`#statusbar` 各分组顺序错乱、`#attachBtn`/`#sendBtn`/`#yoloSwitch` 顺序改变的布局 BUG。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,7 +21,7 @@
 
 ### 任务详情
 
-- [X] **FIX-573 窄/宽屏切换或窗口缩放后底部控件位置错乱**（已完成，分支 FIX-573，待用户确认后合并，[BUILD-1167]）
+- [X] **FIX-573 窄/宽屏切换或窗口缩放后底部控件位置错乱**（已完成并合并 main，tag `v0.85.1`，[BUILD-1167]）
   - 现象（用户反馈）：窗口切换显示模式（窄屏/宽屏）或窗口放大缩小之后，很大概率出现：① 左下角 co-shell logo 旁的「新建会话 ＋」按钮跑到对话输入框**右边**；② 状态条中的几块内容位置错乱。
   - 根因：`web/static/app.js` 的 `applyNarrowLayout(false)`（还原分支）用 `m.home.appendChild(m.el)` 把控件放回原父节点——`appendChild` 是**追加到末尾**，而 `#newSessionBtn` 原本是 `.input-row` 的**第一个**子元素，`#modeSeg`/`#sbSessionsWrap`/`#sbModelTextWrap`/`#sbModelVisionWrap` 原本是 `#statusbar` 的第 1~4 个子元素，`#attachBtn`/`#sendBtn`/`#yoloSwitch` 也非输入行末尾元素 ⇒ 跨断点往返一次后这些控件全部被挪到各自父节点末尾（状态条顺序变为「会话用量 / 最近用量 / 模式 / 主模型 / 视觉模型 / 会话数」）。仅在跨断点时发生，故表现为「缩放/切模式后很大概率错乱，刷新前一直错」。
   - 修复：搬迁时用「原父节点 + 原后继兄弟」双锚点，还原走 `insertBefore`；`next` 锚点失效（父节点已变）时才回退 `appendChild`。
@@ -31,7 +31,8 @@
     - **修复前复现**（main 版 app.js）：宽屏基线 `input-row=[newSessionBtn,input,attachBtn,sendBtn,yoloSwitch]`、`statusbar=[modeSeg,sbSessionsWrap,sbModelTextWrap,sbModelVisionWrap,sbSessionWrap,sbLastWrap]`；窄屏搬迁后还原 ⇒ `input-row=[input,newSessionBtn,attachBtn,yoloSwitch,sendBtn]`（**＋ 按钮跑到输入框右侧**）、`statusbar=[sbSessionWrap,sbLastWrap,modeSeg,sbModelTextWrap,sbModelVisionWrap,sbSessionsWrap]`（分组错乱）——与用户描述一致。
     - **修复后**（UC-0001~UC-0015）：真实 resize 路径（`innerWidth` 200 ↔ 1400，断点 = 3×brandWidth ≈ 244px）下 `body.narrow` 切换正确、8 个控件进出 `#narrowTools`、`+.` 每次宽屏还原后 `input-row` 与 `#statusbar` 顺序均等于基线且 `newSessionBtn` 为 `input-row` 首元素；连续 5 轮窄↔宽 + 150/2000 抖动 10 次后仍等于基线；`getBoundingClientRect` 断言 `＋.right ≤ textarea.left`（同行偏差 2px）；窄/宽两态点击 ＋ 分别触发 `session_new`（事件未丢）；`#streamMode` 仍在 `.stream-head` 末位；视觉截图确认 ＋ 在输入框左侧、状态条分组顺序正常。
     - `node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 通过；产物 `work/co-shell-0.85.1.darwin.arm64`、`work/co-shell-hub-0.85.1.darwin.arm64`（`--version` → `v0.85.1 [BUILD-1167]`）。
-    - D 组（真实拖拽窗口/最大化还原）待用户实测确认。
+    - D 组（真实拖拽窗口/最大化还原）：**用户实测确认通过**（2026-10-01；窗口缩放 1400↔480 与最大化/还原后 ＋ 按钮均在输入框左侧、状态条无错位）。
+  - 合并发布：FIX-573 → main（--no-ff，BUILD-1167，版本 v0.85.1，tag `v0.85.1`）；产物 `work/co-shell-0.85.1.darwin.arm64`、`work/co-shell-hub-0.85.1.darwin.arm64`（`--version` → `v0.85.1 [BUILD-1167]`）。
 
 ---
 
