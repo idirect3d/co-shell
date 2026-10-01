@@ -235,3 +235,26 @@
 
 **步骤**：`node --check web/static/ui.js`（及被改动的其余前端文件）；`go build ./... && go vet ./...`（一次性）；`grep -n "const build" main.go`、`grep -n "hubBuild" cmd/co-shell-hub/main.go`；`git branch --show-current`、`git log --oneline -3`。
 **期望**：`node --check` 无输出；编译与 vet 无输出；`main.go` 的 `build` 与 `cmd/co-shell-hub/main.go` 的 `hubBuild` 同步为 **1165**（版本 0.85.0）；`work/` 下产出 `co-shell-0.85.0.darwin.arm64` 与 `co-shell-hub-0.85.0.darwin.arm64`；提交在 **FEATURE-571** 分支（main 无直接提交），ROADMAP 任务描述标注 `[BUILD-1165]`。
+
+## FEATURE-571-UC-0042 3D 视图下 ellipse 按所在平面投影（不再面向用户）[已实测]
+
+**步骤**：渲染 `figure{view:"iso"}`（含任一带 z 的图元使其成为 3D 场景）+ `ellipse{cx:0,cy:0,z:0,rx:1.5,ry:1.5}`；读取该图元 DOM 与路径顶点，计算「顶点到形心的最小/最大半径比」（旋转不变的压扁判据）；再依次把 `view` 换成 `front`、`top`、`side` 重复测量。
+**期望**：3D 下 ellipse 输出为闭合 `<path>`（而非屏幕空间的 `<ellipse>`）；形状随视角变化——正面视角为正圆（半径比 ≈ 1）、俯视/侧视把圆盘压扁（`top` 实测高度塌缩为 0 即一条线）、等轴测为压扁椭圆。
+**实测（静态镜像站 28258 / demo.html，ui-figure.js?v=6）**：`front` path(64 点) rmin=131.99 / rmax=132.00 → 比 1；`top` rmin=0 / rmax=143.68 → 塌缩为线；`iso` rmin=158.97 / rmax=175.40 → 比 1.103。对照同平面正方形 `polygon`：`front` 264×264、`top` 高=0、`iso` 高宽比 0.983（圆盘 0.967）——与其它图元投影一致（修复前 ellipse 恒为正圆、无视视角）。
+
+## FEATURE-571-UC-0043 2D 视图零回归（仍输出原生 `<ellipse>` + rotate）[已实测]
+
+**步骤**：渲染**不含任何 z 坐标**的 2D `figure`，含 `ellipse{cx:3,cy:8,rx:2,ry:1,rotation:20,fill:"warn"}`；读取 DOM 元素类型、`cx/cy/rx/ry`、`transform` 与 `getBBox()`。
+**期望**：仍为 `<ellipse>` 元素（不是 path）；`rx=|rx|*scale`、`ry=|ry|*scale` 与修复前完全一致；`transform="rotate(20 <cx> <cy>)"` 保留；填充 `fill-opacity="0.22"` 规则不变；bbox 与修复前一致。
+**实测（demo.html 左侧「2D 全图元」图）**：`<ellipse cx="177.8" cy="73.6" rx="57.6" ry="28.8" transform="rotate(20 177.8 73.6)">`，bbox 115.2×57.6；`querySelectorAll('svg ellipse').length === 1` 证明 2D 分支未被改写为 path。
+
+## FEATURE-571-UC-0044 rotation 在 3D 视图下生效（平面内旋转后再投影）[已实测]
+
+**步骤**：`figure{view:"iso"}` 内渲染两个同尺寸 `ellipse{rx:1.5,ry:0.6,z:0}`，`rotation` 分别为 0 与 45；比较两者 path 数据与压扁判据；再对 `rotation:0` 的实例拖动 `grip`（合成 mousedown + mousemove 触发 orbit）后重读 path。
+**期望**：两个 rotation 得到不同的 path 顶点（rotation 不再被 3D 分支忽略）；拖动旋转后 path 实时重绘且形状随之变化。
+**实测**：`rotation:0` → rmin=63.59 / rmax=175.40（比 2.758）、`rotation:45` → rmin=66.96 / rmax=167.39（比 2.5），路径 `d` 头部不同；拖动前 `d` 长度 909 / 比 1.103，拖动后 914 / 比 2.959，`d` 内容改变 → 圆盘随视角实时倾斜。
+
+## FEATURE-571-UC-0045 边界与合规：无实体 ellipse、动作锚点、编译与提交 [已实测]
+
+**步骤**：渲染 `ellipse{rx:0,ry:0}`（应直接跳过）；渲染带 `actions:[{on:"click",id:"c1"}]` 的 3D ellipse 并点击；`node --check web/static/ui-figure.js`；`go build ./... && go vet ./...`（一次性）；检查 `main.go` 的 `build` 与 `cmd/co-shell-hub/main.go` 的 `hubBuild`；`git branch --show-current`。
+**期望**：`rx` 与 `ry` 同时为 0 时不产出任何图元（提前 return 不变）；图元动作仍以用户坐标锚点绑定（沿用 `shapeVertices()[0]`，payload 与 `data-action-sent` 行为不变）；`node --check`、build、vet 无输出；`build` 与 `hubBuild` 同步为 **1166**（版本 0.85.0）；提交在 **FEATURE-571** 分支，ROADMAP 任务标注 `[BUILD-1166]`。
