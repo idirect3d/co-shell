@@ -1754,6 +1754,67 @@ function applyUIUpdate(ev) {
   }
 }
 
+// isToolStreamBlock reports whether a replayed event is a persisted
+// tool-stream block, i.e. the replay-side form of the live tool_call_stream
+// fragment group that opens a TOOL block (FEATURE-362).
+//
+// FIX-575: the backend coalescer merges the streamed parameter fragments into
+// ONE tool_call event and stamps it with meta.phase = "stream". A tool_call
+// WITHOUT any phase can only be such a block: every other tool_call the agent
+// emits carries phase=input|result (agent/run_stream.go), so the missing phase
+// is by itself an unambiguous "a new TOOL block starts here" - which also
+// covers history persisted before FIX-575 (no phase, only the ⚙️ header).
+function isToolStreamBlock(ev) {
+  if (!ev || ev.type !== "tool_call") return false;
+  const phase = ev.meta && ev.meta.phase;
+  return !phase;
+}
+
+// openToolStreamBlock recreates the TOOL block that the live path opens on the
+// "⚙️ <tool>" header of the first tool_call_stream fragment (see the
+// tool_call_stream branch above). Both paths must produce the SAME block
+// structure so that the following tool_call(phase=input) event reuses this very
+// block (by tool name) and tool_call(phase=result) appends its outcome to it.
+//
+// Before FIX-575 the replay had no such branch: the streamed parameters fell
+// into the input/result heuristic below, which merged them into the PREVIOUS
+// tool block - or dropped them entirely - whenever curTool.raw /
+// curTool.hasResult happened to be in the "wrong" state. That is what made tool
+// cards disappear at random after a page refresh or a co-shell restart.
+function openToolStreamBlock(ev, msgIndex) {
+  // FIX-549: a concrete tool block ends the LLM text block before it, so live
+  // and replay agree on [LLM][TOOL][LLM] in strict emission order.
+  unmarkStreaming(curLLM && curLLM.body);
+  maybeCollapseEnded("llm");
+  curLLM = null;
+  curThinking = null;
+  curSup = null;
+  curTool = newStreamBlock("tool", "TOOL", msgIndex);
+  // FIX-462: remember the block in creation order so later tool_call events can
+  // backfill each block's intent one by one.
+  iterToolBlocks.push(curTool);
+  const params = ensureToolParams(curTool);
+  let text = ev.text || "";
+  // Strip the "⚙️ <tool>\n" header line, exactly like the live stream path.
+  // The gear is U+2699 followed by an optional U+FE0F variation selector.
+  const gear = text.indexOf("\u2699");
+  if (gear >= 0) {
+    const nameStart = text.charCodeAt(gear + 1) === 0xFE0F ? gear + 2 : gear + 1;
+    const nl = text.indexOf("\n", gear);
+    const name = text.slice(nameStart, nl >= 0 ? nl : text.length).trim();
+    if (name) {
+      curTool.toolName = name;
+      toolBlockByName[name] = curTool;
+    }
+    text = text.slice(nl >= 0 ? nl + 1 : text.length);
+  }
+  params.raw += text;
+  renderParams(params);
+  // A replayed block is already complete: no streaming marker, no result yet.
+  curTool.hasResult = false;
+  scrollStream();
+}
+
 function renderEvent(ev) {
   // FEATURE-409: the message index attached by the backend lets the retry-from
   // action map this block back to a message for :session pop to.
@@ -2101,10 +2162,22 @@ function renderEvent(ev) {
     scrollStream();
     return;
   }
+  // FIX-575: a persisted tool-stream block opens a new TOOL block, exactly like
+  // the live tool_call_stream header does. This MUST be decided from the event
+  // itself (missing phase = block start) and never from render state, otherwise
+  // a replay can merge a tool call into the previous block or drop it.
+  if (isToolStreamBlock(ev)) {
+    openToolStreamBlock(ev, msgIndex);
+    return;
+  }
   if (ev.type === "tool_call" || (ev.type === "error" && ev.chan === "tool")) {
     const phase = ev.meta && ev.meta.phase;
     const fresh = !curTool || curTool.hasResult;
-    if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
+    // FIX-575: only an explicit input phase enters the input branch. The former
+    // (!phase && ... && !fresh && !curTool.raw) sub-condition was a state
+    // heuristic that silently swallowed a tool call whenever the previous block
+    // already held text; the no-phase case is now handled above.
+    if (phase === "input") {
       // FEATURE-400: the input-parameter sub-block is the params container;
       // the pre-execution summary no longer replaces the streamed params.
       //

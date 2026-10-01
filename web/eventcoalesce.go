@@ -150,6 +150,20 @@ func (c *eventCoalescer) flush() []agent.StreamEvent {
 		Text: p.text,
 		Meta: p.meta,
 	}
+	// FIX-575: a merged tool block IS the start of a TOOL block, but the live
+	// signal for that (the "⚙️ <tool>" header on the first streamed fragment) is
+	// swallowed by the coalescing itself: what gets persisted is one tool_call
+	// event without any phase, so the replay had to infer the block boundary from
+	// render state (curTool.raw / curTool.hasResult) - an inference that merged a
+	// tool call into the previous block or dropped its text altogether, which is
+	// why tool cards went missing at random after a reload/restart. Stamp the
+	// boundary explicitly instead. See agent.PhaseStream.
+	if p.kind == "tool" {
+		if ev.Meta == nil {
+			ev.Meta = map[string]string{}
+		}
+		ev.Meta[agent.MetaKeyPhase] = agent.PhaseStream
+	}
 	return []agent.StreamEvent{ev}
 }
 
