@@ -146,10 +146,22 @@ const MetaKeyDiffLines = "diff_lines"
 // PhaseResult carries the post-execution result. Web/JSON consumers use it
 // to merge input+result into a single block; the LineRenderer ignores Meta,
 // so terminal output is unaffected.
+//
+// FIX-575: PhaseStream marks the replay-only TOOL block that the Web
+// persistence layer builds from the live tool_call_stream fragments (see
+// eventCoalescer.flush). It is the explicit "a new TOOL block starts here"
+// marker: the streamed-parameter fragments are merged into one event before
+// they are stored, so a replay has no "⚙️ <tool>" header fragment to key on
+// and previously had to infer the block boundary from render state (curTool.raw
+// / hasResult), which merged or dropped tool cards non-deterministically after a
+// page refresh or a co-shell restart. The value is only ever written to the
+// persisted stream, never sent on the live channel, so the terminal (Line) and
+// JSON (Stream) renderers never see it.
 const (
 	MetaKeyPhase = "phase"
 	PhaseInput   = "input"
 	PhaseResult  = "result"
+	PhaseStream  = "stream"
 )
 
 // EventRenderer is the single sink interface for structured stream events

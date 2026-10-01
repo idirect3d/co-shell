@@ -4,6 +4,34 @@
 
 ---
 
+## v0.85.3 — 修复会话恢复时工具调用消息随机丢失（回放块边界显式化）
+
+> **版本**: v0.85.3
+
+> **状态**: 🚧 开发中（FIX-575，分支 FIX-575）
+> **里程碑**: 修复「重启/刷新恢复会话后，一个 turn 内部分工具调用不再成块（被并入上一块或被静默丢弃）」——回放侧合并块显式携带 `phase=stream` 块起点标记，使 TOOL 建块规则与实时渲染完全同构；并输出《消息持久化与恢复设计说明书》。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-575 | 0.85.3 | P0 | ① `agent/events.go` 新增 `PhaseStream`；② `web/eventcoalesce.go` 的 `flush()` 给合并后的 tool 块写入 `meta.phase=stream`；③ `web/static/app.js` 新增 `isToolStreamBlock`/`openToolStreamBlock`，回放时以「无 phase 即块起点」建块，与实时 `tool_call_stream` 同构；④ 新增 `web/fix575_test.go` 回归测试；⑤ 设计说明书 `docs/web-message-persistence-and-restore.md`；⑥ 运行时用例 `use-case/FIX-575/`。 |
+
+> 当前 BUILD: 1169
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-575 会话恢复时工具调用消息随机丢失**（开发中，分支 FIX-575，[BUILD-1169]）
+  - 现象：co-shell 重启/刷新恢复会话后，部分工具调用不再成块——顶部 `#msgVizTrack` 黄线变少、正文 `⚙️` TOOL 卡片缺失；滚动加载也补不回来（数据仍在库中，丢失的是渲染结果）。
+  - 根因（详见 `docs/web-message-persistence-and-restore.md` §7）：实时渲染在出现 `⚙️ <tool>`（`tool_call_stream`）时**无条件新开 TOOL 块**；而回放侧 `web/eventcoalesce.go` 把分片合并为 1 个**无 phase** 的 `tool_call` 事件，丢掉“块起点”语义，`app.js` 只能用 `fresh = !curTool || curTool.hasResult` 等状态启发式判定，导致 (a) 上一块 `raw` 非空时新调用被并入上一块；(b) `curTool.raw` 为空且 `hasResult=false` 时文本被静默丢弃。触发与否取决于前一工具是否留下结果事件（受工具种类 / showToolOutput / 结果是否为空门控），故表现为“随机缺失”。
+  - 修复：① 合并块显式打 `phase=stream` 标记（`PhaseStream`，仅写入持久化流，不上实时通道）；② 回放 TOOL 分支以「无 phase 即块起点」优先、齿轮表头兜底（兼容旧库数据），建块流程与实时同构；③ input 分支不再因 `fresh=false` 丢文本。
+  - 分支/版本：**FIX-575**（基于 main），版本 v0.85.3（FIX → patch 递增）
+  - 设计说明书：`docs/web-message-persistence-and-restore.md`
+  - 运行时用例：`use-case/FIX-575/FIX-575-UC-0001.md` ~ `FIX-575-UC-0006.md`
+  - 验证：`go build ./... && go vet ./...` 通过；`go test ./web/ -run FIX575 -v` 3/3 通过；`go test ./store/` 通过；全量 `go test ./...` 中 web 包 session_test 等失败已用 `git worktree` 在 main 基线复现同样失败，属**存量问题**（非本分支引入）。
+
+---
+
 ## v0.85.2 — 修复工具调用 meta.progress 规则冲突与误导性错误提示
 
 > **版本**: v0.85.2
