@@ -21,6 +21,13 @@
 
 ### 任务详情
 
+- [x] **FIX-572 render_ui 组件树被上下文裁剪成摘要后回灌，导致渲染失败且报错不指真因**（已完成，分支 FEATURE-571，[BUILD-1162]）
+  - 现象：同一窗口连续渲染时 table/chart 成功，之后 steps/progress/kv 连续 4 次失败，报 `组件节点缺少 type 字段。可用组件类型：…`；报错时树实为 `{"summary": …}`。
+  - 根因：`agent/ui_prune.go` 的 `UIContextPrune`（默认开）在 `buildContextMessages` 里把历史中每次 `render_ui` 的 `tree` 参数改写为 `{"summary": "<type> 组件树（N 个节点）已裁剪为摘要…"}`（第 45/84 行，`i18n.KeyUIPrunedTree`）；该形态被模型当作示例照抄回灌到下一次调用，`agent/uitree.go` 的 `validateUINode` 因此走到 `n.Type == ""` 分支；会话越长、被裁剪历史越多，回灌概率越高（表现为“长会话才触发”）。
+  - 修复：① `agent/uitree.go` 在 `ParseUITree` 入口用 `isPrunedTreeSummary` 识别“只有 summary、没有 type”，返回专用报错 `KeyUIErrTreePrunedSummary`（中英齐备，提示重提完整树 / 可关闭 `ui_context_prune`）；② `KeyUIPrunedTree` 文案补“仅供阅读，切勿照此形态提交 render_ui”；③ 新增单测 `TestUIUC02PrunedSummaryNamed`。
+  - 验证：`gofmt` 无差异；`go build ./... && go vet ./...` 通过；`go test ./agent/ -run 'UI|Prune'` 通过。
+  - 已知基线（与本修复无关）：`go test ./i18n/` 的 `TestRulesNoteMergesRulesFile` 失败（[zh] .rules/ note not found）。
+
 - [x] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（已完成，已合并 main，tag v0.84.0，[BUILD-1157]）
   - 背景（用户需求）：希望 render_ui 支持画示意图——点、线段、多边形、椭圆（圆）、坐标轴等，供 LLM 方便地输出几何/流程示意图。
   - 交互决策（经 ask_user 确认 7 项）：① 控件形态＝**figure 画布 + 图元作为 children**（复用 id/update/actions 与每节点 8KB props 预算）；② 坐标系＝**逻辑坐标系**（props 声明 xmin/xmax/ymin/ymax，默认 0..10，等比映射、y 轴向上）；③ **协议即支持 xyz**，无 z 走 2D、有 z 走固定等轴测投影并可指定 yaw/pitch；④ 函数曲线＝**前端自建小型表达式解析器**（递归下降，白名单运算符/函数，禁用 eval/new Function）；⑤ 视角＝**静态**（view 预设或 yaw/pitch），不做拖拽旋转；⑥ 图元范围＝基础集 + arrow + path + function + 统一样式（语义色名）；⑦ 交互＝图元 actions 点击回传 + 「下载 SVG」按钮。版本归属经用户确认＝**v0.84.0**（minor 递增）。
@@ -40,14 +47,14 @@
 
 > **版本**: v0.85.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1161；代码、单测、多轮浏览器实测（真实服务实例 + 独立静态镜像站）、浮窗 ✕ 缺陷修复、浮窗最大化/还原按钮、用例文档均已完成，待用户确认后合并 main）
+> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1162；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复均已完成，待用户确认后合并 main）
 > **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-571 | 0.85.0 | P1 | ① 后端 `agent/ui_tools.go`：`UITargetPanel` + `uiRenderTarget` 白名单；`render_ui` 增 `window` 窗口名；`ui_window` 增 `surface=panel|float` 与按名关闭；会话级窗口清单（Name/Title/Surface/Active/摘要/打开时间）与上限 8；② `events.go` 增 `MetaKeyUIWindowName/Surface` 与 `activate` 动作；`run_stream.go` 发带窗口名事件；`envelope.go` 在 `buildOpenedResources()` 追加 `<ui_windows>`（无窗口 `none`）；新增 `ui_window_state` 上行同步入口；③ 前端 `index.html`/`style.css` 新增 `#uiPanel`（铺满主消息区、z-index 低于 `.file-viewer`）+ tabs + 收成浮窗按钮 + ✕ + ≤720px 隐藏 tabs；④ `ui.js`/`app.js` 单浮窗扩为按名索引窗口表、tabs/滑动/Esc/✕/换形态、localStorage 跨会话恢复；⑤ i18n zh/en；⑥ `docs/ui-components.md` 新增 §10。 |
 
-> 当前 BUILD: 1161
+> 当前 BUILD: 1162
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 

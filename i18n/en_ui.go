@@ -13,6 +13,8 @@ func init() {
 
 	enMessages[KeyUIErrTreeDecode] = `Failed to parse the component tree JSON: %s`
 
+	enMessages[KeyUIErrTreePrunedSummary] = `The component tree is a context-pruned summary (a summary field without type), not a renderable tree. Submit the full tree including type; to keep full trees in the context, turn off the ui_context_prune switch.`
+
 	enMessages[KeyUIErrTreeTooDeep] = `The component tree nests deeper than the limit (%d levels). Please reduce nesting and retry.`
 
 	enMessages[KeyUIErrTreeTooManyNodes] = `The component tree has more nodes than the limit (%d). Please split it into several renders.`
@@ -29,7 +31,7 @@ func init() {
 
 	enMessages[KeyUISummaryNoChildren] = `Rendered %s (id=%s, no child nodes).`
 
-	enMessages[KeyUIPrunedTree] = `The %s component tree (%d nodes) was pruned to a summary; the rendered result holds the full content.`
+	enMessages[KeyUIPrunedTree] = `The %s component tree (%d nodes) was pruned to a summary (for reading only: never submit render_ui in this shape); the rendered result holds the full content.`
 
 	enMessages[KeyUISummaryChildren] = `Rendered %s (id=%s, %d child nodes).`
 

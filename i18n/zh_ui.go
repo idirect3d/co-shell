@@ -13,6 +13,8 @@ func init() {
 
 	zhMessages[KeyUIErrTreeDecode] = `组件树 JSON 解析失败：%s`
 
+	zhMessages[KeyUIErrTreePrunedSummary] = `组件树是上下文裁剪后的摘要（只有 summary 字段，没有 type），不是可渲染的完整组件树。请重新提交含 type 的完整组件树；如需在上下文中保留完整树，可关闭 ui_context_prune 开关。`
+
 	zhMessages[KeyUIErrTreeTooDeep] = `组件树嵌套层数超过上限（%d 层），请减少嵌套后重试。`
 
 	zhMessages[KeyUIErrTreeTooManyNodes] = `组件树节点数超过上限（%d 个），请拆分成多次渲染。`
@@ -29,7 +31,7 @@ func init() {
 
 	zhMessages[KeyUISummaryNoChildren] = `已渲染 %s（id=%s，无子节点）。`
 
-	zhMessages[KeyUIPrunedTree] = `%s 组件树（%d 个节点）已裁剪为摘要，完整内容见已渲染的结果。`
+	zhMessages[KeyUIPrunedTree] = `%s 组件树（%d 个节点）已裁剪为摘要（仅供阅读，切勿照此形态提交 render_ui），完整内容见已渲染的结果。`
 
 	zhMessages[KeyUISummaryChildren] = `已渲染 %s（id=%s，%d 个子节点）。`
 
