@@ -8,20 +8,20 @@
 
 > **版本**: v0.84.0
 
-> **状态**: 🚧 进行中（FEATURE-570，分支 FEATURE-570）
+> **状态**: ✅ 已完成并发布（FEATURE-570 已合并 main，tag `v0.84.0`）
 > **里程碑**: `render_ui` 在既有 12 种控件之上新增 `figure` 矢量绘图控件：LLM 用 **xyz 逻辑坐标** 描述点、线段（可带箭头）、多边形/折线、椭圆（圆）、坐标轴与网格、文字标注、函数曲线，前端手写 SVG 渲染。无 z 分量时按 2D 直出；任一图元带 z 时按固定等轴测投影（`view` 预设 front/top/side/iso，或用 yaw/pitch 指定视角）。图纸支持 `update` 原地刷新、图元 `actions` 点击回传、右上角「下载 SVG」。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-570 | 0.84.0 | P1 | ① 后端 `agent/uitree.go`：白名单新增 `figure` + 8 种图元（point/segment/polygon/ellipse/axes/label/path/function），新增 figure 子树上下文校验与数值/规模上限；② 前端新增 `web/static/ui-expr.js`（手写递归下降表达式解析器，禁用 eval/new Function）与 `web/static/ui-figure.js`（2D/3D SVG 渲染器 + 坐标系映射 + 坐标轴/网格/刻度 + 下载 SVG）；③ `style.css` 主题化样式块、`index.html` 引入脚本；④ i18n zh/en 组件清单与错误键；⑤ `docs/ui-components.md` 增补 figure 章节。 |
 
-> 当前 BUILD: 1156
+> 当前 BUILD: 1157
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（进行中，分支 FEATURE-570，[BUILD-1157]）
+- [x] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（已完成，已合并 main，tag v0.84.0，[BUILD-1157]）
   - 背景（用户需求）：希望 render_ui 支持画示意图——点、线段、多边形、椭圆（圆）、坐标轴等，供 LLM 方便地输出几何/流程示意图。
   - 交互决策（经 ask_user 确认 7 项）：① 控件形态＝**figure 画布 + 图元作为 children**（复用 id/update/actions 与每节点 8KB props 预算）；② 坐标系＝**逻辑坐标系**（props 声明 xmin/xmax/ymin/ymax，默认 0..10，等比映射、y 轴向上）；③ **协议即支持 xyz**，无 z 走 2D、有 z 走固定等轴测投影并可指定 yaw/pitch；④ 函数曲线＝**前端自建小型表达式解析器**（递归下降，白名单运算符/函数，禁用 eval/new Function）；⑤ 视角＝**静态**（view 预设或 yaw/pitch），不做拖拽旋转；⑥ 图元范围＝基础集 + arrow + path + function + 统一样式（语义色名）；⑦ 交互＝图元 actions 点击回传 + 「下载 SVG」按钮。版本归属经用户确认＝**v0.84.0**（minor 递增）。
   - 实施要点：零后端协议改动（复用 ui_render/ui_update 事件、waiting 等待、actions 通道、ui_prune 裁剪）；样式色一律语义色名（accent/info/warn/success/error/dim）映射 CSS 类以保住四套主题；渲染全程 createElementNS + textContent（禁止 innerHTML）。
@@ -32,6 +32,7 @@
   - 增强三 [BUILD-1157]（用户确认并入本任务，沿用分支与版本）：① 平移/缩放统一为**视窗（相机）变换**——新增 `<g class="ui-fig-view">` 承载坐标轴与图元，平移/缩放只写该层 `translate(tx,ty) scale(s)`（不再用 viewport 的 scrollLeft/scrollTop），上下左右任意方向均可拖；滚轮以光标为锚点、按钮以视窗中心为锚点。② 新增**右上角抓手** `.ui-fig-grip`（6 点手柄，固定于 SVG 画布右上角）：按住左右拖＝yaw（绕竖直轴）、上下拖＝pitch（绕水平轴），灵敏度 0.4°/px、pitch 钳制 ±89°；旋转中心＝当前视窗内可见对象 (x,y) 包围盒中心 + z 深度中心，旋转以 rAF 节流经 `redrawScene` 重投影全部图元（保留原元素 id），2D 图（无 z）也允许旋转（z=0 平面倾斜）。③ 工具栏新增**回正**（视角与位移归零、保留当前缩放倍率）与**重置**（缩放+平移+视角全复位），按钮顺序 − / 倍率 / + / 回正 / 重置。④ 导出改为**所见即所得**（导出当前视角，含 view 层 transform），并剔除抓手 UI（`.ui-fig-grip`）。用例见 `use-case/FEATURE-570/FEATURE-570-UC-0033.md`（UC-0033~UC-0048）。
   - 增强三实测记录 [BUILD-1157]（静态验证站 28258，页面内 `browser_evaluate` 断言）：① 2D/3D 两图均存在 `.ui-fig-view` 与抓手，viewport 无滚动溢出（scrollWidth/Height 与 client 相等）；② 拖拽平移 dx/dy=+45/−25 与图元屏幕位移一致，重置回 `translate(0 0) scale(1)`；③ 滚轮放大 100%→125%，锚点漂移 0.1px（<5px）；④ 抓手拖动后 yaw/pitch 生效：2D 图包围盒 323×248→283×237（宽高比变化 8.3%）、3D 图 282×288→298×288（5.4%）；⑤ 旋转中心漂移：2D 4.7px、3D 0px（<8px）；⑥ 旋转期间画布 viewBox 与抓手位置不变（抓手恒在画布右上角，距右上边各 9px）；⑦ 「回正」后 tx/ty/yaw/pitch=0 且倍率保留（125% 标签与 transform 一致）；「重置」后倍率 100%、位移/视角归零且与初始包围盒误差 0px；⑧ 导出：默认与 125% 两种视角导出文本均含 view 层 transform 且长度不同（体现当前视角），抓手 9 个圆与 title 均已剔除；⑨ 交互全程浏览器控制台无异常；⑩ `node --check web/static/ui-figure.js` 与 `go build ./... && go vet ./...` 通过。
   - 分支/版本：**FEATURE-570**（基于 main），版本 v0.84.0
+  - 合并发布：FEATURE-570 → main（BUILD-1157，版本号 v0.84.0）；用户实际试用确认后合并，产物 `work/co-shell-0.84.0.darwin.arm64`、`work/co-shell-hub-0.84.0.darwin.arm64`。
 
 ---
 
