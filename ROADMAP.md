@@ -4,6 +4,33 @@
 
 ---
 
+## v0.84.0 — render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）
+
+> **版本**: v0.84.0
+
+> **状态**: 🚧 进行中（FEATURE-570，分支 FEATURE-570）
+> **里程碑**: `render_ui` 在既有 12 种控件之上新增 `figure` 矢量绘图控件：LLM 用 **xyz 逻辑坐标** 描述点、线段（可带箭头）、多边形/折线、椭圆（圆）、坐标轴与网格、文字标注、函数曲线，前端手写 SVG 渲染。无 z 分量时按 2D 直出；任一图元带 z 时按固定等轴测投影（`view` 预设 front/top/side/iso，或用 yaw/pitch 指定视角）。图纸支持 `update` 原地刷新、图元 `actions` 点击回传、右上角「下载 SVG」。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-570 | 0.84.0 | P1 | ① 后端 `agent/uitree.go`：白名单新增 `figure` + 8 种图元（point/segment/polygon/ellipse/axes/label/path/function），新增 figure 子树上下文校验与数值/规模上限；② 前端新增 `web/static/ui-expr.js`（手写递归下降表达式解析器，禁用 eval/new Function）与 `web/static/ui-figure.js`（2D/3D SVG 渲染器 + 坐标系映射 + 坐标轴/网格/刻度 + 下载 SVG）；③ `style.css` 主题化样式块、`index.html` 引入脚本；④ i18n zh/en 组件清单与错误键；⑤ `docs/ui-components.md` 增补 figure 章节。 |
+
+> 当前 BUILD: 1154
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（进行中，分支 FEATURE-570，[BUILD-1155]）
+  - 背景（用户需求）：希望 render_ui 支持画示意图——点、线段、多边形、椭圆（圆）、坐标轴等，供 LLM 方便地输出几何/流程示意图。
+  - 交互决策（经 ask_user 确认 7 项）：① 控件形态＝**figure 画布 + 图元作为 children**（复用 id/update/actions 与每节点 8KB props 预算）；② 坐标系＝**逻辑坐标系**（props 声明 xmin/xmax/ymin/ymax，默认 0..10，等比映射、y 轴向上）；③ **协议即支持 xyz**，无 z 走 2D、有 z 走固定等轴测投影并可指定 yaw/pitch；④ 函数曲线＝**前端自建小型表达式解析器**（递归下降，白名单运算符/函数，禁用 eval/new Function）；⑤ 视角＝**静态**（view 预设或 yaw/pitch），不做拖拽旋转；⑥ 图元范围＝基础集 + arrow + path + function + 统一样式（语义色名）；⑦ 交互＝图元 actions 点击回传 + 「下载 SVG」按钮。版本归属经用户确认＝**v0.84.0**（minor 递增）。
+  - 实施要点：零后端协议改动（复用 ui_render/ui_update 事件、waiting 等待、actions 通道、ui_prune 裁剪）；样式色一律语义色名（accent/info/warn/success/error/dim）映射 CSS 类以保住四套主题；渲染全程 createElementNS + textContent（禁止 innerHTML）。
+  - 验证要点：见 `use-case/FEATURE-570/`；`go build ./... && go vet ./... && go test ./...` 全绿；浏览器实测 2D/3D 示意图与四主题配色。
+  - 实测记录 [BUILD-1155]：dev 服务（`--serve --port 28257`）页面内 `UI.renderTree` 注入验证通过——① 2D 全 8 图元（axes/point/segment/polygon/ellipse/label/path/function）DOM 齐备、坐标轴与网格、刻度、下载按钮均在；② 3D 图在 iso/front/top/side 与自定义 yaw/pitch 下投影几何五者互不相同（正视/侧视退化为直线、俯视/等轴测为四边形，符合 y 轴向上的等轴测定义）；③ XSS：label 内 `<img onerror>`/`<script>` 仅作字面文本，DOM 中 0 个 img/script；④ 非法表达式（`window.alert(1)`/`constructor`）图内降级为「表达式含非法字符」，无白屏；⑤ 图元 actions 点击回传 `{type:"point",x,y}`；⑥ `UI.updateTree` 原地刷新生效（2 图元→1 图元、无重复 figure）；⑦ 四主题语义色解析正确（dark/dark-muted `rgb(74,222,128)`、light `rgb(22,163,74)`、paper `rgb(74,124,63)`）；⑧ 导出 SVG 为内联字面颜色（无 `class=`/`var(--`，含 font-family）可独立打开；⑨ 320px 容器下 svg 宽度=320、页面无横向溢出；⑩ 既有 card/kv/chart/steps/callout/progress 回归正常，0 个降级/渲染错误。注：截图受本环境 CDP `Page.captureScreenshot` 超时限制未能取得，视觉效果由上述 DOM/几何/配色断言覆盖。
+  - 分支/版本：**FEATURE-570**（基于 main），版本 v0.84.0
+
+---
+
 ## v0.83.0 — 浏览器窗口打开模式可配置（最小化 / 最大化 / 默认）
 
 > **版本**: v0.83.0

@@ -37,6 +37,7 @@ const (
 	UICompHTML     = "html"     // sandboxed HTML escape hatch
 	UICompRow      = "row"      // horizontal layout container
 	UICompCol      = "col"      // one vertical column inside a row
+	UICompFigure   = "figure"   // vector figure canvas (FEATURE-570); children are shapes
 )
 
 // Tree limits. They bound memory, layout cost and (most importantly) how
@@ -74,6 +75,7 @@ var uiComponentTypes = []string{
 	UICompChart,
 	UICompCol,
 	UICompFile,
+	UICompFigure,
 	UICompForm,
 	UICompHTML,
 	UICompKV,
@@ -164,7 +166,7 @@ func ValidateUITree(root *UINode) error {
 		return fmt.Errorf("%s", i18n.T(i18n.KeyUIErrTreeEmpty))
 	}
 	total := 0
-	if err := validateUINode(root, 1, &total); err != nil {
+	if err := validateUINode(root, "", 1, &total); err != nil {
 		return err
 	}
 	return nil
@@ -172,7 +174,7 @@ func ValidateUITree(root *UINode) error {
 
 // validateUINode validates one node and recurses into its children. depth is
 // 1-based; total accumulates the node count across the whole tree.
-func validateUINode(n *UINode, depth int, total *int) error {
+func validateUINode(n *UINode, parentType string, depth int, total *int) error {
 	if depth > UIMaxTreeDepth {
 		return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrTreeTooDeep, UIMaxTreeDepth))
 	}
@@ -183,11 +185,32 @@ func validateUINode(n *UINode, depth int, total *int) error {
 	if n.Type == "" {
 		return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrNodeTypeMissing, UIComponentCatalog()))
 	}
-	if !UIComponentTypeSupported(n.Type) {
+	// Figure shapes are not standalone components: they are accepted only
+	// inside a figure subtree (FEATURE-570).
+	shape := isUIShape(n.Type)
+	if shape {
+		if parentType != UICompFigure {
+			return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrShapeContext, n.Type, UIShapeCatalog()))
+		}
+	} else if !UIComponentTypeSupported(n.Type) {
 		return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrNodeTypeUnknown, n.Type, UIComponentCatalog()))
 	}
 	if len(n.Props) > UIMaxNodeProps {
 		return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrNodePropsTooLarge, n.Type, UIMaxNodeProps))
+	}
+	if n.Type == UICompFigure {
+		if err := validateFigureProps(n); err != nil {
+			return err
+		}
+		for i := range n.Children {
+			if !isUIShape(n.Children[i].Type) {
+				return fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrFigureChild, n.Children[i].Type, UIShapeCatalog()))
+			}
+		}
+	} else if shape {
+		if err := validateShapeProps(n); err != nil {
+			return err
+		}
 	}
 	for _, a := range n.Actions {
 		if !uiActionKinds[a.On] {
@@ -198,7 +221,7 @@ func validateUINode(n *UINode, depth int, total *int) error {
 		}
 	}
 	for i := range n.Children {
-		if err := validateUINode(&n.Children[i], depth+1, total); err != nil {
+		if err := validateUINode(&n.Children[i], n.Type, depth+1, total); err != nil {
 			return err
 		}
 	}

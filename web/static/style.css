@@ -4092,3 +4092,53 @@ select,
 .ws-add { display: flex; align-items: center; gap: 8px; }
 .ws-add-input { flex: 1; }
 .ws-add-btn { flex: none; }
+
+/* ---------- FEATURE-570: figure (2D/3D logical-coordinate canvas) ----------
+   Colours go exclusively through these classes so the four themes stay
+   consistent; the download path resolves them to literal values with
+   getComputedStyle before serializing, so the exported SVG is self-contained. */
+.ui-figure { display: flex; flex-direction: column; gap: 6px; }
+.ui-figure-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ui-figure-title { color: var(--fg); font-weight: 600; }
+.ui-figure-flag {
+  color: var(--fg-dim);
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.ui-figure-download { margin-left: auto; flex: none; }
+/* width:100% + height:auto keeps the canvas inside its column on a narrow
+   screen: the intrinsic ratio comes from the viewBox. */
+.ui-figure-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.ui-figure-bg { fill: var(--bg-panel); }
+.ui-figure-grid { stroke: var(--border); stroke-width: 1; fill: none; }
+.ui-figure-axis { stroke: var(--fg-faint); stroke-width: 1.2; fill: none; }
+.ui-fig-tick { fill: var(--fg-dim); font-size: 10px; font-family: var(--mono, monospace); }
+.ui-fig-axis-label { fill: var(--fg-dim); font-size: 11px; }
+.ui-fig-label { fill: var(--fg); font-size: 12px; }
+.ui-fig-degrade { color: var(--warn); font-size: 11px; }
+.ui-fig-shape { pointer-events: visiblePainted; }
+.ui-fig-clickable { cursor: pointer; }
+.ui-fig-clickable:hover { opacity: 0.82; }
+.ui-fig-clickable[data-action-sent="1"] { opacity: 0.6; }
+
+/* Semantic stroke/fill names -> theme variables. */
+.ui-fig-stroke-accent { stroke: var(--accent); }
+.ui-fig-stroke-info { stroke: var(--accent); }
+.ui-fig-stroke-warn { stroke: var(--warn); }
+.ui-fig-stroke-success { stroke: var(--ok); }
+.ui-fig-stroke-error { stroke: var(--err); }
+.ui-fig-stroke-dim { stroke: var(--fg-dim); }
+.ui-fig-stroke-none { stroke: none; }
+.ui-fig-fill-accent { fill: var(--accent); }
+.ui-fig-fill-info { fill: var(--accent); }
+.ui-fig-fill-warn { fill: var(--warn); }
+.ui-fig-fill-success { fill: var(--ok); }
+.ui-fig-fill-error { fill: var(--err); }
+.ui-fig-fill-dim { fill: var(--fg-dim); }
+.ui-fig-fill-none { fill: none; }
+
+/* Export staging area: the clone must be inside the document for
+   getComputedStyle to resolve, but it must never be visible. */
+.ui-figure-export { position: fixed; left: -10000px; top: 0; }

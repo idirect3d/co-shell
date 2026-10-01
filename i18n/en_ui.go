@@ -67,6 +67,28 @@ func init() {
 
 	enMessages[KeyUIToolParamWindowSize] = `Optional string: the window size preset (open only). auto (default) keeps the current content-driven size; small / medium / large take 1/2, 2/3 or all of the usable viewport (viewport minus the 32px margin). The frontend clamps to the viewport, so the window never overflows the screen.`
 
+	enMessages[KeyUIErrShapeContext] = `Shape type "%s" is only valid as a child of a figure node; available shapes: %s`
+
+	enMessages[KeyUIErrFigureChild] = `A figure may only contain shapes as children; got "%s". Available shapes: %s`
+
+	enMessages[KeyUIErrPropsObject] = `The props of component %s must be a JSON object.`
+
+	enMessages[KeyUIErrRequiredProp] = `%s is missing the required field %s.`
+
+	enMessages[KeyUIErrNumberProp] = `The field %s of %s must be a finite number; got "%s".`
+
+	enMessages[KeyUIErrRangeProp] = `The field %s of %s is out of range (%s); got "%s".`
+
+	enMessages[KeyUIErrPropType] = `Invalid value for the field %s of %s; expected %s.`
+
+	enMessages[KeyUIErrPointsFormat] = `The points of %s must be an array like [[x,y], …] or [[x,y,z], …].`
+
+	enMessages[KeyUIErrPointsLimit] = `The points of %s exceed the limit (%d); please simplify and retry.`
+
+	enMessages[KeyUIErrExprTooLong] = `The expr of function exceeds the length limit (%d characters); please simplify it.`
+
+	enMessages[KeyUIErrFigureRange] = `figure: %s must be smaller than %s.`
+
 	enMessages[KeyUIToolUsageUIWindow] = `## ui_window
 Description: Open or close a persistent floating window (not a block inside the chat stream). Once open, you can render a component tree into it with render_ui(target="window"), keep working in the background and push intermediate results into the same window with render_ui(target="window", update="<id>"). The window stays open after the turn ends until you close it or the user clicks its close button. Use it for continuously updated panels: progress boards, intermediate results of a long task, or a form the user fills in and confirms repeatedly.
 
@@ -121,14 +143,24 @@ Component catalog:
 - file: file card. props{path, name?, size?}
 - form: form. props{title?, fields:[{name, label, type:"text"|"number"|"textarea"|"select"|"checkbox", options?:[{value, label}], value?, placeholder?, rows?}]}; declare the submit action on the form node: actions:[{on:"submit", id:"<action id>"}].
 - html: escape hatch; props{content} may contain arbitrary HTML/CSS/JS rendered inside an isolated sandbox. Use it only when the components above cannot express what you need.
+- figure: vector canvas for 2D/3D diagrams in logical coordinates (geometry, vectors, structure sketches, function curves, 3D boxes). props{title?, xmin/xmax/ymin/ymax? (default 0..10), zmin/zmax?, view? ("front"|"top"|"side"|"iso", default iso), yaw?, pitch?, axes? (default true), grid? (default true), unit?, width? (default 720), height? (default 420), download? (default true)}.
+  Its children may only be the primitives below (give a primitive an id to redraw it in place with update):
+  - point{x,y,z?,label?,labelPos?,r?,filled?}; segment{x1,y1,z1?,x2,y2,z2?,arrow?:false|"end"|"start"|"both",dash?,label?}
+  - polygon{points:[[x,y],...],closed?,fill?,opacity?}; ellipse{cx,cy,z?,rx,ry,rotation?,fill?} (rx==ry draws a circle)
+  - label{x,y,z?,text,anchor?,dx?,dy?,size?}; path{points:[[x,y],...],smooth?,dash?,arrow?}
+  - axes{x?,y?,z?,grid?,ticks?,step?,xlabel?,ylabel?,zlabel?,origin?} (positionable anywhere; figure.axes=false hides the default axes)
+  - function{expr,var? (default x),from,to,z?,samples? (max 400),exprZ?} (expr may be "sin(x)*2": + - * / modulo power plus the whitelisted functions sin/cos/sqrt/log/abs/min/max and the constants pi, e; an array of 2-3 entries gives a parametric curve)
+  - as soon as any primitive carries a z coordinate the whole figure switches to an axonometric projection (view preset, or yaw/pitch in degrees); primitives are drawn in children order, later ones on top
+  - shared style: stroke takes a semantic colour name accent|info|warn|success|error|dim|none, strokeWidth 1..6, dash solid|dashed|dotted, opacity 0..1; a primitive may declare actions:[{on:"click", id:"..."}] and then reports the coordinates of the clicked point
 
 Rules:
-1. Prefer components over long text: charts for numeric comparisons, tables for detail, callouts for conclusions.
+1. Prefer components over long text: charts for numeric comparisons, tables for detail, callouts for conclusions, figures for geometry/structure.
 2. Keep 1-3 top-level components per render to avoid overloading the user.
 3. A tree may nest at most %d levels and hold at most %d nodes; a single node's props must stay under %d bytes.
 4. To let the user click a data point and drill deeper, declare actions:[{on:"select", id:"drill", payload:"point"}] on that node.
 5. Component trees in the history are compressed into a summary, so never put critical data only inside a component without also stating it in your reply text.
-6. For a left/right layout, split with row and wrap each child in a col, e.g. row{children:[col(steps), col(card with icon, form)]} (steps on the left; icon above the form on the right). Narrow screens stack the columns automatically.
+6. When to use figure: pick figure to convey position/shape/structure (plane geometry, vectors, 3D sketches, custom curves); pick chart for a pure numeric comparison; reach for the html escape hatch only for complex interactive graphics neither can express. A figure holds at most 200 primitives and every coordinate must be a finite number.
+7. For a left/right layout, split with row and wrap each child in a col, e.g. row{children:[col(steps), col(card with icon, form)]} (steps on the left; icon above the form on the right). Narrow screens stack the columns automatically.
 
 Usage:
 <{XML_TAG_PREFIX}render_ui>

@@ -67,6 +67,28 @@ func init() {
 
 	zhMessages[KeyUIToolParamWindowSize] = `可选字符串：窗口尺寸档位（仅 open 时使用）。auto（默认）保持内容驱动的现有尺寸；small / medium / large 分别取当前视口可用区（视口减去 32px 边距）的 1/2、2/3、全部。前端会按视口钳制，窗口绝不超出屏幕。`
 
+	zhMessages[KeyUIErrShapeContext] = `图元类型「%s」只能作为 figure 的子节点；可用图元：%s`
+
+	zhMessages[KeyUIErrFigureChild] = `figure 的子节点只能是图元；收到「%s」。可用图元：%s`
+
+	zhMessages[KeyUIErrPropsObject] = `组件 %s 的 props 必须是 JSON 对象。`
+
+	zhMessages[KeyUIErrRequiredProp] = `%s 缺少必填字段 %s。`
+
+	zhMessages[KeyUIErrNumberProp] = `%s 的字段 %s 必须是有限数值，收到「%s」。`
+
+	zhMessages[KeyUIErrRangeProp] = `%s 的字段 %s 超出允许范围（%s），收到「%s」。`
+
+	zhMessages[KeyUIErrPropType] = `%s 的字段 %s 取值不合法，应为 %s。`
+
+	zhMessages[KeyUIErrPointsFormat] = `%s 的 points 必须是 [[x,y], …] 或 [[x,y,z], …] 形式的数组。`
+
+	zhMessages[KeyUIErrPointsLimit] = `%s 的 points 点数超过上限（%d 个），请精简后重试。`
+
+	zhMessages[KeyUIErrExprTooLong] = `function 的 expr 超过长度上限（%d 个字符），请精简后重试。`
+
+	zhMessages[KeyUIErrFigureRange] = `figure 的 %s 必须小于 %s。`
+
 	zhMessages[KeyUIToolUsageUIWindow] = `## ui_window
 Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块）。窗口打开后，可以用 render_ui(target="window") 把组件树渲染进窗口，并在后台继续工作、持续用 render_ui(target="window", update="<id>") 把中间结果推回同一个窗口；窗口在整轮结束后仍然保留，直到你关闭它或用户点关闭按钮。适合“持续更新的面板”：进度看板、长任务的中间结果、需要用户反复填写/确认的表单。
 
@@ -121,14 +143,24 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 - file: 文件卡片。props{path, name?, size?}
 - form: 表单。props{title?, fields:[{name, label, type:"text"|"number"|"textarea"|"select"|"checkbox", options?:[{value, label}], value?, placeholder?, rows?}]}；在 form 节点上声明提交动作：actions:[{on:"submit", id:"提交动作 id"}]。
 - html: 逃生舱，props{content} 内可写任意 HTML/CSS/JS，在隔离沙箱内渲染，适合上述组件无法表达的图形。仅在你确实需要时使用。
+- figure: 矢量绘图画布，用逻辑坐标画 2D/3D 示意图（几何图、受力图、流程图示意、函数曲线、三维立方体等）。props{title?, xmin/xmax/ymin/ymax?(默认 0..10), zmin/zmax?, view?("front"|"top"|"side"|"iso"，默认 iso), yaw?, pitch?, axes?(默认 true), grid?(默认 true), unit?, width?(默认 720), height?(默认 420), download?(默认 true)}。
+  其 children 只能是下列图元（每个图元可带 id 以便 update 原地重绘）：
+  - point{x,y,z?,label?,labelPos?,r?,filled?}；segment{x1,y1,z1?,x2,y2,z2?,arrow?:false|"end"|"start"|"both",dash?,label?}
+  - polygon{points:[[x,y],...],closed?,fill?,opacity?}；ellipse{cx,cy,z?,rx,ry,rotation?,fill?}（rx==ry 即圆）
+  - label{x,y,z?,text,anchor?,dx?,dy?,size?}；path{points:[[x,y],...],smooth?,dash?,arrow?}
+  - axes{x?,y?,z?,grid?,ticks?,step?,xlabel?,ylabel?,zlabel?,origin?}（可放到任意位置；figure.axes=false 时不画默认轴）
+  - function{expr,var?(默认 x),from,to,z?,samples?(不超过 400),exprZ?}（expr 可写 "sin(x)*2"，支持 + - * / 取模 幂 与 sin/cos/sqrt/log/abs/min/max 等白名单函数及 pi、e；expr 也可给 2~3 个元素的数组表示参数方程）
+  - 任一图元带 z 坐标时整图转为等轴测投影（view 预设或用 yaw/pitch 指定角度），按 children 顺序绘制（后者覆盖前者）
+  - 统一样式：stroke 取语义色名 accent|info|warn|success|error|dim|none，strokeWidth 1~6，dash solid|dashed|dotted，opacity 0~1；图元可声明 actions:[{on:"click", id:"..."}]，点击回传该点坐标 payload
 
 规则:
-1. 优先用组件而不是大段文本；数值对比用 chart，明细用 table，结论用 callout。
+1. 优先用组件而不是大段文本；数值对比用 chart，明细用 table，结论用 callout，几何/结构/示意图用 figure。
 2. 一次渲染内的顶层组件控制在 1~3 个，避免信息过载。
 3. 组件树最多嵌套 %d 层、最多 %d 个节点；单个节点 props 不超过 %d 字节。
 4. 需要用户点击某个数据点继续深入时，在该节点上声明 actions:[{on:"select", id:"drill", payload:"point"}]。
 5. 渲染历史中的组件树会被压缩为摘要，因此不要把关键数据只放在组件里而不写进你的回复文本。
-6. 需要「左栏 + 右栏」版式时用 row 分栏：row 的每个 child 建议用 col 包裹，例如 row{children:[col(steps 流程), col(card 图标, form 表单)]}（左栏流程、右栏上方图标下方表单）；窄屏会自动变为上下堆叠。
+6. 何时用 figure：要表达“位置/形状/结构关系”（平面几何、向量、三维示意、自定义曲线）时用 figure；只要“数值大小对比”用 chart；两者都表达不了的复杂交互图形才用 html 逃生舱。figure 一次不超过 200 个图元，坐标必须是有限数字。
+7. 需要「左栏 + 右栏」版式时用 row 分栏：row 的每个 child 建议用 col 包裹，例如 row{children:[col(steps 流程), col(card 图标, form 表单)]}（左栏流程、右栏上方图标下方表单）；窄屏会自动变为上下堆叠。
 
 用法:
 <{XML_TAG_PREFIX}render_ui>
