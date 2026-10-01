@@ -316,10 +316,16 @@
             rec.shell.style.left = rec.pos.left + "px";
             rec.shell.style.top = rec.pos.top + "px";
           } else {
-            rec.shell.style.left = "";
-            rec.shell.style.top = "";
-            rec.shell.style.right = 16 + idx * FLOAT_STEP + "px";
-            rec.shell.style.bottom = 16 + idx * FLOAT_STEP + "px";
+            // A window the user never dragged opens in the middle of the
+            // viewport instead of the bottom-right corner. The cascade offset
+            // keeps stacked windows from hiding each other, and the shell is
+            // already laid out at this point, so its size is measurable.
+            var box = rec.shell.getBoundingClientRect();
+            var spot = centerPos(idx, box.width, box.height);
+            rec.shell.style.right = "auto";
+            rec.shell.style.bottom = "auto";
+            rec.shell.style.left = spot.left + "px";
+            rec.shell.style.top = spot.top + "px";
           }
           rec.shell.style.zIndex = String(60 + idx + (rec.name === activeName ? 5 : 0));
         }
@@ -644,6 +650,19 @@
       left: Math.round(Math.min(maxLeft, Math.max(minLeft, left))),
       top: Math.round(Math.min(maxTop, Math.max(minTop, top)))
     };
+  }
+
+  // centerPos is where a floating window opens by default: the middle of the
+  // viewport, stepped by the cascade offset so several windows do not land on
+  // the exact same pixels. clampPos keeps the result reachable.
+  function centerPos(idx, w, h) {
+    var off = idx * FLOAT_STEP;
+    return clampPos(
+      (global.innerWidth - w) / 2 + off,
+      (global.innerHeight - h) / 2 + off,
+      w,
+      h
+    );
   }
 
   // applyPos writes a dragged position onto the shell, switching it from the

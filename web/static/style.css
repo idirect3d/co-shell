@@ -3992,10 +3992,9 @@ select,
 }
 .ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
 
-/* FEATURE-524 window mode: the single floating window opened by ui_window.
-   Fixed to the bottom-right, maximise/close buttons only (no drag/minimise/
-   resize), and nothing is persisted: a refresh or a session switch starts
-   without it. */
+/* FEATURE-524 window mode: the floating windows opened by ui_window. The
+   right/bottom pair below is only the pre-JS fallback: ui-windows.js centres a
+   window the user has not dragged yet (FEATURE-571). */
 .ui-window {
   position: fixed;
   right: 16px;
