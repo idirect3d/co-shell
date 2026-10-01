@@ -144,6 +144,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 - form: 表单。props{title?, fields:[{name, label, type:"text"|"number"|"textarea"|"select"|"checkbox", options?:[{value, label}], value?, placeholder?, rows?}]}；在 form 节点上声明提交动作：actions:[{on:"submit", id:"提交动作 id"}]。
 - html: 逃生舱，props{content} 内可写任意 HTML/CSS/JS，在隔离沙箱内渲染，适合上述组件无法表达的图形。仅在你确实需要时使用。
 - figure: 矢量绘图画布，用逻辑坐标画 2D/3D 示意图（几何图、受力图、流程图示意、函数曲线、三维立方体等）。props{title?, xmin/xmax/ymin/ymax?(默认 0..10), zmin/zmax?, view?("front"|"top"|"side"|"iso"，默认 iso), yaw?, pitch?, axes?(默认 true), grid?(默认 true), unit?, width?(默认 720), height?(默认 420), download?(默认 true)}。
+  width/height 是**设计像素尺寸**（同时决定 viewBox 与画布比例）；实际显示宽度 = min(设计宽, 容器宽)——图不会被放大到撑满容器，窄屏会自动收缩。要小图就直接写小尺寸（如 360×240），不要再靠“拉宽画布”的方式压缩图形。常用档位：小插图 360×240、常规 720×420、大幅 960×640。用户可在图上滚轮缩放、拖拽平移，也可用工具栏按钮缩放/重置（仅影响显示，导出的 SVG 仍是原始设计尺寸）。
   其 children 只能是下列图元（每个图元可带 id 以便 update 原地重绘）：
   - point{x,y,z?,label?,labelPos?,r?,filled?}；segment{x1,y1,z1?,x2,y2,z2?,arrow?:false|"end"|"start"|"both",dash?,label?}
   - polygon{points:[[x,y],...],closed?,fill?,opacity?}；ellipse{cx,cy,z?,rx,ry,rotation?,fill?}（rx==ry 即圆）

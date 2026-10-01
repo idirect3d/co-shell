@@ -4107,10 +4107,22 @@ select,
   border-radius: 999px;
   padding: 0 8px;
 }
-.ui-figure-download { margin-left: auto; flex: none; }
-/* width:100% + height:auto keeps the canvas inside its column on a narrow
-   screen: the intrinsic ratio comes from the viewBox. */
-.ui-figure-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.ui-figure-download { margin-left: 0; flex: none; }
+/* The canvas keeps its design size (width/height attributes) and shrinks to the
+   column on a narrow screen through max-width; the viewport shows scrollbars
+   once the user zooms past 100%. */
+.ui-figure-viewport { max-width: 100%; max-height: 70vh; overflow: auto; cursor: grab; }
+.ui-figure-viewport.dragging { cursor: grabbing; user-select: none; }
+.ui-figure-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.ui-figure-zoom { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.ui-figure-zoom-btn { flex: none; padding: 0 8px; line-height: 1.6; }
+.ui-figure-zoom-val {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
 .ui-figure-bg { fill: var(--bg-panel); }
 .ui-figure-grid { stroke: var(--border); stroke-width: 1; fill: none; }
 .ui-figure-axis { stroke: var(--fg-faint); stroke-width: 1.2; fill: none; }

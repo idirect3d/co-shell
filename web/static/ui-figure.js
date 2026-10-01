@@ -889,7 +889,8 @@
     var svgEl = sv("svg", {
       class: "ui-figure-svg",
       viewBox: "0 0 " + m.w + " " + m.h,
-      width: "100%",
+      width: m.w,
+      height: m.h,
       preserveAspectRatio: "xMidYMid meet",
       role: "img"
     });
@@ -956,6 +957,16 @@
     holder.style.left = "-10000px";
     holder.style.top = "0";
     var clone = svgEl.cloneNode(true);
+    // A zoomed canvas carries inline width/height styles: drop them and pin the
+    // export back to the design size, so the file is always the original figure.
+    clone.removeAttribute("style");
+    var vb = String(svgEl.getAttribute("viewBox") || "").split(/[\s,]+/);
+    var vw = parseFloat(vb[2]);
+    var vh = parseFloat(vb[3]);
+    if (isFinite(vw) && isFinite(vh) && vw > 0 && vh > 0) {
+      clone.setAttribute("width", String(vw));
+      clone.setAttribute("height", String(vh));
+    }
     holder.appendChild(clone);
     document.body.appendChild(holder);
     inlineColors(clone);
@@ -983,6 +994,141 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Zoom & pan (view-only: the exported SVG always keeps the design size)
+  // ---------------------------------------------------------------------------
+
+  var ZOOM_MIN = 0.25;
+  var ZOOM_MAX = 4;
+  var ZOOM_STEP = 0.25;
+
+  // attachZoom adds the zoom controls to the toolbar and wires wheel zoom plus
+  // drag pan on the viewport. Zoom is a display concern only: the <svg> keeps
+  // its design-size attributes, only inline styles change.
+  function attachZoom(head, viewport, svgEl, sc) {
+    var zoom = 1;
+    var base = 0; // rendered width at 100%, measured on first interaction
+
+    var group = el("span", "ui-figure-zoom");
+    var outBtn = el("button", "btn ghost ui-figure-zoom-btn", "\u2212");
+    var label = el("span", "ui-figure-zoom-val", "100%");
+    var inBtn = el("button", "btn ghost ui-figure-zoom-btn", "+");
+    var rstBtn = el("button", "btn ghost ui-figure-zoom-btn", t("重置", "Reset"));
+    [outBtn, inBtn, rstBtn].forEach(function (b) {
+      b.type = "button";
+      b.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    });
+    outBtn.title = t("缩小", "Zoom out");
+    inBtn.title = t("放大", "Zoom in");
+    rstBtn.title = t("恢复原始大小", "Reset zoom");
+    outBtn.addEventListener("click", function () { zoomTo(zoom - ZOOM_STEP); });
+    inBtn.addEventListener("click", function () { zoomTo(zoom + ZOOM_STEP); });
+    rstBtn.addEventListener("click", function () {
+      zoomTo(1);
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    });
+    group.appendChild(outBtn);
+    group.appendChild(label);
+    group.appendChild(inBtn);
+    group.appendChild(rstBtn);
+    head.appendChild(group);
+
+    function baseWidth() {
+      if (!base) {
+        var rect = svgEl.getBoundingClientRect();
+        base = rect.width > 0 ? rect.width : sc.map.w;
+      }
+      return base;
+    }
+
+    function paint() {
+      if (zoom === 1) {
+        // Back to the CSS-driven responsive size (never wider than the column).
+        svgEl.style.width = "";
+        svgEl.style.height = "";
+        svgEl.style.maxWidth = "";
+      } else {
+        svgEl.style.width = (baseWidth() * zoom) + "px";
+        svgEl.style.height = "auto";
+        svgEl.style.maxWidth = "none";
+      }
+      label.textContent = Math.round(zoom * 100) + "%";
+      outBtn.disabled = zoom <= ZOOM_MIN;
+      inBtn.disabled = zoom >= ZOOM_MAX;
+    }
+
+    // zoomTo clamps the factor and, given an anchor point, keeps the content
+    // under that point in place by compensating the scroll offsets.
+    function zoomTo(next, ax, ay) {
+      var clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next / ZOOM_STEP) * ZOOM_STEP));
+      if (Math.abs(clamped - zoom) < 1e-6) return;
+      var ratio = clamped / zoom;
+      var sx = viewport.scrollLeft + (ax || 0);
+      var sy = viewport.scrollTop + (ay || 0);
+      zoom = clamped;
+      paint();
+      if (ax === undefined) return;
+      viewport.scrollLeft = sx * ratio - ax;
+      viewport.scrollTop = sy * ratio - ay;
+    }
+
+    viewport.addEventListener("wheel", function (ev) {
+      ev.preventDefault();
+      var rect = viewport.getBoundingClientRect();
+      var factor = ev.deltaY < 0 ? 1 + ZOOM_STEP : 1 - ZOOM_STEP;
+      zoomTo(zoom * factor, ev.clientX - rect.left, ev.clientY - rect.top);
+    }, { passive: false });
+
+    var dragging = false;
+    var moved = false;
+    var startX = 0;
+    var startY = 0;
+    var startLeft = 0;
+    var startTop = 0;
+
+    viewport.addEventListener("mousedown", function (ev) {
+      if (ev.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startX = ev.clientX;
+      startY = ev.clientY;
+      startLeft = viewport.scrollLeft;
+      startTop = viewport.scrollTop;
+    });
+
+    function onMove(ev) {
+      if (!dragging) return;
+      var dx = ev.clientX - startX;
+      var dy = ev.clientY - startY;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+      moved = true;
+      viewport.classList.add("dragging");
+      viewport.scrollLeft = startLeft - dx;
+      viewport.scrollTop = startTop - dy;
+      ev.preventDefault();
+    }
+
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      if (moved) {
+        viewport.classList.remove("dragging");
+        // Swallow the click that closes a pan, so a shape action does not fire.
+        viewport.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          ev.preventDefault();
+        }, { capture: true, once: true });
+      }
+      moved = false;
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+
+    paint();
+  }
+
+  // ---------------------------------------------------------------------------
   // Registration
   // ---------------------------------------------------------------------------
 
@@ -1003,6 +1149,11 @@
       if (str(props.unit)) flags.push(str(props.unit));
       if (flags.length) head.appendChild(el("span", "ui-figure-flag", flags.join(" · ")));
 
+      var svgEl = buildSvg(sc);
+      var viewport = el("div", "ui-figure-viewport");
+      viewport.appendChild(svgEl);
+      attachZoom(head, viewport, svgEl, sc);
+
       if (props.download !== false) {
         var btn = el("button", "btn ghost ui-figure-download", t("下载 SVG", "Download SVG"));
         btn.type = "button";
@@ -1017,10 +1168,9 @@
         head.appendChild(btn);
       }
       wrap.appendChild(head);
-
-      var svgEl = buildSvg(sc);
-      wrap.appendChild(svgEl);
+      wrap.appendChild(viewport);
       wrap._uiFigureSvg = svgEl;
+      wrap._uiFigureViewport = viewport;
       wrap._uiFigureScene = sc;
 
       if (sc.errors.length) {

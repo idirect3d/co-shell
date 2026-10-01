@@ -15,18 +15,20 @@
 |------|------|------|------|
 | FEATURE-570 | 0.84.0 | P1 | ① 后端 `agent/uitree.go`：白名单新增 `figure` + 8 种图元（point/segment/polygon/ellipse/axes/label/path/function），新增 figure 子树上下文校验与数值/规模上限；② 前端新增 `web/static/ui-expr.js`（手写递归下降表达式解析器，禁用 eval/new Function）与 `web/static/ui-figure.js`（2D/3D SVG 渲染器 + 坐标系映射 + 坐标轴/网格/刻度 + 下载 SVG）；③ `style.css` 主题化样式块、`index.html` 引入脚本；④ i18n zh/en 组件清单与错误键；⑤ `docs/ui-components.md` 增补 figure 章节。 |
 
-> 当前 BUILD: 1154
+> 当前 BUILD: 1156
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（进行中，分支 FEATURE-570，[BUILD-1155]）
+- [ ] **FEATURE-570 render_ui 新增 figure 矢量绘图控件（2D/3D 逻辑坐标）**（进行中，分支 FEATURE-570，[BUILD-1156]）
   - 背景（用户需求）：希望 render_ui 支持画示意图——点、线段、多边形、椭圆（圆）、坐标轴等，供 LLM 方便地输出几何/流程示意图。
   - 交互决策（经 ask_user 确认 7 项）：① 控件形态＝**figure 画布 + 图元作为 children**（复用 id/update/actions 与每节点 8KB props 预算）；② 坐标系＝**逻辑坐标系**（props 声明 xmin/xmax/ymin/ymax，默认 0..10，等比映射、y 轴向上）；③ **协议即支持 xyz**，无 z 走 2D、有 z 走固定等轴测投影并可指定 yaw/pitch；④ 函数曲线＝**前端自建小型表达式解析器**（递归下降，白名单运算符/函数，禁用 eval/new Function）；⑤ 视角＝**静态**（view 预设或 yaw/pitch），不做拖拽旋转；⑥ 图元范围＝基础集 + arrow + path + function + 统一样式（语义色名）；⑦ 交互＝图元 actions 点击回传 + 「下载 SVG」按钮。版本归属经用户确认＝**v0.84.0**（minor 递增）。
   - 实施要点：零后端协议改动（复用 ui_render/ui_update 事件、waiting 等待、actions 通道、ui_prune 裁剪）；样式色一律语义色名（accent/info/warn/success/error/dim）映射 CSS 类以保住四套主题；渲染全程 createElementNS + textContent（禁止 innerHTML）。
   - 验证要点：见 `use-case/FEATURE-570/`；`go build ./... && go vet ./... && go test ./...` 全绿；浏览器实测 2D/3D 示意图与四主题配色。
   - 实测记录 [BUILD-1155]：dev 服务（`--serve --port 28257`）页面内 `UI.renderTree` 注入验证通过——① 2D 全 8 图元（axes/point/segment/polygon/ellipse/label/path/function）DOM 齐备、坐标轴与网格、刻度、下载按钮均在；② 3D 图在 iso/front/top/side 与自定义 yaw/pitch 下投影几何五者互不相同（正视/侧视退化为直线、俯视/等轴测为四边形，符合 y 轴向上的等轴测定义）；③ XSS：label 内 `<img onerror>`/`<script>` 仅作字面文本，DOM 中 0 个 img/script；④ 非法表达式（`window.alert(1)`/`constructor`）图内降级为「表达式含非法字符」，无白屏；⑤ 图元 actions 点击回传 `{type:"point",x,y}`；⑥ `UI.updateTree` 原地刷新生效（2 图元→1 图元、无重复 figure）；⑦ 四主题语义色解析正确（dark/dark-muted `rgb(74,222,128)`、light `rgb(22,163,74)`、paper `rgb(74,124,63)`）；⑧ 导出 SVG 为内联字面颜色（无 `class=`/`var(--`，含 font-family）可独立打开；⑨ 320px 容器下 svg 宽度=320、页面无横向溢出；⑩ 既有 card/kv/chart/steps/callout/progress 回归正常，0 个降级/渲染错误。注：截图受本环境 CDP `Page.captureScreenshot` 超时限制未能取得，视觉效果由上述 DOM/几何/配色断言覆盖。
+  - 增强 [BUILD-1156]（用户确认并入本任务，沿用分支与版本）：① SVG 尺寸语义改为「设计像素尺寸」——`buildSvg` 不再写 `width:"100%"`，改设 `width/height = props.width/height`（同时是 viewBox），CSS `.ui-figure-svg{max-width:100%;height:auto;display:block}` ⇒ 实际显示宽 = min(设计宽, 容器宽)，窄屏自动收缩不溢出；要小图直接写小尺寸（不再靠“拉宽画布”压缩）。② 工具栏新增缩放控件（−/倍率/+ /重置），滚轮以光标为锚点缩放、按住拖拽平移（位移 >3px 才进入拖拽态并加 `.dragging`，拖拽收尾的 click 被捕获阶段吞掉、不误触发图元 actions）；倍率 25%~400% 钳制、步进 25%、边界禁用对应按钮；新增 `.ui-figure-viewport`（max-width:100%、max-height:70vh、overflow:auto）承载滚动。③ 导出恒为原始图形：`exportSvgText` 克隆后移除内联 style 并按 viewBox 重设 width/height（缩放只影响显示）。④ i18n zh/en 提示词补充尺寸规律与推荐档位（小插图 360×240 / 常规 720×420 / 大幅 960×640）及缩放交互说明。用例见 `use-case/FEATURE-570/FEATURE-570-UC-0021.md`（UC-0021~UC-0032）。
+  - 增强实测记录 [BUILD-1156]（静态验证站 28258，页面内断言）：① 设计宽 560 的图实测渲染宽 560px、容器 622px（不再撑满）；② 缩放按钮步进 125%→700px、150%→840px，400% 时 + 禁用、25% 时 − 禁用，重置回 100%/560px/scroll=0；③ 滚轮上滚 125%、下滚回 100%；④ 400% 时 viewport 660×499、内容 2240×1360，拖拽平移双向生效（scrollLeft 100→180、scrollTop 100→160），拖拽中 `.dragging` 生效、结束后移除；⑤ 滚轮锚点漂移横/纵 = 0px/0px（<5px 达标）；⑥ 拖拽收尾的 click 被吞掉（defaultPrevented=true）；⑦ 导出：400% 缩放（内联 width=2240px）下点「下载 SVG」，导出文本根节点为 `viewBox="0 0 560 340" width="560" height="340"` 且无内联 style——导出恒为原始设计尺寸；⑧ 视觉确认控件顺序 title → 缩放组 → 「下载 SVG」，无错位/裁切。
   - 分支/版本：**FEATURE-570**（基于 main），版本 v0.84.0
 
 ---
