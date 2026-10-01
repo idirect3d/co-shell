@@ -7776,19 +7776,29 @@ const streamActiveEl = document.getElementById("streamActive");
 
 // Remember each movable control's original parent so we can restore it when
 // the viewport widens again.
+//
+// FIX-573: remembering only the parent is not enough — restoring with
+// `home.appendChild(el)` moves the control to the END of its parent, which made
+// the new-session "+" button jump to the right of the input box and reordered
+// the status-bar groups after a narrow<->wide round trip. Capture the sibling
+// the control used to precede as well (the DOM is pristine at load time) and
+// restore with insertBefore.
+function narrowSlot(el) {
+  return { el, home: el.parentNode, next: el.nextSibling };
+}
 const narrowMovables = [
-  { el: modeSeg, home: modeSeg.parentNode },
+  narrowSlot(modeSeg),
   // FEATURE-487: the main/vision model icons sit right of the work-mode
   // switcher in the narrow tool row (still clickable to switch model).
-  { el: sbModelTextWrap, home: sbModelTextWrap.parentNode },
-  { el: sbModelVisionWrap, home: sbModelVisionWrap.parentNode },
-  { el: newSessionBtn, home: newSessionBtn.parentNode },
-  { el: sbSessionsWrap, home: sbSessionsWrap.parentNode },
-  { el: attachBtnEl, home: attachBtnEl.parentNode },
-  { el: yoloSwitch, home: yoloSwitch.parentNode },
+  narrowSlot(sbModelTextWrap),
+  narrowSlot(sbModelVisionWrap),
+  narrowSlot(newSessionBtn),
+  narrowSlot(sbSessionsWrap),
+  narrowSlot(attachBtnEl),
+  narrowSlot(yoloSwitch),
   // FEATURE-487: the send button joins the narrow tool row (rightmost) so the
   // input row above holds only the textarea on narrow screens.
-  { el: sendBtnEl, home: sendBtnEl.parentNode },
+  narrowSlot(sendBtnEl),
 ];
 
 // setAgentName writes the agent name (FIX-542) into the centre of the titlebar;
@@ -7878,9 +7888,13 @@ function applyNarrowLayout(narrow) {
     moveStreamModeToTopbar(true);
     bindCycleSwitchers(true);
   } else {
-    // Restore each control to its original parent.
+    // FIX-573: restore each control to its ORIGINAL POSITION — insert it back
+    // before the sibling it used to precede (appendChild would push it to the
+    // end of its parent, scrambling the input row and the status bar).
     for (const m of narrowMovables) {
-      if (m.el && m.home && m.el.parentNode !== m.home) m.home.appendChild(m.el);
+      if (!m.el || !m.home || m.el.parentNode === m.home) continue;
+      if (m.next && m.next.parentNode === m.home) m.home.insertBefore(m.el, m.next);
+      else m.home.appendChild(m.el);
     }
     narrowToolsEl.classList.add("hidden");
     moveStreamModeToTopbar(false);
