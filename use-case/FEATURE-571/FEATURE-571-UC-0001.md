@@ -187,3 +187,51 @@
 
 **步骤**：`git branch --show-current`、`git log --oneline -3`、`git tag --list 'v0.85.0'`。
 **期望**：开发提交均在 `FEATURE-571` 分支（**main 无直接提交**）；`main.go` version=0.85.0 且 build 计数与 `cmd/co-shell-hub/main.go` 的 `hubBuild` 一致；用户确认后才合并 main 并打 tag `v0.85.0`。
+
+## 组 H：控件「连续接收用户事件」开关（UC-0034 ~ UC-0041，BUILD-1165）
+
+> 需求（用户原话要点 + 5 项已确认设计决定）：每个可接收用户交互事件的控件，都能指定一个「是否可连续接收用户事件」的开关。
+> - **关闭（默认）**：控件收到一次用户事件后停止接收事件——被触发的那个按钮/元素暂时显示为禁用，直到本轮 LLM 返回结束（回合结束）后重新启用。
+> - **打开**：可连续接收用户事件，每次触发都发送；此刻模型仍在运行（本回合未结束）则通过**用户动态注入**送进当前运行中的回合，空闲时开启新回合。
+> - 设计决定：Q1 两层都支持（控件层 `props` 设默认 + 动作层 `actions[i]` 覆盖）；Q2 全部注册了交互动作的控件统一支持；Q3 仅被触发的那个按钮/元素禁用（控件其余部分仍可见可读）；Q4 空闲开新回合、运行中一律动态注入（不区分 blocking）；Q5 归入 FEATURE-571 分支、版本 0.85.0。
+> - 实现基线（勘察结论）：前端所有控件动作只有**唯一出站路径** `UI.sendUIAction(actionID, payload, sourceEl, blocking)`（`web/static/ui.js`；调用方 `ui-form.js` 提交、`ui-figure.js` 图元 click/select），拦截点落在此处；回合结束信号为 `app.js` 的 `setRunning(false)`（由 `await_input` 触发）。
+
+## FEATURE-571-UC-0034 默认关闭：同一控件一次回合内只成功发送一次
+
+**步骤**：渲染一个声明 `actions:[{on:"click", id:"a1"}]`、**未**声明开关的控件；在 `running=false`（空闲）下连续点击该元素 3 次，中间不产生 `await_input`。
+**期望**：第 1 次点击上报 1 条 `{type:"ui_action", action_id:"a1", …}`；第 2、3 次点击**不再产生任何上行报文**（`UI.sendUIAction` 返回 `false`）；不出现重复回合、不出现控制台报错。
+
+## FEATURE-571-UC-0035 被触发元素呈禁用态，且本轮结束后自动恢复
+
+**步骤**：同上渲染一个控件；(1) 点击一次后立即断言被触发元素状态；(2) 模拟本轮结束（派发 `await_input`，即 `setRunning(false)`）后再断言；(3) 再次点击。
+**期望**：(1) 被触发元素带 `data-ui-pending="1"` 且 `disabled=true`（原生可禁用元素）或呈 `.ui-pending` 视觉禁用态（非表单元素），**控件内其它元素仍可读可交互**；(2) 本轮结束后 `data-ui-pending` 被清除、`disabled=false`、`.ui-pending` 移除；(3) 恢复后点击可再次成功上行（证明禁用只是「本轮内」的限制）。
+
+## FEATURE-571-UC-0036 控件层 `props.continuous:true` → 可连续发送
+
+**步骤**：控件节点声明 `props:{continuous:true}`，动作不带 `continuous`；在**同一回合内**（不派发 `await_input`）连续触发该元素 3 次。
+**期望**：3 次全部上报（3 条 `ui_action`）；元素始终不禁用、无 `data-ui-pending`、无 `.ui-pending`；`window.__uiActions` 之类的探针可观测到 3 条报文。
+
+## FEATURE-571-UC-0037 动作层覆盖控件层默认（双向）
+
+**步骤**：(a) 控件层 `continuous:true` + 动作 `{continuous:false}` → 连续触发 2 次；(b) 控件层不带开关 + 动作 `{continuous:true}` → 连续触发 2 次。
+**期望**：(a) 只上报 1 条（动作层 `false` 覆盖控件层 `true`，触发元素进入禁用态）；(b) 上报 2 条（动作层 `true` 覆盖控件层缺省 `false`）。优先级固定为 **动作层 > 控件层 > 默认 false**。
+
+## FEATURE-571-UC-0038 连续模式下：运行中动态注入、空闲开新回合
+
+**步骤**：开关打开的控件；(1) `running=false` 时点击 → 观察报文与 `turn_start`；(2) 回合已开始（`running=true`，收到过 `turn_start`）后再点击 2 次。
+**期望**：(1) 报文发出后后端开启新一轮（前端收到 `turn_start`，`running` 变 `true`）；(2) 后续 2 次点击**不打断当前回合**（不发送 `interrupt`），报文按既有非 blocking 路径被注入当前运行中的回合（`web/session.go` 的注入分支），等待 `await_input` 后本轮结束、元素仍可继续触发。**注**：blocking 行为不变——动作声明 `blocking:true` 时仍优先作为 `render_ui(waiting:true)` 的等待结果返回（见 UC-0040）。
+
+## FEATURE-571-UC-0039 各控件行为一致（form / figure / 其它走同一出站路径者）
+
+**步骤**：(1) form 声明 `actions:[{on:"submit", id:"s1"}]`，点击「提交」按钮；(2) figure 图元声明 `actions:[{on:"click", id:"p1"}]`，点击该图元；(3) 分别对 (1)(2) 用例各跑一遍「默认关闭」与「开关打开」。
+**期望**：两者行为完全一致（默认关闭：单次 + 触发元素进入禁用态 + 本轮结束恢复；开关打开：连续可发）；form 的 payload 组装（各字段 name→value、checkbox 布尔、number 数值）与 figure 的 `{type:"point", x, y[, z]}` payload **内容不变**；form 提交后原有的 `data-submitted="1"` 仍写入，且「无 `on:"submit"` 动作则按钮禁用 + tooltip 提示」的兜底不变。
+
+## FEATURE-571-UC-0040 零回归：blocking/waiting、既有标记、FIX-572、浮窗能力
+
+**步骤**：`render_ui(waiting:true)` 后点击带动作的控件；检查 figure 的 `data-action-sent`、form 的无动作兜底；回灌一个被上下文裁剪成 `{"summary":…}` 的 tree；执行一次浮窗 ✕/⛶/拖动。
+**期望**：① blocking 动作仍作为等待结果立即返回当前 LLM 调用；② figure 仍写 `data-action-sent="1"`、form 无动作仍禁用并给出 tooltip；③ 裁剪摘要形态的 tree 仍被 FIX-572 专用报错拦下、不会被回灌渲染；④ 浮窗 ✕、最大化/还原、标题栏拖动全部不受影响；⑤ `browser_console` 无新增报错与未捕获异常。
+
+## FEATURE-571-UC-0041 构建、静态检查与提交合规
+
+**步骤**：`node --check web/static/ui.js`（及被改动的其余前端文件）；`go build ./... && go vet ./...`（一次性）；`grep -n "const build" main.go`、`grep -n "hubBuild" cmd/co-shell-hub/main.go`；`git branch --show-current`、`git log --oneline -3`。
+**期望**：`node --check` 无输出；编译与 vet 无输出；`main.go` 的 `build` 与 `cmd/co-shell-hub/main.go` 的 `hubBuild` 同步为 **1165**（版本 0.85.0）；`work/` 下产出 `co-shell-0.85.0.darwin.arm64` 与 `co-shell-hub-0.85.0.darwin.arm64`；提交在 **FEATURE-571** 分支（main 无直接提交），ROADMAP 任务描述标注 `[BUILD-1165]`。

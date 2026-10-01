@@ -4304,3 +4304,12 @@ select,
 .ui-window-head { cursor: move; touch-action: none; }
 .ui-window-dragging { user-select: none; }
 .ui-window-dragging .ui-window-head { cursor: grabbing; }
+
+/* FEATURE-571: a control element that already fired an event in the current
+   turn. It stays disabled until the turn ends (UI.releasePendingActions
+   re-arms it), so one turn can never be flooded by repeated clicks. Elements
+   with a native disabled attribute dim through that state as well. */
+.ui-pending {
+  opacity: .5;
+  cursor: default;
+}

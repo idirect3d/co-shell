@@ -156,7 +156,7 @@ Node shape:
 - id: optional string; within the same turn it lets you update this component in place
 - props: component-specific properties (see below)
 - children: array of child nodes (container components only)
-- actions: array of interaction declarations [{on, id, payload}]; on is click/select/submit/change, id is the action identifier, payload (node/value/row/point/form) decides what data is sent back
+- actions: array of interaction declarations [{on, id, payload, continuous?, blocking?}]; on is click/select/submit/change, id is the action identifier, payload (node/value/row/point/form) decides what data is sent back; continuous defaults to false — the element accepts a single user event per turn and stays disabled until the turn ends — while true lets it receive events continuously (every trigger is sent: a new turn when you are idle, an injection into the running turn otherwise); props.continuous on the owning node sets the default (the action entry wins)
 
 Component catalog:
 - card: container. props{title?, subtitle?, icon?}
@@ -180,7 +180,7 @@ Component catalog:
   - axes{x?,y?,z?,grid?,ticks?,step?,xlabel?,ylabel?,zlabel?,origin?} (positionable anywhere; figure.axes=false hides the default axes)
   - function{expr,var? (default x),from,to,z?,samples? (max 400),exprZ?} (expr may be "sin(x)*2": + - * / modulo power plus the whitelisted functions sin/cos/sqrt/log/abs/min/max and the constants pi, e; an array of 2-3 entries gives a parametric curve)
   - as soon as any primitive carries a z coordinate the whole figure switches to an axonometric projection (view preset, or yaw/pitch in degrees); primitives are drawn in children order, later ones on top
-  - shared style: stroke takes a semantic colour name accent|info|warn|success|error|dim|none, strokeWidth 1..6, dash solid|dashed|dotted, opacity 0..1; a primitive may declare actions:[{on:"click", id:"..."}] and then reports the coordinates of the clicked point
+  - shared style: stroke takes a semantic colour name accent|info|warn|success|error|dim|none, strokeWidth 1..6, dash solid|dashed|dotted, opacity 0..1; a primitive may declare actions:[{on:"click", id:"..."}] and then reports the coordinates of the clicked point; a primitive without its own continuous inherits the figure's props.continuous (its own props/action still override it)
 
 Rules:
 1. Prefer components over long text: charts for numeric comparisons, tables for detail, callouts for conclusions, figures for geometry/structure.

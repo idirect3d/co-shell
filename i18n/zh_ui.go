@@ -156,7 +156,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 - id: 可选字符串，同一回合内可用它原地更新该组件
 - props: 组件属性（各组件自定义，见下方）
 - children: 子节点数组（仅容器类组件使用）
-- actions: 交互声明数组 [{on, id, payload}]，on 取 click/select/submit/change，id 是动作标识，payload 取 node/value/row/point/form 决定回传哪些数据
+- actions: 交互声明数组 [{on, id, payload, continuous?, blocking?}]，on 取 click/select/submit/change，id 是动作标识，payload 取 node/value/row/point/form 决定回传哪些数据；continuous 默认 false＝该元素只接收一次用户事件（触发后该元素禁用，直到本轮 LLM 返回结束后自动恢复），true＝可连续接收（每次触发都发送：你空闲时开新回合，回合运行中则注入当前回合）；也可在控件层 props.continuous 设默认（动作层优先）
 
 组件清单:
 - card: 容器。props{title?, subtitle?, icon?}
@@ -180,7 +180,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
   - axes{x?,y?,z?,grid?,ticks?,step?,xlabel?,ylabel?,zlabel?,origin?}（可放到任意位置；figure.axes=false 时不画默认轴）
   - function{expr,var?(默认 x),from,to,z?,samples?(不超过 400),exprZ?}（expr 可写 "sin(x)*2"，支持 + - * / 取模 幂 与 sin/cos/sqrt/log/abs/min/max 等白名单函数及 pi、e；expr 也可给 2~3 个元素的数组表示参数方程）
   - 任一图元带 z 坐标时整图转为等轴测投影（view 预设或用 yaw/pitch 指定角度），按 children 顺序绘制（后者覆盖前者）
-  - 统一样式：stroke 取语义色名 accent|info|warn|success|error|dim|none，strokeWidth 1~6，dash solid|dashed|dotted，opacity 0~1；图元可声明 actions:[{on:"click", id:"..."}]，点击回传该点坐标 payload
+  - 统一样式：stroke 取语义色名 accent|info|warn|success|error|dim|none，strokeWidth 1~6，dash solid|dashed|dotted，opacity 0~1；图元可声明 actions:[{on:"click", id:"..."}]，点击回传该点坐标 payload；图元的 continuous 缺省时继承 figure 的 props.continuous（图元自身 props/动作仍可覆盖）
 
 规则:
 1. 优先用组件而不是大段文本；数值对比用 chart，明细用 table，结论用 callout，几何/结构/示意图用 figure。

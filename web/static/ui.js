@@ -675,15 +675,66 @@
     return host ? host.getAttribute("data-ui-id") || "" : "";
   }
 
+  // FEATURE-571: controls that already fired an event in this turn. A control
+  // whose action did not opt into continuous receiving stops accepting events
+  // after the first one, so a single turn can never be flooded by repeated
+  // clicks; releasePendingActions() re-arms them when the turn ends (app.js
+  // calls it from setRunning(false)).
+  var pendingActionEls = [];
+
+  // actionContinuous resolves the "may receive events continuously" switch of
+  // one action: the action entry wins over the owning node's props, which in
+  // turn wins over the nearest ancestor declaring it — a figure stamps
+  // data-ui-continuous on its root so its primitives inherit the figure-level
+  // switch unless they override it.
+  function actionContinuous(action, node, sourceEl) {
+    if (action && typeof action.continuous === "boolean") return action.continuous;
+    var props = node && node.props;
+    if (props && typeof props.continuous === "boolean") return props.continuous;
+    if (!sourceEl || !sourceEl.closest) return false;
+    var host = sourceEl.closest("[data-ui-continuous]");
+    return !!host && host.getAttribute("data-ui-continuous") === "1";
+  }
+
+  // markActionPending blocks one element for the rest of the turn: it is shown
+  // as disabled (the native attribute when the element has one, plus the
+  // .ui-pending class for the rest) and remembered so the turn end can re-arm
+  // it. Only this element is touched — the rest of the component stays usable.
+  function markActionPending(el) {
+    if (!el || !el.setAttribute) return;
+    el.setAttribute("data-ui-pending", "1");
+    if ("disabled" in el) el.disabled = true;
+    if (el.classList) el.classList.add("ui-pending");
+    pendingActionEls.push(el);
+  }
+
+  // releasePendingActions re-arms every element blocked during the turn. Only
+  // elements registered here are touched, so a control disabled for its own
+  // reason (e.g. a form with no submit action) stays disabled.
+  function releasePendingActions() {
+    for (var i = 0; i < pendingActionEls.length; i++) {
+      var el = pendingActionEls[i];
+      if (!el || !el.setAttribute) continue;
+      el.removeAttribute("data-ui-pending");
+      if ("disabled" in el) el.disabled = false;
+      if (el.classList) el.classList.remove("ui-pending");
+    }
+    pendingActionEls = [];
+  }
+
   // sendUIAction reports a component interaction upstream (FEATURE-524). The
   // enclosing rendered tree carries the backend-assigned ui id, so the backend
   // knows which component the user acted on. It returns false when nothing was
   // sent (page not ready, no tree id): callers must then leave the control
-  // usable instead of pretending the action was delivered.
-  function sendUIAction(actionID, payload, sourceEl, blocking) {
+  // usable instead of pretending the action was delivered. FEATURE-571: a
+  // non-continuous action also returns false while its element is blocked for
+  // the current turn.
+  function sendUIAction(actionID, payload, sourceEl, blocking, continuous) {
     if (!actionID) return false;
     var uiID = uiTreeIDOf(sourceEl);
     if (!uiID || typeof global.wsSend !== "function") return false;
+    if (!continuous && sourceEl && sourceEl.getAttribute &&
+      sourceEl.getAttribute("data-ui-pending") === "1") return false;
     var msg = { type: "ui_action", ui_id: uiID, action_id: String(actionID), payload: payload };
     // blocking travels with the action so the backend can tell the two cases
     // apart: a parked render_ui(waiting=true) consumes it as its tool result,
@@ -691,6 +742,7 @@
     // (FEATURE-524 window mode).
     if (blocking) msg.blocking = true;
     global.wsSend(msg);
+    if (!continuous) markActionPending(sourceEl);
     return true;
   }
 
@@ -719,6 +771,10 @@
     // file); sendUIAction is the single outbound path for component actions.
     t: uiText,
     fmtBytes: fmtBytes,
-    sendUIAction: sendUIAction
+    sendUIAction: sendUIAction,
+    // FEATURE-571: the per-action "continuous receiving" switch and the turn-end
+    // re-arm hook used by app.js setRunning(false).
+    actionContinuous: actionContinuous,
+    releasePendingActions: releasePendingActions
   };
 })(window);

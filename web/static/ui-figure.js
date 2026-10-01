@@ -485,8 +485,13 @@
       ev.stopPropagation();
       var payload = { type: "point", x: anchor[0], y: anchor[1] };
       if (isFinite(anchor[2])) payload.z = anchor[2];
+      // FEATURE-571: the primitive's own switch (or the figure-level one it
+      // inherits) decides whether it keeps accepting events this turn.
+      var continuous = typeof global.UI.actionContinuous === "function"
+        ? global.UI.actionContinuous(action, node, host)
+        : false;
       var sent = typeof global.UI.sendUIAction === "function"
-        ? global.UI.sendUIAction(action.id, payload, host, !!action.blocking)
+        ? global.UI.sendUIAction(action.id, payload, host, !!action.blocking, continuous)
         : false;
       if (sent) host.setAttribute("data-action-sent", "1");
     });
@@ -1370,6 +1375,13 @@
       sc.idPrefix = "co-fig-" + (++uid) + "-" + (node.id ? safeFileName(node.id) : "x");
 
       var wrap = el("div", "ui-figure");
+      // FEATURE-571: a switch declared on the figure is inherited by the
+      // primitives carrying the actions (resolved through
+      // closest("[data-ui-continuous]")); a primitive still overrides it
+      // through its own props/actions.
+      if (typeof props.continuous === "boolean") {
+        wrap.setAttribute("data-ui-continuous", props.continuous ? "1" : "0");
+      }
       var head = el("div", "ui-figure-head");
       var title = str(props.title);
       if (title) head.appendChild(el("span", "ui-figure-title", title));

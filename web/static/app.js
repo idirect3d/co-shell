@@ -4642,6 +4642,12 @@ let running = false;
 // immediately for responsive feedback.
 function setRunning(v) {
   running = v;
+  // FEATURE-571: a control that fired an event stays disabled until the turn
+  // ends, so re-arm the blocked buttons/elements on the turn boundary (this is
+  // the only place that knows when the agent handed control back).
+  if (!v && window.UI && typeof window.UI.releasePendingActions === "function") {
+    window.UI.releasePendingActions();
+  }
   setIcon(sendBtn, v ? "i-pause" : "i-send");
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);

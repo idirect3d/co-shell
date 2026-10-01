@@ -47,7 +47,7 @@
 
 > **版本**: v0.85.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1164；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复均已完成，待用户确认后合并 main）
+> **状态**: 🚧 进行中（分支 FEATURE-571，BUILD-1165；FEATURE-571 代码/实测/浮窗 ✕ 修复/最大化按钮 + FIX-572 裁剪摘要回灌修复 + 控件「连续接收用户事件」开关均已完成，待用户确认后合并 main）
 > **里程碑**: `render_ui` 新增 `target="panel"`：把控件树渲染到**覆盖主信息区**的常驻面板（与文件预览同区域、层级在其下），区别于跟随内容上卷的流式输出；`ui_window` 升级为**多窗口**管理（创建/命名/关闭/激活，`surface=panel|float` 决定面板或右下浮窗），面板顶部 tabs 点击/左右滑动切换（窄屏 ≤720px 隐藏 tabs 但保留切换入口），窗口清单与每窗最后的树按会话存 localStorage 可跨会话/刷新恢复，`<environment_details>` 新增 `<ui_windows>` 清单供 LLM 决策「新建 vs 更新」。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -60,7 +60,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1164]）
+- [ ] **FEATURE-571 render_ui 主信息区覆盖面板（多窗口 + tabs 切换 + 跨会话恢复）**（进行中，分支 FEATURE-571，[BUILD-1165]）
   - 背景（用户需求）：`render_ui` 目前只能渲染到对话流（跟随内容上卷）或右下角单实例浮窗；希望支持把控件渲染到**覆盖主信息区**的常驻面板，以便在固定区域与用户持续交互（效果类同文件预览的覆盖层）。
   - 交互决策（经 ask_user 确认 8 项，2026-10-01）：
     - **D1 参数形态**：新增 `render_ui(target="panel")`（面板 = 主区覆盖形态，与右下浮窗共用同一窗口壳与协议）；`render_ui` 一个参数即可自动打开面板；`ui_window` 仍负责创建/关闭/命名。
@@ -5883,4 +5883,5 @@ v{major}.{minor}.{patch}
 | FIX- | Bug 修复（Bug Fix） |
 
   - 实测复核（第三轮，标题栏拖动，[BUILD-1163]）：`web/static/ui-windows.js` 新增 `clampPos/applyPos/startDrag/dragFromShell` 与文档级 `pointerdown` 委托（与 ✕/⛶ 同款委托，克隆窗同样可拖）；`refresh()` 对已拖动窗口改用 `left/top` 定位、不再被层叠偏移覆盖；`persist()/readStored()` 增写 `pos`；`setSurface(panel)` 清空 `pos` 回到角落；`state()` 暴露 `pos`；`style.css` 追加 `.ui-window-head{cursor:move;touch-action:none}` 与 `.ui-window-dragging{user-select:none}`。静态镜像站实测（`http://127.0.0.1:28258/feat571/index.html`）：`cursor=move`、`touch-action=none`；模拟 pointerdown→move(-300,-200)→up 后位移精确为 dx=-300/dy=-200，`right/bottom` 切为 `auto`、`left/top` 写入内联样式；拖动中挂 `ui-window-dragging`、松手移除；越界拖到 (-9000,-9000) 被夹紧为 left=-372/top=-112（保留 48px 可抓取区）；`localStorage["co-shell-ui-windows:test-session"]` 写入 `pos:{left:-372,top:-112}`；`setSurface(panel)`→`setSurface(float)` 往返后 `pos` 清空、回到 `right/bottom:16px`。未覆盖：真实鼠标拖拽手感、多窗同时拖动、触屏拖动。
+  - [BUILD-1165] 控件「连续接收用户事件」开关：默认关闭时被触发元素单次禁用、回合结束（setRunning(false)）自动恢复；开关打开（控件层 `props.continuous` 或动作层 `actions[i].continuous` 覆盖，figure 图元缺省继承 figure）时可连续发送，运行中经用户动态注入进入当前回合。单点改造 `UI.sendUIAction`，覆盖 form/figure 等全部走该出站路径的控件；form 的禁用对象由整个 form 改为提交按钮。用例 UC-0034 起已追加。
 - 实测复核（第四轮，浮窗默认居中，[BUILD-1164]）：`web/static/ui-windows.js` 新增 `centerPos(idx,w,h)`（`(innerWidth-w)/2`、`(innerHeight-h)/2`，叠加 `FLOAT_STEP=28` 级联偏移后经 `clampPos` 夹紧）；`refresh()` 中未拖动过的浮窗由 `right/bottom` 层叠改为 `left/top` 视口居中，已拖动窗口仍按 `rec.pos` 保留用户位置，面板形态不受影响；`style.css` 的 `.ui-window` 注释同步更新（`right/bottom` 降级为 JS 定位前兜底）。静态镜像站实测（`http://127.0.0.1:28258/feat571/index.html?v=3`）：视口 1450×808 下窗 420×160，首窗 left/top=515/324 恰为视口中心（中心偏差 0,0），第二窗 543/352 = 中心+28px 级联（偏差 0,0），内联 `right/bottom` 均为 `auto`。未覆盖：真实实例观感（需重启二进制后生效）、窄屏（<720px）居中效果。
