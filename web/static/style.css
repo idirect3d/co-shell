@@ -4111,9 +4111,14 @@ select,
 /* The canvas keeps its design size (width/height attributes) and shrinks to the
    column on a narrow screen through max-width; the viewport shows scrollbars
    once the user zooms past 100%. */
-.ui-figure-viewport { max-width: 100%; max-height: 70vh; overflow: auto; cursor: grab; }
+.ui-figure-viewport { max-width: 100%; max-height: 70vh; overflow: hidden; cursor: grab; }
 .ui-figure-viewport.dragging { cursor: grabbing; user-select: none; }
-.ui-figure-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.ui-figure-svg { display: block; max-width: 100%; height: auto; overflow: hidden; }
+/* Orbit grip in the top-right corner of the canvas (camera rotation). */
+.ui-fig-grip { cursor: grab; }
+.ui-fig-grip.dragging { cursor: grabbing; }
+.ui-fig-grip-bg { fill: var(--bg-panel); stroke: var(--border); stroke-width: 1; }
+.ui-fig-grip-dot { fill: var(--fg-dim); pointer-events: none; }
 .ui-figure-zoom { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
 .ui-figure-zoom-btn { flex: none; padding: 0 8px; line-height: 1.6; }
 .ui-figure-zoom-val {

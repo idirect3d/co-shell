@@ -313,7 +313,10 @@
 
     var angles = viewAngles(props, sc.is3D);
     sc.angles = angles;
-    sc.project = makeProjection(sc.is3D, angles);
+    sc.baseProject = makeProjection(sc.is3D, angles);
+    sc.viewState = { scale: 1, tx: 0, ty: 0, yaw: 0, pitch: 0 };
+    sc.centre = [0, 0, 0];
+    sc.project = sc.baseProject;
     sc.map = makeMapping(sceneBounds(sc, list), props, sc.is3D);
     return sc;
   }
@@ -898,12 +901,19 @@
     var defs = sv("defs");
     svgEl.appendChild(defs);
     sc.defs = defs;
-    svgEl.appendChild(sv("rect", { class: "ui-figure-bg", x: 0, y: 0, width: m.w, height: m.h }));
+    var bgRect = sv("rect", { class: "ui-figure-bg", x: 0, y: 0, width: m.w, height: m.h });
+    svgEl.appendChild(bgRect);
+    // The view layer carries the camera transform (pan + zoom): panning and
+    // zooming are view-only changes and never need a redraw.
+    var viewLayer = sv("g", { class: "ui-fig-view" });
     var gridLayer = sv("g", { class: "ui-figure-axes" });
     var shapeLayer = sv("g", { class: "ui-figure-shapes" });
-    svgEl.appendChild(gridLayer);
-    svgEl.appendChild(shapeLayer);
+    viewLayer.appendChild(gridLayer);
+    viewLayer.appendChild(shapeLayer);
+    svgEl.appendChild(viewLayer);
     sc.svg = svgEl;
+    sc.bgRect = bgRect;
+    sc.viewLayer = viewLayer;
     sc.axesLayer = gridLayer;
     sc.shapeLayer = shapeLayer;
 
@@ -917,6 +927,8 @@
         zlabel: str(sc.props.zlabel)
       });
     }
+    sc.grip = buildGrip(sc);
+    svgEl.appendChild(sc.grip);
     return svgEl;
   }
 
@@ -957,6 +969,9 @@
     holder.style.left = "-10000px";
     holder.style.top = "0";
     var clone = svgEl.cloneNode(true);
+    // The orbit handle is UI chrome, not figure content: never export it.
+    var grip = clone.querySelector(".ui-fig-grip");
+    if (grip && grip.parentNode) grip.parentNode.removeChild(grip);
     // A zoomed canvas carries inline width/height styles: drop them and pin the
     // export back to the design size, so the file is always the original figure.
     clone.removeAttribute("style");
@@ -994,124 +1009,299 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Zoom & pan (view-only: the exported SVG always keeps the design size)
+  // Camera: view state (pan / zoom) + orbit (rotation about the marked centre)
   // ---------------------------------------------------------------------------
 
   var ZOOM_MIN = 0.25;
   var ZOOM_MAX = 4;
   var ZOOM_STEP = 0.25;
+  var ORBIT_SENS = 0.4; // degrees per pixel of grip drag
 
-  // attachZoom adds the zoom controls to the toolbar and wires wheel zoom plus
-  // drag pan on the viewport. Zoom is a display concern only: the <svg> keeps
-  // its design-size attributes, only inline styles change.
-  function attachZoom(head, viewport, svgEl, sc) {
-    var zoom = 1;
-    var base = 0; // rendered width at 100%, measured on first interaction
+  // scenePoints lists every logical vertex of the scene (cached per scene).
+  function scenePoints(sc) {
+    if (sc.points) return sc.points;
+    var out = [];
+    for (var i = 0; i < sc.children.length; i++) {
+      var node = sc.children[i];
+      if (!node || typeof node !== "object") continue;
+      var verts = shapeVertices(node, sc.curves[i]);
+      for (var v = 0; v < verts.length; v++) out.push(verts[v]);
+    }
+    sc.points = out;
+    return out;
+  }
+
+  function growBox(b, p) {
+    var x = p[0];
+    var y = isFinite(p[1]) ? p[1] : 0;
+    var z = isFinite(p[2]) ? p[2] : 0;
+    if (b.xmin === null || x < b.xmin) b.xmin = x;
+    if (b.xmax === null || x > b.xmax) b.xmax = x;
+    if (b.ymin === null || y < b.ymin) b.ymin = y;
+    if (b.ymax === null || y > b.ymax) b.ymax = y;
+    if (b.zmin === null || z < b.zmin) b.zmin = z;
+    if (b.zmax === null || z > b.zmax) b.zmax = z;
+  }
+
+  // orbitPoint rotates a logical point about the rotation centre with
+  // Rx(pitch) * Ry(yaw). A point without z sits on the z = 0 plane, which is what
+  // tilts a plain 2D drawing into a 3D view.
+  function orbitPoint(p, view, c) {
+    var x = p[0] - c[0];
+    var y = (isFinite(p[1]) ? p[1] : 0) - c[1];
+    var z = (isFinite(p[2]) ? p[2] : 0) - c[2];
+    var cy = Math.cos(view.yaw * Math.PI / 180);
+    var sy = Math.sin(view.yaw * Math.PI / 180);
+    var cp = Math.cos(view.pitch * Math.PI / 180);
+    var sp = Math.sin(view.pitch * Math.PI / 180);
+    var x1 = x * cy + z * sy;
+    var z1 = z * cy - x * sy;
+    var y1 = y * cp - z1 * sp;
+    var z2 = y * sp + z1 * cp;
+    return [x1 + c[0], y1 + c[1], z2 + c[2]];
+  }
+
+  // orientedProject wraps the base projection with the live orbit angles; with
+  // yaw = pitch = 0 the base projection is returned untouched (zero regression).
+  function orientedProject(base, view, c) {
+    if (!view.yaw && !view.pitch) return base;
+    return function (p) { return base(orbitPoint(p, view, c)); };
+  }
+
+  // rotationCentre is the anchor the grip rotates about: the (x,y) centre of the
+  // vertices visible inside the canvas plus their depth centre.
+  function rotationCentre(sc) {
+    var pts = scenePoints(sc);
+    var b = { xmin: null, xmax: null, ymin: null, ymax: null, zmin: null, zmax: null };
+    var rect = sc.svg ? sc.svg.getBoundingClientRect() : null;
+    var i;
+    var seen = 0;
+    for (i = 0; i < pts.length; i++) {
+      if (insideViewport(sc, pts[i], rect)) { growBox(b, pts[i]); seen++; }
+    }
+    if (!seen) for (i = 0; i < pts.length; i++) growBox(b, pts[i]);
+    if (b.xmin === null) return [0, 0, 0];
+    return [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2];
+  }
+
+  // insideViewport reports whether a logical point lands inside the canvas.
+  function insideViewport(sc, p, rect) {
+    if (!rect || !sc.map) return true;
+    var uv = sc.project(p);
+    var k = rect.width > 0 && sc.map.w > 0 ? rect.width / sc.map.w : 1;
+    var v = sc.viewState;
+    var sx = rect.left + (v.tx + v.scale * sc.map.toX(uv[0])) * k;
+    var sy = rect.top + (v.ty + v.scale * sc.map.toY(uv[1])) * k;
+    return sx >= rect.left - 1 && sx <= rect.right + 1 && sy >= rect.top - 1 && sy <= rect.bottom + 1;
+  }
+
+  // applyView writes the camera transform (pan + zoom) on the view layer.
+  function applyView(sc) {
+    if (!sc.viewLayer) return;
+    var v = sc.viewState;
+    sc.viewLayer.setAttribute("transform",
+      "translate(" + fx(v.tx) + " " + fx(v.ty) + ") scale(" + fx(v.scale) + ")");
+  }
+
+  function clearLayer(layer) {
+    while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
+  }
+
+  // replayShapes redraws every primitive with the current mapping (used after an
+  // orbit redraw, where the projection itself changed).
+  function replayShapes(sc) {
+    sc.layerNodes = sc.layerNodes || [];
+    for (var i = 0; i < sc.children.length; i++) {
+      var node = sc.children[i];
+      if (!node || typeof node !== "object" || !SHAPE_DRAW[node.type]) continue;
+      var ctx = (sc.ctxs && sc.ctxs[i]) || { props: node.props || {}, raw: node };
+      var g = sv("g", { class: "ui-fig-shape ui-fig-shape-" + node.type });
+      try {
+        var fresh = SHAPE_DRAW[node.type](sc, g, ctx);
+        var old = sc.layerNodes[i];
+        if (old && old.id) fresh.id = old.id;
+        sc.shapeLayer.appendChild(fresh);
+        sc.layerNodes[i] = fresh;
+      } catch (err) {
+        void err;
+      }
+    }
+  }
+
+  // redrawScene re-projects the whole scene; the canvas keeps its design size,
+  // only the mapping and the primitives change.
+  function redrawScene(sc) {
+    if (!sc.svg || !sc.children) return;
+    sc.project = orientedProject(sc.baseProject, sc.viewState, sc.centre);
+    sc.map = makeMapping(sceneBounds(sc, sc.children), sc.props,
+      sc.is3D || !!(sc.viewState.yaw || sc.viewState.pitch));
+    sc.svg.setAttribute("viewBox", "0 0 " + sc.map.w + " " + sc.map.h);
+    if (sc.bgRect) {
+      sc.bgRect.setAttribute("width", sc.map.w);
+      sc.bgRect.setAttribute("height", sc.map.h);
+    }
+    clearLayer(sc.axesLayer);
+    clearLayer(sc.shapeLayer);
+    if (sc.props.axes !== false) {
+      drawAxes(sc, sc.axesLayer, {
+        grid: sc.props.grid !== false,
+        ticks: 7,
+        step: 0,
+        xlabel: str(sc.props.xlabel),
+        ylabel: str(sc.props.ylabel),
+        zlabel: str(sc.props.zlabel)
+      });
+    }
+    replayShapes(sc);
+    applyView(sc);
+  }
+
+  // buildGrip creates the orbit handle in the top-right corner of the canvas.
+  function buildGrip(sc) {
+    var m = sc.map;
+    var grip = sv("g", {
+      class: "ui-fig-grip",
+      role: "button",
+      transform: "translate(" + (m.w - 22) + ",22)"
+    });
+    grip.appendChild(sv("circle", { class: "ui-fig-grip-bg", cx: 0, cy: 0, r: 13 }));
+    for (var gy = -1; gy <= 1; gy++) {
+      for (var gx = -1; gx <= 1; gx++) {
+        if (!gx && !gy) continue;
+        grip.appendChild(sv("circle", { class: "ui-fig-grip-dot", cx: gx * 5, cy: gy * 5, r: 1.7 }));
+      }
+    }
+    grip.appendChild(sv("title", null, t("拖动旋转视图", "Drag to orbit")));
+    return grip;
+  }
+
+  // attachCamera wires the camera controls: zoom buttons plus the factor, 回正
+  // (level the view, keep the zoom), 重置 (back to the initial view), wheel zoom
+  // about the cursor, drag pan, and the orbit grip in the top-right corner.
+  function attachCamera(head, viewport, svgEl, sc) {
+    var v = sc.viewState;
+    var frame = 0;
 
     var group = el("span", "ui-figure-zoom");
     var outBtn = el("button", "btn ghost ui-figure-zoom-btn", "\u2212");
     var label = el("span", "ui-figure-zoom-val", "100%");
     var inBtn = el("button", "btn ghost ui-figure-zoom-btn", "+");
+    var levelBtn = el("button", "btn ghost ui-figure-zoom-btn", t("回正", "Level"));
     var rstBtn = el("button", "btn ghost ui-figure-zoom-btn", t("重置", "Reset"));
-    [outBtn, inBtn, rstBtn].forEach(function (b) {
+    [outBtn, inBtn, levelBtn, rstBtn].forEach(function (b) {
       b.type = "button";
       b.addEventListener("click", function (ev) { ev.stopPropagation(); });
     });
     outBtn.title = t("缩小", "Zoom out");
     inBtn.title = t("放大", "Zoom in");
-    rstBtn.title = t("恢复原始大小", "Reset zoom");
-    outBtn.addEventListener("click", function () { zoomTo(zoom - ZOOM_STEP); });
-    inBtn.addEventListener("click", function () { zoomTo(zoom + ZOOM_STEP); });
-    rstBtn.addEventListener("click", function () {
-      zoomTo(1);
-      viewport.scrollLeft = 0;
-      viewport.scrollTop = 0;
-    });
+    levelBtn.title = t("视角与位置归正（保留缩放）", "Level the view (keep the zoom)");
+    rstBtn.title = t("恢复原图原状", "Reset everything");
     group.appendChild(outBtn);
     group.appendChild(label);
     group.appendChild(inBtn);
+    group.appendChild(levelBtn);
     group.appendChild(rstBtn);
     head.appendChild(group);
 
-    function baseWidth() {
-      if (!base) {
-        var rect = svgEl.getBoundingClientRect();
-        base = rect.width > 0 ? rect.width : sc.map.w;
-      }
-      return base;
+    function displayScale() {
+      var r = svgEl.getBoundingClientRect();
+      return r.width > 0 && sc.map.w > 0 ? r.width / sc.map.w : 1;
     }
 
     function paint() {
-      if (zoom === 1) {
-        // Back to the CSS-driven responsive size (never wider than the column).
-        svgEl.style.width = "";
-        svgEl.style.height = "";
-        svgEl.style.maxWidth = "";
-      } else {
-        svgEl.style.width = (baseWidth() * zoom) + "px";
-        svgEl.style.height = "auto";
-        svgEl.style.maxWidth = "none";
-      }
-      label.textContent = Math.round(zoom * 100) + "%";
-      outBtn.disabled = zoom <= ZOOM_MIN;
-      inBtn.disabled = zoom >= ZOOM_MAX;
+      label.textContent = Math.round(v.scale * 100) + "%";
+      outBtn.disabled = v.scale <= ZOOM_MIN + 1e-6;
+      inBtn.disabled = v.scale >= ZOOM_MAX - 1e-6;
+      applyView(sc);
     }
 
-    // zoomTo clamps the factor and, given an anchor point, keeps the content
-    // under that point in place by compensating the scroll offsets.
-    function zoomTo(next, ax, ay) {
+    // zoomTo clamps the factor; given a screen point it keeps that point fixed.
+    function zoomTo(next, cx, cy) {
       var clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next / ZOOM_STEP) * ZOOM_STEP));
-      if (Math.abs(clamped - zoom) < 1e-6) return;
-      var ratio = clamped / zoom;
-      var sx = viewport.scrollLeft + (ax || 0);
-      var sy = viewport.scrollTop + (ay || 0);
-      zoom = clamped;
+      if (Math.abs(clamped - v.scale) < 1e-6) return;
+      var r = svgEl.getBoundingClientRect();
+      var k = displayScale();
+      var ax = (cx - r.left) / k;
+      var ay = (cy - r.top) / k;
+      var ratio = clamped / v.scale;
+      v.tx = ax - ratio * (ax - v.tx);
+      v.ty = ay - ratio * (ay - v.ty);
+      v.scale = clamped;
       paint();
-      if (ax === undefined) return;
-      viewport.scrollLeft = sx * ratio - ax;
-      viewport.scrollTop = sy * ratio - ay;
     }
+
+    function centrePoint() {
+      var r = viewport.getBoundingClientRect();
+      return [r.left + r.width / 2, r.top + r.height / 2];
+    }
+
+    outBtn.addEventListener("click", function () {
+      var c = centrePoint();
+      zoomTo(v.scale - ZOOM_STEP, c[0], c[1]);
+    });
+    inBtn.addEventListener("click", function () {
+      var c = centrePoint();
+      zoomTo(v.scale + ZOOM_STEP, c[0], c[1]);
+    });
+    levelBtn.addEventListener("click", function () {
+      v.tx = 0;
+      v.ty = 0;
+      v.yaw = 0;
+      v.pitch = 0;
+      sc.centre = rotationCentre(sc);
+      redrawScene(sc);
+      paint();
+    });
+    rstBtn.addEventListener("click", function () {
+      v.scale = 1;
+      v.tx = 0;
+      v.ty = 0;
+      v.yaw = 0;
+      v.pitch = 0;
+      sc.centre = rotationCentre(sc);
+      redrawScene(sc);
+      paint();
+    });
 
     viewport.addEventListener("wheel", function (ev) {
       ev.preventDefault();
-      var rect = viewport.getBoundingClientRect();
       var factor = ev.deltaY < 0 ? 1 + ZOOM_STEP : 1 - ZOOM_STEP;
-      zoomTo(zoom * factor, ev.clientX - rect.left, ev.clientY - rect.top);
+      zoomTo(v.scale * factor, ev.clientX, ev.clientY);
     }, { passive: false });
 
-    var dragging = false;
-    var moved = false;
-    var startX = 0;
-    var startY = 0;
-    var startLeft = 0;
-    var startTop = 0;
+    var panning = false;
+    var panned = false;
+    var px = 0;
+    var py = 0;
 
     viewport.addEventListener("mousedown", function (ev) {
       if (ev.button !== 0) return;
-      dragging = true;
-      moved = false;
-      startX = ev.clientX;
-      startY = ev.clientY;
-      startLeft = viewport.scrollLeft;
-      startTop = viewport.scrollTop;
+      panning = true;
+      panned = false;
+      px = ev.clientX;
+      py = ev.clientY;
     });
 
-    function onMove(ev) {
-      if (!dragging) return;
-      var dx = ev.clientX - startX;
-      var dy = ev.clientY - startY;
-      if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
-      moved = true;
+    window.addEventListener("mousemove", function (ev) {
+      if (!panning) return;
+      var dx = ev.clientX - px;
+      var dy = ev.clientY - py;
+      if (!panned && Math.abs(dx) + Math.abs(dy) < 3) return;
+      panned = true;
       viewport.classList.add("dragging");
-      viewport.scrollLeft = startLeft - dx;
-      viewport.scrollTop = startTop - dy;
+      var k = displayScale();
+      v.tx += dx / k;
+      v.ty += dy / k;
+      px = ev.clientX;
+      py = ev.clientY;
+      applyView(sc);
       ev.preventDefault();
-    }
+    });
 
-    function onUp() {
-      if (!dragging) return;
-      dragging = false;
-      if (moved) {
+    window.addEventListener("mouseup", function () {
+      if (!panning) return;
+      panning = false;
+      if (panned) {
         viewport.classList.remove("dragging");
         // Swallow the click that closes a pan, so a shape action does not fire.
         viewport.addEventListener("click", function (ev) {
@@ -1119,11 +1309,50 @@
           ev.preventDefault();
         }, { capture: true, once: true });
       }
-      moved = false;
+      panned = false;
+    });
+
+    // Orbit: dragging the grip rotates the scene about the marked centre.
+    var orbiting = false;
+    var ox = 0;
+    var oy = 0;
+
+    function schedule() {
+      if (frame) return;
+      var raf = global.requestAnimationFrame || function (fn) { return setTimeout(fn, 16); };
+      frame = raf(function () {
+        frame = 0;
+        sc.centre = rotationCentre(sc);
+        redrawScene(sc);
+        paint();
+      });
     }
 
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    if (sc.grip) {
+      sc.grip.addEventListener("mousedown", function (ev) {
+        if (ev.button !== 0) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        orbiting = true;
+        ox = ev.clientX;
+        oy = ev.clientY;
+        sc.grip.classList.add("dragging");
+      });
+      window.addEventListener("mousemove", function (ev) {
+        if (!orbiting) return;
+        v.yaw = v.yaw + (ev.clientX - ox) * ORBIT_SENS;
+        v.pitch = Math.max(-89, Math.min(89, v.pitch + (ev.clientY - oy) * ORBIT_SENS));
+        ox = ev.clientX;
+        oy = ev.clientY;
+        schedule();
+        ev.preventDefault();
+      });
+      window.addEventListener("mouseup", function () {
+        if (!orbiting) return;
+        orbiting = false;
+        sc.grip.classList.remove("dragging");
+      });
+    }
 
     paint();
   }
@@ -1152,7 +1381,7 @@
       var svgEl = buildSvg(sc);
       var viewport = el("div", "ui-figure-viewport");
       viewport.appendChild(svgEl);
-      attachZoom(head, viewport, svgEl, sc);
+      attachCamera(head, viewport, svgEl, sc);
 
       if (props.download !== false) {
         var btn = el("button", "btn ghost ui-figure-download", t("下载 SVG", "Download SVG"));
@@ -1203,6 +1432,8 @@
     var sc = buildScene({ axes: false, width: 240, height: 160 }, [rawNode], { fitOnly: true });
     sc.idPrefix = "co-fig-solo-" + (++uid);
     var svgEl = buildSvg(sc);
+    // An isolated primitive has no camera controls: drop the orbit grip.
+    if (sc.grip && sc.grip.parentNode) sc.grip.parentNode.removeChild(sc.grip);
     sc.shapeLayer.appendChild(SHAPE_DRAW[rawNode.type](sc, sv("g", { class: "ui-fig-layer" }), ctx));
     var wrap = el("div", "ui-figure ui-figure-solo");
     wrap.appendChild(svgEl);
@@ -1234,7 +1465,17 @@
         var sc = sceneFor(node.raw);
         var g = sv("g", { class: "ui-fig-shape ui-fig-shape-" + type });
         try {
-          if (sc) return SHAPE_DRAW[type](sc, g, node);
+          if (sc) {
+            var idx = sc.children ? sc.children.indexOf(node.raw) : -1;
+            if (idx >= 0) {
+              sc.ctxs = sc.ctxs || [];
+              sc.layerNodes = sc.layerNodes || [];
+              sc.ctxs[idx] = node;
+            }
+            var drawn = SHAPE_DRAW[type](sc, g, node);
+            if (idx >= 0) sc.layerNodes[idx] = drawn;
+            return drawn;
+          }
           return standaloneShape(node);
         } catch (err) {
           // A broken primitive must never take the whole figure down.
