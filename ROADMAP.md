@@ -8,7 +8,7 @@
 
 > **版本**: v0.85.2
 
-> **状态**: 🚧 编码完成，待用户实测确认（FIX-574，分支 `FIX-574`，[BUILD-1168]）
+> **状态**: ✅ 已完成并合并 main（tag `v0.85.2`，[BUILD-1168]）
 > **里程碑**: ① 消除系统提示词中「未变化的步骤可以不传」与后端「所有 in_progress 步骤必须上报」的自相矛盾；② 保持“遗漏在办步骤即拒绝该次调用”的硬失败语义不变，但错误提示必须列出**被遗漏步骤的 index/描述/状态**并给出补齐动作，不再回填工具自身参数清单；③ 在工具 schema 的 meta 描述中写明 progress 最小形态。**不含 P0-B**（不放宽“progress 至少 1 条”的要求）。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,12 +21,14 @@
 
 ### 任务详情
 
-- [ ] **FIX-574 工具调用 meta.progress 规则冲突与误导性错误提示**（编码完成，待用户实测确认，[BUILD-1168]）
+- [X] **FIX-574 工具调用 meta.progress 规则冲突与误导性错误提示**（已完成并合并 main，tag `v0.85.2`，[BUILD-1168]）
   - 现象：会话初期（任务计划刚建立）工具调用报错偏多，主体为 `meta.progress is required...`、`missing step(s) at index [N]`、`meta.risk/affected_objects is required`；且错误提示讲的是工具自身参数（如 read_file 的 `path`），与真实原因无关。
   - 根因（详见 `research/会话初期工具调用报错分析.md`）：系统提示词同段内“未变化的步骤可以不传”与“所有 in_progress 步骤必须体现”互相矛盾，模型按前者只上报当前步骤 → 被 `agent/progress.go`（FEATURE-452）判定遗漏而拒绝；`agent/tool_error.go` 又用 `contains("missing"/"required")` 粗分类，把所有 meta 类错误套上“缺少工具参数”模板。
   - 修复：① 提示词收敛为三段式唯一规则（P0-A）；② 错误提示可执行化——仍拒绝，但列出被遗漏步骤的 index/描述/状态与 meta 五字段/最小形态，不再回填工具参数（P1-A）；③ 工具 schema 的 meta 描述内写明 progress 最小形态（P1-B）。
   - 分支/版本：**FIX-574**（基于 main），版本 v0.85.2（FIX → patch 递增）
   - 运行时用例：`use-case/FIX-574/FIX-574-UC-0001.md`
+  - 验证：`go build ./... && go vet ./...` 通过；`go test ./agent/ -run FIX574 -v` 6/6 通过（ProgressReportError 文本、progress 专属文案不含 'path'、meta 字段文案不含 timeout_seconds、工具参数错误仍走原模板、isMetaValidationError 分类表、提示词守卫）；全量 `go test ./...` 的 agent/cmd/i18n/web 失败与 main 基线一致（语言/环境相关既有失败，无新增）。
+  - 合并发布：FIX-574 → main（--no-ff，BUILD-1168，版本 v0.85.2，tag `v0.85.2`）；产物 `work/co-shell-0.85.2.darwin.arm64`、`work/co-shell-hub-0.85.2.darwin.arm64`（`--version` → `v0.85.2 [BUILD-1168]`）。
 
 ---
 
