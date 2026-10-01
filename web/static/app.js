@@ -5242,6 +5242,74 @@ let fvHexNext = 0; // next byte offset to load in hex mode
 let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
 let fvRaw = false; // FEATURE-435: md files show raw text when true (default off = auto-render)
 
+/* ---------- path links in the conversation stream (FEATURE-576) ---------- */
+
+// wsRoot is the workspace root reported by /api/bootstrap (recorded in boot()).
+// It lets an absolute path printed by the model be recognised as a workspace
+// file: the read-only preview API stays confined to the workspace (see
+// resolvePath in web/server.go), so such a path is converted to its
+// workspace-relative form before it reaches any preview API.
+let wsRoot = "";
+
+// isPreviewablePath reports whether a path's type is one the file previewer can
+// show — the same two extension sets the workspace tree routes a click with.
+function isPreviewablePath(p) {
+  return IMAGE_EXT.test(p) || TEXT_EXT.test(p);
+}
+
+// previewPathOf turns one path candidate found in rendered text into
+// {path, line} for the previewer, or null when it is not a previewable local
+// file: wrapping punctuation is trimmed (the candidate comes out of a markdown
+// text run), an optional ":line[:col]" suffix is split off, URLs are rejected,
+// a bare filename (no "/") is rejected, extensions the previewer cannot show
+// are rejected, and an absolute path is accepted only inside the workspace
+// (converted to the relative form every preview API expects).
+function previewPathOf(raw) {
+  const rawStr = String(raw || "");
+  // A URL is never a local path. Checked on the untrimmed candidate because the
+  // candidate may have swallowed the label in front of the scheme.
+  if (rawStr.indexOf("://") >= 0) return null;
+  // Prose/CJK punctuation ("：", "、", "，", "\"…) is already kept out of the
+  // path candidate by MD_PATH_RE in md.js, so the string arrives clean; only
+  // wrapping markdown punctuation still needs trimming (a path inside `code`
+  // or **bold** arrives unwrapped, but an unclosed ** while streaming does not).
+  let s = rawStr.replace(/^[({\[*_'"`]+/, "").replace(/[)\]}`*_'".,;:!?]+$/, "");
+  let line = 0;
+  const m = s.match(/^(.*?):(\d+)(?::\d+)?$/);
+  if (m) { s = m[1]; line = parseInt(m[2], 10); }
+  if (!s || s.indexOf("/") < 0) return null;
+  if (!isPreviewablePath(s)) return null;
+  if (s.charAt(0) === "/") {
+    if (!wsRoot || s.indexOf(wsRoot + "/") !== 0) return null;
+    s = s.slice(wsRoot.length + 1);
+  }
+  if (s.indexOf("./") === 0) s = s.slice(2);
+  return s ? { path: s, line: line } : null;
+}
+
+// openPathPreview opens a path found in the conversation stream in the same
+// viewer the workspace tree uses (FEATURE-576); line > 0 scrolls to that line.
+function openPathPreview(path, line) {
+  if (!path) return;
+  const name = path.split("/").pop() || path;
+  const node = { path: path, name: name, size: 0, mtime: 0 };
+  if (IMAGE_EXT.test(name)) {
+    openImagePreview(node);
+    return;
+  }
+  openFilePreview(node);
+  if (line > 0) jumpToPreviewLine(path, line);
+}
+
+// jumpToPreviewLine loads on-demand chunks until the target line is rendered,
+// then scrolls to it (the strategy loadFirstChange uses, FEATURE-494).
+async function jumpToPreviewLine(path, line) {
+  while (fvPath === path && fvNextLine < line && fvNextLine <= fvTotal) {
+    await loadFileChunk(path, fvNextLine, fvNextLine + 200);
+  }
+  if (fvPath === path) scrollToLine(line);
+}
+
 // openFilePreview opens a file in the in-page viewer. Clicking a new file
 // immediately discards the current one (UC-003); clicking the current file is
 // a no-op (UC-004). Known text extensions preview directly; unknown extensions
@@ -7753,8 +7821,12 @@ async function refreshBranch() {
     // glance and the most salient feature (the folder name) shows first
     // even when the tab is short.
     if (b.workspace) {
-      const ws = b.workspace.replace(/\\+$/, "").replace(/\/+$/, "");
-      const name = ws.split(/[\\/]/).pop() || ws;
+      // FEATURE-576: keep the workspace root so an absolute path printed in the
+      // conversation can be recognised as a workspace file and converted to the
+      // workspace-relative form every preview API expects (the file preview
+      // stays confined to the workspace, see resolvePath in web/server.go).
+      wsRoot = b.workspace.replace(/\\+$/, "").replace(/\/+$/, "");
+      const name = wsRoot.split(/[\\/]/).pop() || wsRoot;
       document.title = name + " - " + b.workspace;
     }
     // Sidebar title shows the current git branch at the right edge of the

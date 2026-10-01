@@ -4313,3 +4313,9 @@ select,
   opacity: .5;
   cursor: default;
 }
+
+/* FEATURE-576: a local file path found in rendered conversation text is
+   clickable and opens the same preview panel as a workspace-tree click. The
+   anchor is built by md.js's pathLinkNodes (DOM nodes only, no innerHTML). */
+.md-path { color: var(--accent); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
+.md-path:hover { text-decoration: underline; }

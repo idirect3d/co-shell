@@ -45,7 +45,9 @@ function mdBlocks(text) {
       const pre = document.createElement("pre");
       const code = document.createElement("code");
       if (lang) code.className = "lang-" + lang;
-      code.textContent = buf.join("\n");
+      // FEATURE-576: paths inside a fenced block are clickable as well — command
+      // output is often shown in a fence.
+      for (const n of pathLinkNodes(buf.join("\n"))) code.appendChild(n);
       pre.appendChild(code);
       pre.dataset.line = i + 1;
       out.push(pre);
@@ -177,6 +179,63 @@ function mdBlocks(text) {
   return out;
 }
 
+/* ---------- path links (FEATURE-576) ---------- */
+
+// MD_PATH_RE matches one path-like candidate: an optional leading "/" (an
+// absolute path), one or more "dir/" components and a final component which
+// may carry a ":line[:col]" suffix (the colon is allowed there only).
+//
+// Whitespace, the path separator and every punctuation mark used as prose or
+// markdown punctuation — including the CJK forms "、" "," "：" "。" "（）" "“”" —
+// are NOT part of a component. That is what makes "a.md、b.js" one path plus
+// one separator plus another path (instead of one bogus glued path) and lets
+// "：/Users/x/a.js" and "./main.go" start cleanly. All repetitions are bounded so
+// a very long unbroken run (base64 blob, big JSON) cannot make the scan
+// quadratic. Validation/trimming happens in pathLinkNodes.
+const MD_PATH_RE = /(?<![A-Za-z0-9_\-.\/])(\/?(?:[^\s\/:：、，。；！？（）【】「」『』《》〈〉“”‘’…—·,;!?()\[\]{}<>|*"'`=#]{1,60}\/){1,20}[^\s：、，。；！？（）【】「」『』《》〈〉“”‘’…—·,;!?()\[\]{}<>|*"'`=#]{1,80})/g;
+
+// pathLinkNodes splits text into plain text nodes plus, for every local file
+// path whose type the file previewer supports, one clickable <a.md-path>.
+//
+// The label keeps the original text (line suffix included, so "a.go:12" reads
+// naturally); the previewable workspace-relative path lives in dataset.path
+// and the click is handled in JS, so a hostile path string can never reach an
+// href and become a URL/script scheme. window.previewPathOf/previewPathOf and
+// window.openPathPreview/openPathPreview come from app.js — the file
+// previewer's single source of truth. When they are absent (md.js used
+// stand-alone, e.g. in a unit test) the text renders unchanged.
+function pathLinkNodes(text) {
+  const out = [];
+  const s = String(text);
+  let last = 0;
+  let m;
+  MD_PATH_RE.lastIndex = 0;
+  while ((m = MD_PATH_RE.exec(s))) {
+    const target = window.previewPathOf ? window.previewPathOf(m[1]) : null;
+    if (!target) continue;
+    if (m.index > last) out.push(document.createTextNode(s.slice(last, m.index)));
+    const a = document.createElement("a");
+    a.className = "md-path";
+    a.dataset.path = target.path;
+    if (target.line > 0) a.dataset.line = String(target.line);
+    a.textContent = m[1];
+    a.title = target.path;
+    a.onclick = (e) => {
+      e.preventDefault();
+      if (window.openPathPreview) window.openPathPreview(target.path, target.line);
+    };
+    out.push(a);
+    last = MD_PATH_RE.lastIndex;
+  }
+  if (last < s.length) out.push(document.createTextNode(s.slice(last)));
+  return out;
+}
+
+// pushPathNodes appends pathLinkNodes' output to an existing node collector.
+function pushPathNodes(nodes, text) {
+  for (const n of pathLinkNodes(text)) nodes.push(n);
+}
+
 /* ---------- inline level ---------- */
 
 // Order matters: code spans first (no formatting inside), then bold,
@@ -190,22 +249,22 @@ function mdInline(text) {
   let m;
   MD_INLINE_RE.lastIndex = 0;
   while ((m = MD_INLINE_RE.exec(text))) {
-    if (m.index > last) nodes.push(document.createTextNode(text.slice(last, m.index)));
+    if (m.index > last) pushPathNodes(nodes, text.slice(last, m.index));
     if (m[2] !== undefined) {                       // `code`
       const c = document.createElement("code");
-      c.textContent = m[2];
+      for (const n of pathLinkNodes(m[2])) c.appendChild(n);
       nodes.push(c);
     } else if (m[3] !== undefined || m[4] !== undefined) { // **bold** / __bold__
       const b = document.createElement("strong");
-      b.textContent = m[3] !== undefined ? m[3] : m[4];
+      for (const n of pathLinkNodes(m[3] !== undefined ? m[3] : m[4])) b.appendChild(n);
       nodes.push(b);
     } else if (m[5] !== undefined) {                // ~~strike~~
       const s = document.createElement("del");
-      s.textContent = m[5];
+      for (const n of pathLinkNodes(m[5])) s.appendChild(n);
       nodes.push(s);
     } else if (m[6] !== undefined || m[7] !== undefined) { // *em* / _em_
       const em = document.createElement("em");
-      em.textContent = m[6] !== undefined ? m[6] : m[7];
+      for (const n of pathLinkNodes(m[6] !== undefined ? m[6] : m[7])) em.appendChild(n);
       nodes.push(em);
     } else if (m[8] !== undefined) {                // [text](href)
       const href = m[9];
@@ -222,6 +281,6 @@ function mdInline(text) {
     }
     last = MD_INLINE_RE.lastIndex;
   }
-  if (last < text.length) nodes.push(document.createTextNode(text.slice(last)));
+  if (last < text.length) pushPathNodes(nodes, text.slice(last));
   return nodes;
 }
