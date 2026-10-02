@@ -448,6 +448,21 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		log.Info("Stream window max nodes set to %d", n)
 		return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxNodes)+": %d", n), nil
 
+	case "stream-window-max-chars":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxChars)+": %d", h.cfg.LLM.StreamWindowMaxChars), nil
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil || n < 1000 || n > 100000000 {
+			return "", fmt.Errorf("stream-window-max-chars must be an integer between 1000 and 100000000")
+		}
+		h.cfg.LLM.StreamWindowMaxChars = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Stream window max chars set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxChars)+": %d", n), nil
+
 	case "page-buffer-size":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeyCol3PageBufferSize)+": %d", h.cfg.LLM.PageBufferSize), nil

@@ -1008,6 +1008,14 @@ aside {
 .ev.collapsed .ev-body,
 .ev.collapsed .tool-params { display: none; }
 
+/* FIX-590: an off-screen message block skips its own layout and paint, which
+   keeps scrolling - and every forced layout - cheap on long sessions (1 MB of
+   stream text used to cost ~66 ms per layout, 20 MB ~2.2 s). The last block
+   (the one being streamed) stays fully laid out so follow-output scrolling and
+   the scrollHeight reads used by the window eviction stay exact. */
+.ev { content-visibility: auto; contain-intrinsic-size: auto 300px; }
+.ev:last-child { content-visibility: visible; }
+
 .ev-body {
   padding: 8px 12px;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -1730,6 +1738,15 @@ button.qs-kbd:active { transform: translateY(1px); }
   max-height: 150px; /* FEATURE-405: raise cap 120->150px */
 }
 #input:focus { border-color: var(--accent); }
+
+/* FIX-590: modern engines can size the composer to its own content, so typing
+   no longer needs a JS height measurement - which was a forced synchronous
+   layout on every keystroke (and therefore on every IME update). Engines
+   without support keep the JS fallback (autoGrow); the 150px cap and the inner
+   scrolling then come from the same max-height/overflow rules below. */
+@supports (field-sizing: content) {
+  #input { field-sizing: content; height: auto; max-height: 150px; overflow-y: auto; }
+}
 /* Placeholder hint stays dim so it never outshines the real input text. */
 #input::placeholder { color: var(--placeholder); opacity: 1; }
 
