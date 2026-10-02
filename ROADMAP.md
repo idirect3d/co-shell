@@ -4,6 +4,36 @@
 
 ---
 
+## v0.91.7 — 流式期间高 CPU：滚动跟随不再每 chunk 触发强制布局
+
+> **版本**: v0.91.7
+
+> **状态**: ✅ 已完成并合并 main（v0.91.7 / BUILD-1197，2026-10-03，tag `v0.91.7`）
+> **里程碑**: v0.91.6 后输入路径已解决，但 LLM 连续输出时 CPU 仍高。实测定位（隔离实例 + 函数级计时）：`scrollStream()`（读 `streamB.scrollHeight`）在 content_chunk 分支末尾**每 chunk 无条件调用**，在 MB 级会话流上一次强制布局约 **40ms**（干净 39.8ms / 脏 46.1ms）；scrollTop 变化又触发 `scroll` 事件 → `updateBlockNav`（遍历全部 `.ev` 读 offsetTop/offsetHeight，再一次布局）+ `updateFollowState`。而 md 渲染已节流，chunk 之间内容并未变化，因此**每 chunk 滚动是无用功**。本次：滚动跟随只在**渲染 tick**（`renderMdNow`）里做，`scroll` 事件处理用 rAF 合并。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-591 | 0.91.7 | P1 | 流式高 CPU：滚动跟随改为渲染 tick 驱动 + scroll 事件 rAF 合并 |
+
+> 当前 BUILD: 1197
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-591 流式期间滚动跟随去强制布局**
+  - 需求（用户 2026-10-03）：按诊断方案继续修复 LLM 输出期间 CPU 占用高的问题。
+  - 决议：任务号 FIX-591，版本 v0.91.7（patch+1）；范围 = D3（每 chunk 的 scrollStream 去掉，改为渲染 tick 驱动 + rAF 合并）+ D4（`scroll` 事件上的 `updateBlockNav` / `updateFollowState` 用 rAF 合并）；D5/D6 暂不做。
+  - 实施：`scrollStream()` 改为 rAF 合并（`scrollPending` 守卫）；**删除 content_chunk/thinking 分支末尾的每 chunk `scrollStream()` 调用**，跟随滚动改由节流后的渲染路径 `renderMdNow()` 承担；`bindBlockNav()` 与 `updateFollowState` 的 `scroll` 监听器均包一层 rAF 合并。
+  - 验收标准：见 `use-case/FIX-591/`。
+  - 交付物：`web/static/app.js`、`use-case/FIX-591/`。
+  - 完成情况：✅ 已完成并合并 main（v0.91.7 / BUILD-1197，2026-10-03，tag `v0.91.7`）[BUILD-1197]
+    - 依据（v0.91.6 实测）：content_chunk 分支每 chunk 调 `scrollStream()`，而 `streamB.scrollHeight` 在 MB 级流上单次 39.8ms（干净）/46.1ms（脏）；md 渲染已节流至 330ms，故 chunk 之间的滚动是无用功。
+    - 改后行为：chunk 循环内不再有强制布局（滚动只在渲染 tick 或 rAF 内一次），滚动扫描事件每帧至多一次；产物 `work/co-shell-0.91.7.darwin.arm64`、`work/co-shell-hub-0.91.7.darwin.arm64`。
+    - 未做：D5（改 `scrollIntoView`，收益重复且易引入滚动漂移）与 D6（超大块纯文本追加，会改变流式观感）。
+
+---
+
 ## v0.91.6 — Web 前端渲染性能：md 增量渲染与节流 + 输入期间让路 + 屏外块跳过布局 + 流窗口按文本量收敛
 
 > **版本**: v0.91.6
