@@ -203,9 +203,9 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 			name: "write_to_file long content not shown",
 			tool: "write_to_file",
 			args: map[string]interface{}{
-				"meta": map[string]interface{}{"intent": "write"},
-				"mode": "new",
-				"path": "a.txt",
+				"meta":    map[string]interface{}{"intent": "write"},
+				"mode":    "new",
+				"path":    "a.txt",
 				"content": longContent,
 			},
 			want: []string{"a.txt", "new"},
@@ -227,8 +227,8 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 			name: "visual_analysis shows file count",
 			tool: "visual_analysis",
 			args: map[string]interface{}{
-				"meta":   map[string]interface{}{"intent": "ocr"},
-				"paths":  []interface{}{"a.png", "b.png", "c.png"},
+				"meta":  map[string]interface{}{"intent": "ocr"},
+				"paths": []interface{}{"a.png", "b.png", "c.png"},
 			},
 			want: []string{"3"},
 		},

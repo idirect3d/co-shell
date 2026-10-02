@@ -205,6 +205,72 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("%s set to %s", subcommand, status)
 		return fmt.Sprintf("%s: %s", subcommand, status), nil
 
+	case "env-history-prune", "env-tool-batch-single", "env-board-roster-brief",
+		"env-dir-change-detect", "env-runtime-info-once", "tool-desc-compact":
+		// FEATURE-579: token-optimization switches for env rendering / tool schema.
+		var target *bool
+		switch subcommand {
+		case "env-history-prune":
+			target = &h.cfg.LLM.EnvHistoryPrune
+		case "env-tool-batch-single":
+			target = &h.cfg.LLM.EnvToolBatchSingle
+		case "env-board-roster-brief":
+			target = &h.cfg.LLM.EnvBoardRosterBrief
+		case "env-dir-change-detect":
+			target = &h.cfg.LLM.EnvDirChangeDetect
+		case "env-runtime-info-once":
+			target = &h.cfg.LLM.EnvRuntimeInfoOnce
+		case "tool-desc-compact":
+			target = &h.cfg.LLM.ToolDescCompact
+		}
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !*target {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("%s: %s", subcommand, status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			*target = true
+		case "off", "0", "false", "no":
+			*target = false
+		default:
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingEnvBoolInvalid), subcommand)
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !*target {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("%s set to %s", subcommand, status)
+		return fmt.Sprintf("%s: %s", subcommand, status), nil
+
+	case "env-history-full-keep", "env-history-lite-keep":
+		// FEATURE-579: history degradation window sizes; must be non-negative.
+		var target *int
+		switch subcommand {
+		case "env-history-full-keep":
+			target = &h.cfg.LLM.EnvHistoryFullKeep
+		case "env-history-lite-keep":
+			target = &h.cfg.LLM.EnvHistoryLiteKeep
+		}
+		if len(args) < 2 {
+			return fmt.Sprintf("%s: %d", subcommand, *target), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingEnvKeepNonNegative), subcommand, args[1])
+		}
+		*target = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("%s set to %d", subcommand, n)
+		return fmt.Sprintf("%s: %d", subcommand, n), nil
+
 	case "plan-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

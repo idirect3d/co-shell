@@ -20,9 +20,9 @@ import (
 func newAttemptCompletionAgent(confirm bool) (*Agent, *captureInteractionManager) {
 	mgr := &captureInteractionManager{}
 	ag := &Agent{
-		interactionMgr:        mgr,
-		taskInstructionCache:  bytes.Buffer{},
-		completed:             false,
+		interactionMgr:       mgr,
+		taskInstructionCache: bytes.Buffer{},
+		completed:            false,
 	}
 	ag.SetConfig(&config.Config{LLM: config.LLMConfig{AttemptCompletionConfirm: confirm}})
 	return ag, mgr

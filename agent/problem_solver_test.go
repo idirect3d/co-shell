@@ -211,4 +211,3 @@ func TestBuildProblemSolverUserPrompt(t *testing.T) {
 		t.Fatalf("prompt too large, detail not truncated: %d bytes", len(prompt))
 	}
 }
-

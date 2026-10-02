@@ -47,14 +47,14 @@ func writeSkill(t *testing.T, baseDir, name, content string) {
 
 func TestParseSkillFrontmatter(t *testing.T) {
 	tests := []struct {
-		name        string
-		content     string
-		wantName    string
-		wantDesc    string
+		name     string
+		content  string
+		wantName string
+		wantDesc string
 	}{
 		{
-			name: "with frontmatter",
-			content: "---\nname: my-skill\ndescription: A test skill\n---\nUsage instructions...\n",
+			name:     "with frontmatter",
+			content:  "---\nname: my-skill\ndescription: A test skill\n---\nUsage instructions...\n",
 			wantName: "my-skill",
 			wantDesc: "A test skill",
 		},

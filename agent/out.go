@@ -19,19 +19,19 @@ import (
 type ChannelID string
 
 const (
-	ChannelLLM      ChannelID = "llm"      // LLM content / thinking
-	ChannelTool     ChannelID = "tool"     // tool call, args, result
-	ChannelCommand  ChannelID = "command"  // system command and output
-	ChannelDebug    ChannelID = "debug"    // debug / loop detection / diagnostics
-	ChannelWizard   ChannelID = "wizard"   // interactive wizard / menu
-	ChannelSystem   ChannelID = "system"   // welcome / help / status / cleanup
-	ChannelMCP      ChannelID = "mcp"      // MCP server status
-	ChannelMemory   ChannelID = "memory"   // memory management
-	ChannelTaskPlan ChannelID = "taskplan" // task plan
-	ChannelDB       ChannelID = "db"       // database / sync / migration
-	ChannelBridge   ChannelID = "bridge"   // feishu / bridge / hub entry
-	ChannelSubAgent ChannelID = "subagent" // sub-agent
-	ChannelREPL     ChannelID = "repl"     // REPL builtin command output (:set, :mcp, ...)
+	ChannelLLM        ChannelID = "llm"        // LLM content / thinking
+	ChannelTool       ChannelID = "tool"       // tool call, args, result
+	ChannelCommand    ChannelID = "command"    // system command and output
+	ChannelDebug      ChannelID = "debug"      // debug / loop detection / diagnostics
+	ChannelWizard     ChannelID = "wizard"     // interactive wizard / menu
+	ChannelSystem     ChannelID = "system"     // welcome / help / status / cleanup
+	ChannelMCP        ChannelID = "mcp"        // MCP server status
+	ChannelMemory     ChannelID = "memory"     // memory management
+	ChannelTaskPlan   ChannelID = "taskplan"   // task plan
+	ChannelDB         ChannelID = "db"         // database / sync / migration
+	ChannelBridge     ChannelID = "bridge"     // feishu / bridge / hub entry
+	ChannelSubAgent   ChannelID = "subagent"   // sub-agent
+	ChannelREPL       ChannelID = "repl"       // REPL builtin command output (:set, :mcp, ...)
 	ChannelSupervisor ChannelID = "supervisor" // dedicated supervisor LLM review output (FEATURE-456)
 )
 

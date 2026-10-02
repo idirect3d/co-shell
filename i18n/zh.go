@@ -2009,6 +2009,16 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3EnvIncludeTools:       "<environment_details> 是否包含 <tools>",
 	KeyCol3EnvIncludeResearch:    "<environment_details> 是否包含 <research>",
 	KeyCol3EnvIncludeUserDynamic: "<environment_details> 是否包含 <user_dynamic_events>",
+	KeyCol3EnvHistoryPrune:       "对话历史环境信息降级裁剪(on|off)",
+	KeyCol3EnvHistoryFullKeep:    "完整环境信息保留条数（非负整数）",
+	KeyCol3EnvHistoryLiteKeep:    "精简环境信息保留条数（非负整数）",
+	KeyCol3EnvToolBatchSingle:    "同一轮仅保留最后一次工具调用结果(on|off)",
+	KeyCol3EnvBoardRosterBrief:   "board_agents 仅显示 id/名称/状态(on|off)",
+	KeyCol3EnvDirChangeDetect:    "目录/工具/研究信息变化时才输出(on|off)",
+	KeyCol3EnvRuntimeInfoOnce:    "runtime_info 仅在变化时输出(on|off)",
+	KeyCol3ToolDescCompact:       "精简工具描述中重复的 meta 参数说明(on|off)",
+	KeySettingEnvKeepNonNegative: "%s 必须为非负整数（当前输入：%s）",
+	KeySettingEnvBoolInvalid:     "%s 仅接受布尔值（on/off/true/false）",
 	KeyCLIHelpSessionID:          "  -s, --session-id <id>  指定会话 ID，加载已有会话或创建新会话",
 
 	// Vault

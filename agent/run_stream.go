@@ -1435,6 +1435,20 @@ iterationLoop:
 			}
 			a.mu.Unlock()
 
+			// FEATURE-579 (plan B): only the last committed tool result of this
+			// iteration keeps a full <environment_details>; the others carry a
+			// minimal one (time + message_no). Deferred vision tools write no
+			// message here (the recognition round backfills their result), so
+			// they are excluded from this scan.
+			batchSingleEnv := a.cfg != nil && a.cfg.LLM.EnvToolBatchSingle
+			lastToolID := ""
+			for _, tc := range toolCalls {
+				if a.shouldDeferVisionToolResult(tc.Name) {
+					continue
+				}
+				lastToolID = tc.ID
+			}
+
 			// Step 4: Execute tool calls and add results
 			for _, tc := range toolCalls {
 				// Show command if enabled
@@ -1763,7 +1777,12 @@ iterationLoop:
 				// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
 				// calls buildFullEnvironmentDetails which may need to acquire a.mu
 				// for iterating a.messages to find tool call names.
-				a.injectTimeAndMessageNoToLast()
+				if batchSingleEnv && tc.ID != lastToolID {
+					// FEATURE-579 (plan B): non-final tool result of this batch.
+					a.injectMinimalEnvToLast()
+				} else {
+					a.injectTimeAndMessageNoToLast()
+				}
 			}
 		} // end if !reorganizePending
 

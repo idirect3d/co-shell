@@ -195,29 +195,20 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// FEATURE-481: expose the co-shell runtime environment and startup
 	// configuration (pid/version/build/service mode; serve mode adds
 	// port/bind/whitelist) so the LLM knows how it is running.
-	if ri := a.buildRuntimeInfo(); ri != "" {
+	// FEATURE-579 (C-3): runtime_info is emitted only when it changed.
+	if ri := a.runtimeInfoBlockSlim(); ri != "" {
 		sb.WriteString(ri)
 		sb.WriteString("\n")
 	}
-	if incDir {
-		sb.WriteString("<current_dir>\n")
-		sb.WriteString(files)
-		sb.WriteString("\n</current_dir>\n")
-	}
-	if incTools && binFiles != "" {
-		sb.WriteString("<tools>\n")
-		sb.WriteString(binFiles)
-		sb.WriteString("\n</tools>\n")
-	}
-	if incResearch && researchFiles != "" {
-		sb.WriteString("<research>\n")
-		sb.WriteString(researchFiles)
-		sb.WriteString("\n</research>\n")
-	}
+	// FEATURE-579 (C-2): the three static listings collapse to a placeholder
+	// while their content is unchanged.
+	sb.WriteString(a.envStaticBlocks(messageNo, files, binFiles, researchFiles, incDir, incTools, incResearch))
 	// FEATURE-530: render the hub board roster so the LLM knows which agents
 	// exist and what each of them is responsible for. The whole block is
 	// omitted while the roster is empty.
-	if roster := a.BoardRosterBlock(); roster != "" {
+	// FEATURE-579 (C-1): brief roster (id | name | status) with <unchanged/>
+	// collapsing while the roster revision stays the same.
+	if roster := a.boardRosterBlockSlim(); roster != "" {
 		sb.WriteString(roster)
 		sb.WriteString("\n")
 	}

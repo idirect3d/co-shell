@@ -248,9 +248,9 @@ func TestApplyProgressReportFromMeta(t *testing.T) {
 	// call (not track_task_progress). The progress lives at meta.progress.
 	args := map[string]interface{}{
 		"meta": map[string]interface{}{
-			"intent":          "update progress",
-			"risk":            "low",
-			"risk_reason":     "updating",
+			"intent":           "update progress",
+			"risk":             "low",
+			"risk_reason":      "updating",
 			"affected_objects": []interface{}{},
 			"progress": []interface{}{
 				map[string]interface{}{"index": float64(0), "description": "step one", "status": "in_progress"},
