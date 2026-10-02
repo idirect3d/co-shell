@@ -234,3 +234,76 @@ func TestBoardRosterBrief(t *testing.T) {
 	}
 	t.Logf("ROSTER|full_bytes=%d|brief_bytes=%d", len(block), len(brief))
 }
+
+// TestFIX586BuildContextMessagesPrunesEnv is the WIRING regression test for
+// FIX-586. FEATURE-579 plan A shipped pruneEnvContext and wired it into
+// buildContextMessages, but FEATURE-583 accidentally dropped that single call
+// while inserting the <skills> injection: the degradation silently stopped
+// running and every request kept the full envelope of every historical message.
+//
+// The older tests all call pruneEnvContext directly, so none of them noticed.
+// This one exercises the real request path (buildContextMessages) and therefore
+// fails as soon as the call is removed again.
+func TestFIX586BuildContextMessagesPrunesEnv(t *testing.T) {
+	a := testAgent(t)
+	a.messages = append([]llm.Message{{Role: "system", Content: "system prompt"}}, envMsgs(4, 1)...)
+
+	before := make([]string, len(a.messages))
+	for i := range a.messages {
+		before[i] = envTextAt(&a.messages[i])
+	}
+
+	got := a.buildContextMessages()
+	if len(got) != len(a.messages) {
+		t.Fatalf("smart mode must keep every message: got %d, want %d", len(got), len(a.messages))
+	}
+
+	// dist 0 (newest) must stay L0 — it is the envelope the model acts on.
+	newest := envTextAt(&got[len(got)-1])
+	if !strings.Contains(newest, "<current_dir>") {
+		t.Errorf("newest envelope must stay L0 (current_dir kept), got %q", newest)
+	}
+	// dist 1 must be L1: volatile context kept, static listings dropped.
+	l1 := envTextAt(&got[len(got)-2])
+	if !strings.Contains(l1, "<cwd>") || !strings.Contains(l1, "<task_plan>") {
+		t.Errorf("dist=1 envelope must be L1 (cwd + task_plan kept), got %q", l1)
+	}
+	if strings.Contains(l1, "<current_dir>") || strings.Contains(l1, "<tools>") {
+		t.Errorf("dist=1 envelope must drop the static listings, got %q", l1)
+	}
+	// dist >= 2 must be L2: <time> + <message_no> only.
+	for i := 1; i < len(got)-2; i++ {
+		l2 := envTextAt(&got[i])
+		if !strings.Contains(l2, "<time>") || !strings.Contains(l2, "<message_no>") {
+			t.Errorf("envelope at index %d must be L2, got %q", i, l2)
+		}
+		if strings.Contains(l2, "<cwd>") || strings.Contains(l2, "<current_dir>") {
+			t.Errorf("envelope at index %d must keep only time+message_no, got %q", i, l2)
+		}
+	}
+
+	// The persisted history must keep every full envelope.
+	for i := range a.messages {
+		if envTextAt(&a.messages[i]) != before[i] {
+			t.Errorf("persisted history changed at index %d", i)
+		}
+	}
+	t.Logf("FIX586_WIRING|levels=L2,L2,L1,L0|newest_bytes=%d|history_unchanged=true", len(newest))
+}
+
+// TestFIX586BuildContextMessagesKeepsFullEnvWhenSwitchedOff is the switch-off
+// half of the same guard: with the master switch off nothing may be degraded,
+// so the restored call must stay behind the config check.
+func TestFIX586BuildContextMessagesKeepsFullEnvWhenSwitchedOff(t *testing.T) {
+	a := testAgent(t)
+	a.cfg.LLM.EnvHistoryPrune = false
+	a.messages = append([]llm.Message{{Role: "system", Content: "system prompt"}}, envMsgs(4, 1)...)
+
+	got := a.buildContextMessages()
+	for i := 1; i < len(got); i++ {
+		if !strings.Contains(envTextAt(&got[i]), "<current_dir>") {
+			t.Errorf("switch off must keep envelope %d at L0, got %q", i, envTextAt(&got[i]))
+		}
+	}
+	t.Logf("FIX586_WIRING_OFF|levels=L0,L0,L0,L0")
+}

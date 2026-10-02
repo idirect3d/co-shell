@@ -4,11 +4,40 @@
 
 ---
 
+## v0.91.2 — 修复历史 env 三级降级静默失效（FEATURE-579 A 接线丢失）
+
+> **版本**: v0.91.2
+
+> **状态**: ✅ 已完成并合并 main（v0.91.2 / BUILD-1191，2026-10-02）
+> **里程碑**: 修复 FEATURE-579 plan A（历史 `<environment_details>` 三级降级 L0/L1/L2）自 FEATURE-583 起静默失效的缺陷：`agent/loop.go` 的 `buildContextMessages()` 中 `msgs = a.pruneEnvContext(msgs)` 被误删（开关 `env_history_prune` 仍为 on，但已无调用点），导致每次请求把全部历史消息的完整 env 发给模型，token 优化 A 项实际未生效。本次恢复调用并补接线回归测试（缺线即失败）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-586 | 0.91.2 | P0 | 恢复历史 env 三级降级调用（pruneEnvContext）+ 接线回归测试（开/关两例）+ 用例 |
+
+> 当前 BUILD: 1191
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-586 修复历史 env 三级降级静默失效（FEATURE-579 A 接线丢失）**
+  - 现象（用户 2026-10-02 报告）：记忆中“env 只保留在最近有限条”已实现，但会话中所有历史 message 都带完整 env。
+  - 根因：`agent/env_prune.go` 的 `pruneEnvContext`（L0/L1/L2 降级）无任何生产调用点——`f41bdf22`（FEATURE-579，v0.88.0）曾在 `agent/loop.go` 的 `buildContextMessages()` 末尾加入 `msgs = a.pruneEnvContext(msgs)`；`b1d82b33`（FEATURE-583，v0.91.0）插入 `<skills>` 注入时把该行替换掉（plan A 注释块保留，掩盖了缺失）。原有单测直接调用 pruneEnvContext，未覆盖接线，故未拦截。
+  - 修复：恢复该调用（顺序：先降级、后注入 skills，保证列表落在最新一条不降级的 envelope 上）；新增 `TestFIX586BuildContextMessagesPrunesEnv` 与 `TestFIX586BuildContextMessagesKeepsFullEnvWhenSwitchedOff`（走真实请求路径 `buildContextMessages`，缺线即失败）。降级窗口保持默认 `env_history_full_keep=1` / `env_history_lite_keep=1`。
+  - 验收标准：见 `use-case/FIX-586/`。
+  - 交付物：`agent/loop.go`、`agent/env_prune_test.go`、`use-case/FIX-586/`。
+  - 完成情况：✅ 已完成并合并 main（v0.91.2 / BUILD-1191，2026-10-02）
+    - 实测：接线测试在缺线时失败（4 处断言命中）、恢复后通过；`go test ./agent/ -run 'FIX586|EnvPrune|MinimalEnvBlock|EnvStaticBlocks|BoardRosterBrief' -v -count=1` 10/10 PASS；`go build ./... && go vet ./...` 通过；`go test ./... -short` 失败集与 main 基线逐条一致。
+    - 说明：会话持久化历史 / Web 回放 / `:context full` 保留完整 env 属设计使然，降级只作用于“发给模型的这一份拷贝”；运行时请求体级验证待按 `use-case/FIX-586/FIX-586-UC-0002` 实测（共享 1GB llm-interaction 日志难以隔离）。
+
+---
+
 ## v0.91.1 — 工具超时不再误报为“用户中断” + iOS 启动屏白等去除与 AppIcon 重制
 
 > **版本**: v0.91.1
 
-> **状态**: ✅ 已完成（分支 FIX-585，待用户验收）
+> **状态**: ✅ 已完成并合并 main（v0.91.1 / BUILD-1190，2026-10-02）
 > **里程碑**: ① 修正 FEATURE-582 中断机制的语义混淆——工具自身超时（`timeout_seconds` / 用户最小超时）走的是与用户中断同一条取消路径，导致**超时被报成“被用户中断”、并丢弃整轮上下文**（日志表现为 `interrupted by user (reason=)`，reason 为空）；本次区分“超时”与“用户中断”，超时回落到普通工具失败（错误反馈给 LLM），只有真实中断才丢弃整轮。② 为发布 App Store 做准备：去掉 iOS 启动屏的白底黑字停留（启动屏与 App 首屏背景一致、无文字，WebView 加载期不再白屏），并按新规范重制 AppIcon（去掉左右两条粗竖直光带，改为上边缘强、下边缘弱的边缘光照）。
 
 | 任务 | 版本 | 阶段 | 内容 |

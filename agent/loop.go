@@ -738,6 +738,18 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	// FEATURE-579 (plan A): degrade the envelopes of older messages on the
 	// copy handed to the provider. The persisted history keeps every full
 	// envelope, so the Web UI replay and :context full are unaffected.
+	//
+	// FIX-586: this call MUST stay wired here. FEATURE-583 inserted the skills
+	// injection below and accidentally dropped it, which silently disabled the
+	// whole degradation (every request carried full envelopes for the entire
+	// history). env_prune_test.go's TestFIX586BuildContextMessagesPrunesEnv
+	// guards the wiring.
+	//
+	// Order matters: degrade first, then inject the per-request <skills> block,
+	// so the list lands in the newest envelope (never degraded) and the older
+	// envelopes stay slim.
+	msgs = a.pruneEnvContext(msgs)
+
 	// FEATURE-583: the available-skill list (with the loaded markers) lives in
 	// the newest envelope only; it is rebuilt per request and never becomes part
 	// of the frozen history, so loading or unloading a skill leaves the request
