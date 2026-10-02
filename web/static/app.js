@@ -3379,17 +3379,13 @@ function renderSkills(loaded) {
     const src = document.createElement("span");
     src.className = "sk-src";
     src.textContent = s.source === "global" ? T.skillSourceGlobal : T.skillSourceWorkspace;
-    const size = document.createElement("span");
-    size.className = "sk-size";
-    size.textContent = fmtBytes(s.bytes || 0);
-    const sha = document.createElement("span");
-    sha.className = "sk-sha";
-    sha.textContent = (s.sha256 || "").slice(0, 8);
-    sha.title = s.sha256 || "";
     line.appendChild(name);
     line.appendChild(src);
-    line.appendChild(size);
-    line.appendChild(sha);
+    // FIX-587: the SKILL.md size and the sha256 prefix are no longer rendered
+    // here (they squeezed the name on narrow panels); hovering the row shows
+    // the skill card description instead, and the size stays on the Skills
+    // settings page.
+    if (s.description) line.title = s.description;
     skillBody.appendChild(line);
   }
   applyPanels();

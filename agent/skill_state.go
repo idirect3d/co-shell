@@ -59,6 +59,11 @@ type LoadedSkill struct {
 	SHA256 string `json:"sha256"`
 	// Source is "workspace" or "global".
 	Source string `json:"source"`
+	// Description is the short summary parsed from the SKILL.md front matter.
+	// It is shown to the user (loaded-skills tooltip in the Web UI and the note
+	// line of the skill_load result); it is never part of the pinned content
+	// (FIX-587).
+	Description string `json:"description,omitempty"`
 	// LoadedAt is when the content was pinned.
 	LoadedAt time.Time `json:"loaded_at"`
 }
@@ -619,13 +624,14 @@ func (a *Agent) rebuildLoadedStateLocked() []string {
 			a.loadedSkills = make(map[string]LoadedSkill)
 		}
 		a.loadedSkills[name] = LoadedSkill{
-			Name:     name,
-			Path:     s.Path,
-			Dir:      s.Dir,
-			Bytes:    len(data),
-			SHA256:   skillSHA256(data),
-			Source:   skillSourceOf(ws, s.Dir),
-			LoadedAt: now,
+			Name:        name,
+			Path:        s.Path,
+			Dir:         s.Dir,
+			Bytes:       len(data),
+			SHA256:      skillSHA256(data),
+			Source:      skillSourceOf(ws, s.Dir),
+			Description: s.Description,
+			LoadedAt:    now,
 		}
 	}
 	if len(dropped) == 0 {

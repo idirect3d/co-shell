@@ -4,6 +4,33 @@
 
 ---
 
+## v0.91.3 — 已加载技能清单显示优化（去大小/sha、位置右对齐、悬停显示描述）
+
+> **版本**: v0.91.3
+
+> **状态**: ✅ 已完成并合并 main（v0.91.3 / BUILD-1192，2026-10-02，tag `v0.91.3`）
+> **里程碑**: 整理「已加载技能」清单的展示：抬头只保留技能名与位置标签（工作区/全局）且位置标签右对齐到显示列第 60 列，把宽度还给技能名；去掉字节数与 token 估算、sha256 前缀与 SKILL.md 路径（这些信息在设置页与 `:skill list` 仍可见）；工具结果的 pinned 提示行并入 SKILL.md 卡片描述；Web UI「已加载技能」面板同步去掉大小与 sha 两列、位置标签右对齐，并将该行的悬停提示从「完整 sha256」改为「skill 卡片描述」。顺手修正提示行长期存在的 `%!(EXTRA string=<name>)` fmt 伪影（该文案键无占位符却传了参数）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-587 | 0.91.3 | P1 | 已加载技能清单：仅留名称+位置标签（右对齐第 60 列）、提示行并入描述、Web 面板去大小/sha 且悬停显示描述 |
+
+> 当前 BUILD: 1192
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-587 已加载技能清单显示优化**
+  - 需求（用户 2026-10-02）：已加载技能清单中“3.8 KB”与“7a611b09”占用宽度，导致技能名显示不全；应只保留“工作区/全局”位置信息（右对齐），另外悬停提示改为显示 skill 卡片上的描述。
+  - 实施：① 文案：`KeySkillLoadHeader` 改为仅 `SKILL LOADED: %s`，新增 `KeySkillSrcWorkspace`/`KeySkillSrcGlobal`/`KeySkillDescSuffix`（zh/en 双语）；② `agent/skills_tools.go`：抬头改由 `alignRightLabel` 按**显示宽度**（CJK 记 2 列）右对齐到 `skillHeaderLabelColumn=60`，提示行追加「（描述：xxx）」，删除失效的 `shortSHA` 并修正 `%!(EXTRA …)` 伪影；③ `agent/skill_state.go`：`LoadedSkill` 新增 `Description`（磁盘重建路径同步填充），使 `skill_state` 事件也带描述；④ 前端：`renderSkills` 去掉 `.sk-size`/`.sk-sha` 两列、行 tooltip 改为描述，`style.css` 中 `.sk-name` 改为 `flex:1 1 auto`、`.sk-src` 加 `margin-left:auto` 右对齐并删除废弃样式。
+  - 验收标准：见 `use-case/FIX-587/`。
+  - 交付物：`agent/skills_tools.go`、`agent/skill_state.go`、`agent/fix587_test.go`、`i18n/{keys,zh,en}.go`、`web/static/app.js`、`web/static/style.css`、`use-case/FIX-587/`。
+  - 完成情况：✅ 已完成并合并 main（v0.91.3 / BUILD-1192，2026-10-02，tag `v0.91.3`）
+    - 实测：`TestFIX587HeaderKeepsNameAndRightAlignsSource` PASS（`ws="SKILL LOADED: image-generate                          工作区"`、`global="…                            全局"`，标签末列=60）；`TestFIX587NoteCarriesDescription` PASS（有描述→ `…（描述：helper for demos）`，无描述→原样且无 fmt 伪影）；FEATURE-583 技能用例全绿（UC-0001 断言已按新契约更新，并新增“不得出现路径/sha/tokens”断言）；`go build ./... && go vet ./...` 通过；`go test ./... -short` 失败集 26 条，与 main 基线逐条一致（agent/cmd/i18n/web 四包，零新增失败）。
+
+---
+
 ## v0.91.2 — 修复历史 env 三级降级静默失效（FEATURE-579 A 接线丢失）
 
 > **版本**: v0.91.2

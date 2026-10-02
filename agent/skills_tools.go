@@ -33,6 +33,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
@@ -80,13 +81,14 @@ func (a *Agent) SkillLoadContent(name string) (LoadedSkill, string, error) {
 		return LoadedSkill{}, "", fmt.Errorf(i18n.T(i18n.KeySkillErrRead), found.Path, err)
 	}
 	ls := LoadedSkill{
-		Name:     found.Name,
-		Path:     found.Path,
-		Dir:      found.Dir,
-		Bytes:    len(data),
-		SHA256:   skillSHA256(data),
-		Source:   skillSourceOf(ws, found.Dir),
-		LoadedAt: time.Now(),
+		Name:        found.Name,
+		Path:        found.Path,
+		Dir:         found.Dir,
+		Bytes:       len(data),
+		SHA256:      skillSHA256(data),
+		Source:      skillSourceOf(ws, found.Dir),
+		Description: found.Description,
+		LoadedAt:    time.Now(),
 	}
 	return ls, string(data), nil
 }
@@ -260,8 +262,15 @@ func pinnedSkillCarrier(name, resultText string, xmlMode bool) []llm.Message {
 	}
 }
 
-// skillLoadResultText formats the skill_load result: a short metadata header
-// followed by the byte-exact SKILL.md content between explicit markers.
+// skillLoadResultText formats the skill_load result: a one-line header (skill
+// name plus the right-aligned source label) followed by the byte-exact SKILL.md
+// content between explicit markers.
+//
+// FIX-587: the header used to repeat the file path, the byte/token estimate and
+// the sha256 prefix, which left little room for the name. It now carries only
+// the name and the source label ("工作区"/"全局"), the latter right-aligned to
+// skillHeaderLabelColumn; the size and fingerprint stay available on the Web UI
+// settings page and in :skill list.
 func (a *Agent) skillLoadResultText(ls LoadedSkill, content string) string {
 	total := a.LoadedSkillBytes()
 	if prev, ok := a.GetLoadedSkill(ls.Name); ok {
@@ -270,10 +279,16 @@ func (a *Agent) skillLoadResultText(ls LoadedSkill, content string) string {
 	total += ls.Bytes
 
 	var sb strings.Builder
-	sb.WriteString(i18n.TF(i18n.KeySkillLoadHeader, ls.Name, ls.Source, ls.Path,
-		ls.Bytes, ls.Bytes/4, shortSHA(ls.SHA256)))
+	header := i18n.TF(i18n.KeySkillLoadHeader, ls.Name)
+	sb.WriteString(alignRightLabel(header, a.skillSourceLabel(ls.Source), skillHeaderLabelColumn))
 	sb.WriteString("\n")
-	sb.WriteString(i18n.TF(i18n.KeySkillLoadPinnedNote, ls.Name))
+	// The pinned-note key has no placeholder, so it must not go through TF —
+	// passing the name produced a "%!(EXTRA string=<name>)" artifact.
+	note := i18n.T(i18n.KeySkillLoadPinnedNote)
+	if desc := strings.TrimSpace(ls.Description); desc != "" {
+		note += i18n.TF(i18n.KeySkillDescSuffix, desc)
+	}
+	sb.WriteString(note)
 	if resources := listSkillResources(ls.Dir); len(resources) > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(i18n.TF(i18n.KeySkillLoadResources, strings.Join(resources, ", ")))
@@ -305,10 +320,42 @@ func skillContentFromResult(result string) (string, bool) {
 	return body[:end], true
 }
 
-// shortSHA returns the first 8 hex characters of a sha256 fingerprint.
-func shortSHA(sha string) string {
-	if len(sha) <= 8 {
-		return sha
+// skillHeaderLabelColumn is the display column the source label is
+// right-aligned to in the skill_load header (FIX-587). A fixed column keeps the
+// header on one line for every skill name without knowing the terminal width.
+const skillHeaderLabelColumn = 60
+
+// skillSourceLabel renders a LoadedSkill source for the header. Unknown values
+// fall back to the workspace label, matching the discovery precedence.
+func (a *Agent) skillSourceLabel(source string) string {
+	if source == SkillSourceGlobal {
+		return i18n.T(i18n.KeySkillSrcGlobal)
 	}
-	return sha[:8]
+	return i18n.T(i18n.KeySkillSrcWorkspace)
+}
+
+// alignRightLabel appends label to line, padding with spaces so the label ends
+// at display column col (1-based). When line+label already overflow the column a
+// single space separates them. Widths are terminal columns, so a CJK label
+// ("工作区") counts two columns per character.
+func alignRightLabel(line, label string, col int) string {
+	pad := col - displayWidth(line) - displayWidth(label)
+	if pad < 1 {
+		pad = 1
+	}
+	return line + strings.Repeat(" ", pad) + label
+}
+
+// displayWidth returns the terminal width of s in columns: Han characters are
+// double width, everything else (skill names, latin labels) counts one.
+func displayWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			w += 2
+			continue
+		}
+		w++
+	}
+	return w
 }
