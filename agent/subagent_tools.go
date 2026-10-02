@@ -356,7 +356,7 @@ func subAgentIntArg(raw interface{}) (int, bool) {
 // (FEATURE-563): batch launch, status/result lookup and termination. They are
 // registered by buildTools only while sub-agent support is enabled.
 func (a *Agent) subAgentToolDefs() []llm.Tool {
-	return []llm.Tool{
+	tools := []llm.Tool{
 		{
 			Name: "launch_sub_agent",
 			Description: "Launch one or more sub-agent processes in a single call. Every sub-agent takes a slot from the current " +
@@ -373,7 +373,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
+						"description": a.toolMetaDesc(),
 					},
 					"tasks": map[string]interface{}{
 						"type":        "array",
@@ -414,7 +414,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
+						"description": a.toolMetaDesc(),
 					},
 					"ids": map[string]interface{}{
 						"type":        "array",
@@ -440,7 +440,7 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 				"properties": map[string]interface{}{
 					"meta": map[string]interface{}{
 						"type":        "object",
-						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status).",
+						"description": a.toolMetaDesc(),
 					},
 					"ids": map[string]interface{}{
 						"type":        "array",
@@ -453,4 +453,15 @@ func (a *Agent) subAgentToolDefs() []llm.Tool {
 			Callback: a.killSubAgentTool,
 		},
 	}
+
+	// FEATURE-579 (D1): the three sub-agent tool descriptions repeat the same
+	// explanation of the <sub_agents> block / <environment_details>. Compact
+	// mode converges each to one sentence; the switch-off path keeps the full
+	// wording above untouched.
+	if a != nil && a.cfg != nil && a.cfg.LLM.ToolDescCompact {
+		tools[0].Description = "Launch one or more sub-agents; pick free ids from the <sub_agents> block."
+		tools[1].Description = "Report a sub-agent's status/result; see the <sub_agents> block for running ids."
+		tools[2].Description = "Terminate sub-agents and their process group."
+	}
+	return tools
 }

@@ -269,7 +269,7 @@ func TestGetRecentAssistantHistory_SkipsToolCalls(t *testing.T) {
 		messages: []llm.Message{
 			{Role: "system", Content: "system"},
 			{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{{Name: "read_file"}}}, // index 1, tool call
-			{Role: "assistant", Content: "让我看看这个文件"}, // index 2
+			{Role: "assistant", Content: "让我看看这个文件"},                                         // index 2
 		},
 	}
 	got := a.getRecentAssistantHistory()

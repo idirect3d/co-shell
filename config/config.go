@@ -495,7 +495,7 @@ type LLMConfig struct {
 	// an automatic reorganize_context suggestion. When ContextPolicy is "reorganize" and
 	// current iteration token usage exceeds this percentage of the model's max context length,
 	// the agent will suggest the LLM to call reorganize_context.
-	// Default: 80
+	// Default: 92 (FEATURE-579: raised from 80 to postpone reorganization)
 	ContextReorganizeThreshold int `json:"context_reorganize_threshold"`
 
 	// ToolCallMode: the tool call mode to use.
@@ -587,6 +587,32 @@ type LLMConfig struct {
 	// read more. 0 means no limit.
 	// Default: 65536 (64KB)
 	ToolResultMaxSize int `json:"tool_result_max_size"`
+
+	// FEATURE-579 token optimizations (all default on; turning a switch off
+	// restores the previous behaviour exactly).
+	//
+	// EnvHistoryPrune: master switch for the three-level degradation of
+	// historical <environment_details> blocks (A).
+	EnvHistoryPrune bool `json:"env_history_prune"`
+	// EnvHistoryFullKeep: number of trailing messages kept at full env (L0).
+	// 0 means unlimited (every message stays L0, i.e. degradation off).
+	EnvHistoryFullKeep int `json:"env_history_full_keep"`
+	// EnvHistoryLiteKeep: number of messages after the L0 window kept at the
+	// lite level (L1). 0 means unlimited (no L2 level at all).
+	EnvHistoryLiteKeep int `json:"env_history_lite_keep"`
+	// EnvToolBatchSingle: within one iteration only the last committed tool
+	// result carries a full env; the others carry a minimal one (B).
+	EnvToolBatchSingle bool `json:"env_tool_batch_single"`
+	// EnvBoardRosterBrief: render <board_agents> as id/name/status only (C).
+	EnvBoardRosterBrief bool `json:"env_board_roster_brief"`
+	// EnvDirChangeDetect: emit <current_dir>/<tools>/<research> only when they
+	// changed (or every envDirForceFullEvery iterations) (C).
+	EnvDirChangeDetect bool `json:"env_dir_change_detect"`
+	// EnvRuntimeInfoOnce: emit <runtime_info> only when it changed (C).
+	EnvRuntimeInfoOnce bool `json:"env_runtime_info_once"`
+	// ToolDescCompact: compact the repeated meta argument description and
+	// de-duplicate the subagent tool descriptions (D1).
+	ToolDescCompact bool `json:"tool_desc_compact"`
 
 	// LoopIntervention: strategy for handling loop detection.
 	// Supported values:
@@ -1102,40 +1128,55 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:                 0,
-			MaxTokens:                   -1,
-			MaxIterations:               1000,
-			ShowLlmThinking:             true,
-			ShowLlmContent:              true,
-			ShowTool:                    true,
-			ShowToolInput:               true,
-			ShowToolOutput:              false,
-			ShowCommand:                 false,
-			ShowCommandOutput:           false,
-			ToolModes:                   nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
-			ResultMode:                  int(ResultModeFree),
-			ContextLimit:                -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			EnvIncludeDetails:           true,
-			EnvIncludeCurrentDir:        true,
-			EnvIncludeTools:             true,
-			EnvIncludeResearch:          true,
-			EnvIncludeUserDynamic:       true,
-			MemoryEnabled:               true,
-			PlanEnabled:                 true,
-			IntentExposureEnabled:       true,
-			AttemptCompletionConfirm:    true,
-			CompletionMode:              "simple",
-			SubAgentEnabled:             true,
-			MaxSubAgents:                subagent.DefaultMaxSubAgents,
-			ShellSessionEnabled:         false,
-			ShellSessionTimeout:         0,
-			ShellVTRows:                 24,
-			ShellVTCols:                 80,
-			ListMaxItems:                256,
-			SearchMaxLineLength:         8192,
-			SearchMaxResultBytes:        65536,
-			SearchContextLines:          5,
-			ToolResultMaxSize:           65536, // 64KB (FEATURE-491)
+			Temperature:              0,
+			MaxTokens:                -1,
+			MaxIterations:            1000,
+			ShowLlmThinking:          true,
+			ShowLlmContent:           true,
+			ShowTool:                 true,
+			ShowToolInput:            true,
+			ShowToolOutput:           false,
+			ShowCommand:              false,
+			ShowCommandOutput:        false,
+			ToolModes:                nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
+			ResultMode:               int(ResultModeFree),
+			ContextLimit:             -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			EnvIncludeDetails:        true,
+			EnvIncludeCurrentDir:     true,
+			EnvIncludeTools:          true,
+			EnvIncludeResearch:       true,
+			EnvIncludeUserDynamic:    true,
+			MemoryEnabled:            true,
+			PlanEnabled:              true,
+			IntentExposureEnabled:    true,
+			AttemptCompletionConfirm: true,
+			CompletionMode:           "simple",
+			SubAgentEnabled:          true,
+			MaxSubAgents:             subagent.DefaultMaxSubAgents,
+			ShellSessionEnabled:      false,
+			ShellSessionTimeout:      0,
+			ShellVTRows:              24,
+			ShellVTCols:              80,
+			ListMaxItems:             256,
+			SearchMaxLineLength:      8192,
+			SearchMaxResultBytes:     65536,
+			SearchContextLines:       5,
+			ToolResultMaxSize:        65536, // 64KB (FEATURE-491)
+
+			// FEATURE-579 token optimizations: all switches default to on; turning
+			// any of them off restores the previous behaviour exactly.
+			EnvHistoryPrune:     true,
+			EnvHistoryFullKeep:  1,
+			EnvHistoryLiteKeep:  1,
+			EnvToolBatchSingle:  true,
+			EnvBoardRosterBrief: true,
+			EnvDirChangeDetect:  true,
+			EnvRuntimeInfoOnce:  true,
+			ToolDescCompact:     true,
+
+			// FEATURE-579 (D1): cap a single read_file result, aligned with
+			// ToolResultMaxSize; 0 still means "no limit".
+			ReadFileMaxSize:             65536,
 			MemorySearchMaxContentLen:   512,
 			MemorySearchMaxResults:      100,
 			ErrorMaxSingleCount:         10,
@@ -1184,7 +1225,7 @@ func DefaultConfig() *Config {
 			ToolCallEnabled:             true,
 			ToolCallMode:                "openai",
 			ContextPolicy:               "reorganize",
-			ContextReorganizeThreshold:  80,
+			ContextReorganizeThreshold:  92,
 			TokenUsage:                  "on",
 			ModelConnectivityCheck:      "on_submit",
 			InputMode:                   "enhanced",

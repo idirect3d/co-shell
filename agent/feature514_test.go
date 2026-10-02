@@ -173,6 +173,7 @@ func TestContextRemoveLimit_NilConfigUnlimited(t *testing.T) {
 		t.Fatal("nil config must never exceed the limit")
 	}
 }
+
 // FEATURE-514: acceptance criteria + criteria_check tests.
 
 func TestParseAcceptanceCriteria_ArrayAndString(t *testing.T) {

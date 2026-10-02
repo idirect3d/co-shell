@@ -119,9 +119,9 @@ func TestUIPruneXMLContent(t *testing.T) {
 // malformed trees, other tools, plain messages.
 func TestUIPruneLeavesOtherContent(t *testing.T) {
 	ag := pruneTestAgent(true)
-	bad := `{"tree":{"type":"sparkline"}}`          // unknown component
-	broken := `{"tree":`                            // truncated JSON
-	other := `{"tree":{"type":"card"}}`             // tool that is not render_ui
+	bad := `{"tree":{"type":"sparkline"}}` // unknown component
+	broken := `{"tree":`                   // truncated JSON
+	other := `{"tree":{"type":"card"}}`    // tool that is not render_ui
 	plain := "just a text answer with <tree> no markup"
 
 	msgs := []llm.Message{

@@ -71,6 +71,10 @@ const (
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
+	// envState holds the session-level change-detection state of the
+	// FEATURE-579 plan C slim-down of <environment_details>.
+	envState envAgentState
+
 	mu                  sync.Mutex
 	llmClient           llm.Client
 	mcpMgr              *mcp.Manager
@@ -679,6 +683,11 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	// one-line summary on their way into the context; the persisted history and
 	// the Web UI replay keep the full tree.
 	msgs = a.pruneUIContext(msgs)
+
+	// FEATURE-579 (plan A): degrade the envelopes of older messages on the
+	// copy handed to the provider. The persisted history keeps every full
+	// envelope, so the Web UI replay and :context full are unaffected.
+	msgs = a.pruneEnvContext(msgs)
 
 	return msgs
 }

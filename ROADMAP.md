@@ -4,6 +4,35 @@
 
 ---
 
+## v0.88.0 — token 优化 A+B+C+D1（历史 env 三级降级 / 同轮单份 env / env 瘦身 / 工具定义瘦身）
+
+> **版本**: v0.88.0
+
+> **状态**: ✅ 已合并 main（tag `v0.88.0`，分支 FEATURE-579，BUILD-1179）
+> **里程碑**: 按 `research/token优化设计方案.md` 实施 A/B/C/D1 四项优化，压缩多轮迭代中「纯 env + 工具定义」的固定开销：**A** 历史 env 三级降级（L0 完整 / L1 精简 / L2 极简）、**B** 同轮多工具只注入一份完整 env、**C** env 内部瘦身（board_agents 精简 + current_dir/tools/research 变更检测 + runtime_info 仅首条/变化时输出）、**D1** 工具定义瘦身（meta 说明压缩、描述去重、`read_file_max_size` 上限）。**D2 分组懒加载本期不做**。9 项开关默认开启且**关闭即现状行为**。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-579 | 0.88.0 | P0 | token 优化 A+B+C+D1 实现（9 项开关 + 2 项默认值变更 + 设置界面 + i18n + 单测/用例 + 优化后基线复核） |
+
+### 任务详情
+
+- [x] **FEATURE-579 token 优化 A/B/C+D1 实现**（已完成，已合并 main + tag `v0.88.0`，[BUILD-1179]）
+  - 范围（用户确认 2026-10-02）：一次做完 **A+B+C+D1**，含 9 项开关与设置界面、2 项默认值变更；**D2 分组懒加载本期不做**。
+  - 9 项开关（默认开启，关闭即现状行为）：`env_history_prune` / `env_history_full_keep=1` / `env_history_lite_keep=1` / `env_tool_batch_single` / `env_board_roster_brief` / `env_dir_change_detect` / `env_runtime_info_once` / `tool_desc_compact` / `tool_lazy_load`（`0` 表示不限：`full_keep=0` 等于关闭降级）。
+  - 默认值变更：`read_file_max_size` 0→65536（与 `tool_result_max_size` 对齐）；`context_reorganize_threshold` 代码默认 80→92（`config.json` 现为 90，同步）。
+  - 设计依据：`research/token优化设计方案.md` §4–§7.1 / §8（配置项）/ §9（代码接入点）。关键接入点：新增 `agent/env_prune.go`（`pruneEnvContext` / `buildEnvBlock` / `envLevelOf`），调用点 `agent/loop.go` 的 `buildContextMessages()` 末尾（紧随现有 `pruneUIContext` 之后）；同轮单份 env 改 `agent/run_stream.go` 的工具循环注入；工具声明走同一份 `[]llm.Tool`（`agent/toolcall_mode.go`）自动同享。
+  - 兜底规则（必须实现，见 §4.2）：① 最后一条消息永不降级；② 禁止修改持久历史（ContentParts 深拷贝）；③ `task_plan` 可见性兜底（最新条无 task_plan 则向前找最近一条含 task_plan 的至少保持 L1）；④ loop retry 读取持久历史不受影响。
+  - 对比口径（用户确认 2026-10-02）：**以现有 58 轮真实会话基线为准**（S6 固定任务 ×3 采样因 bbolt 争用受阻，不阻断本次实现），优化后做同工作区 + 同模型 + 同任务的成对复测。
+  - 基线（优化前，`research/token-baseline/基线数据-各阶段.md`）：S0 39,410 B（通道①）/ 21,437 B（通道②）；S1 38 工具 66,657 B、`meta` 38×9,158 B（13.7%）、生产 69 工具 98,576 B；S2 env L0 5,116 B（current_dir 2,351 / tools 1,623 / research 739 / 其他 423）、L1 400 B、L2 111 B；S3 N=3→15,348 B；S4 斜率 **+5,116 B/轮**（50 轮 255,800 B）；S5 1 轮 111,183 B（固定占 95.4%）、50 轮 361,867 B（固定占 29.3%）；S6 58 轮累计 prompt 13,400,749、缓存命中 97.6%、miss 315,437、中位增量 +6,486/轮。
+  - 目标值（同口径复核，§9 对照表）：S1 schema **≥-30%**、`meta` **≤4,000 B**；S2 L0 **≤3,000 B** / L1 **≤1,000 B**；S3 N=3 → **5,338 B（-65.2%）**；S4 斜率 **≤~120 B/轮**、50 轮 **≤~11 KB**；S5 第 50 轮固定开销占比 **≤5%**；S6 累计 prompt 显著下降、`reorganize` 触发轮次后移。
+  - 验收标准：① 9 项开关在 config、`:set` 清单、Web 设置页、i18n（zh/en）四处齐备，默认开启且关闭即现状行为；② 两项默认值变更生效且 config.json 同步；③ S0–S5 确定性测量重跑（3 次 md5 一致）与基线逐项对比达成目标值；④ S6 同任务成对复测有前后对比；⑤ 任务正确性不回归（文件定位 / 任务计划追踪 / loop retry / `attempt_completion` 的 `task_message_no` 语义 / Web UI 回放 / `:context full`）；⑥ `go build ./... && go vet ./...` 通过，新增测试全绿（基线既有失败如实标注）；⑦ 提交在分支 FEATURE-579，用户确认后合并。
+  - 交付物：`agent/env_prune.go` + `loop.go` 接入 + `run_stream.go` 同轮单份 env + env 瘦身与变更检测 + 工具声明瘦身 + config/`:set`/Web 设置页/i18n + 单测 + `use-case/FEATURE-579/` 用例 + 优化后基线复核数据（含前后对比）。
+  - 调整（用户 2026-10-02）：新增开关从「智能体设置」组迁到「记忆与上下文」组——含 FEATURE-524 的 `ui-enabled` / `ui-context-prune`，共 10 项；Web 设置页（`cmd/settings_web.go`）追加于 `env-include-*` 之后，TUI `:set`（`cmd/settings.go`）置于 `memory-search-max-results` 之后、特殊项 `db` 之前；新增 `cmd/settings_group_placement_test.go` 断言两处分组位置 [BUILD-1177]。
+  - 调整 2（用户 2026-10-02）：`ui-enabled` 放回「智能体设置」组（位于 `board-must-reply` 之后），`ui-context-prune` 及其余 8 项仍留在「记忆与上下文」组；测试同步更新为 9 项归「记忆与上下文」+ 新增 `TestUiEnabledBackInAgentGroup` 断言 `ui-enabled` 归「智能体设置」 [BUILD-1178]。
+
+---
+
 ## v0.87.0 — token 用量测试方案与各阶段基线测量（token 优化前置）
 
 > **版本**: v0.87.0

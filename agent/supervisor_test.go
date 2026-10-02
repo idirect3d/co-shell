@@ -25,12 +25,12 @@ func newSupervisorTestAgent() *Agent {
 	ag.SetConfig(&config.Config{
 		LLM: config.LLMConfig{
 			Supervisor: config.SupervisorConfig{
-				Enabled:     true,
+				Enabled:      true,
 				EntryObject:  true,
 				EntryExit:    true,
 				EntryTask:    false,
 				ClearContext: false,
-				MaxRetries:  20,
+				MaxRetries:   20,
 			},
 		},
 	})

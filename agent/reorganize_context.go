@@ -194,6 +194,7 @@ func hasContextOverflowExemptTool(toolCalls []llm.ToolCall) bool {
 	}
 	return false
 }
+
 // It performs context reorganization based on the current ContextPolicy:
 // - "window" with context-limit=-1: trim context to system + last user message
 // - "smart"/"task"/"reorganize": append i18n suggestion to call reorganize_context

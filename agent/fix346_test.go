@@ -199,4 +199,3 @@ func TestFeature346I18nDefaultIntentKey(t *testing.T) {
 		t.Error("browser_screenshot_vision_intent_default key missing in zh/en")
 	}
 }
-
