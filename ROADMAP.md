@@ -15,7 +15,7 @@
 |------|------|------|------|
 | FIX-590 | 0.91.6 | P1 | 前端渲染性能：md 增量渲染与节流、输入让路、屏外块跳过布局、流窗口按文本量收敛 |
 
-> 当前 BUILD: 1195
+> 当前 BUILD: 1196
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,7 +28,7 @@
   - 追加（本会话续做，用户「按以上方案继续改进」）：⑥ `#input` 改 CSS `field-sizing: content`（`@supports` 门控 + 保留 `max-height:150px; overflow-y:auto`），`autoGrow()` 在支持时**短路返回**（不再设内联 height、不再读 `scrollHeight`），不支持时回退到 rAF 合并的 `growComposer()`，微底消除输入框的每键强制布局。
   - 验收标准：见 `use-case/FIX-590/`。
   - 交付物：`web/static/app.js`、`web/static/style.css`、`config/config.go`、`cmd/settings_web.go`、`cmd/settings_display.go`、`cmd/settings.go`、`i18n/{keys,zh,en}.go`、`use-case/FIX-590/`。
-  - 完成情况：✅ 已完成（分支 FIX-590，待用户验收）[BUILD-1195]
+  - 完成情况：✅ 已完成（分支 FIX-590，待用户验收）[BUILD-1196]
     - 追加项实测（field-sizing，隔离实例 + 浏览器插桩）：`COMPOSER_FIELD_SIZING=true`；`#input` 计算样式 `field-sizing:content` / `max-height:150px` / `overflow-y:auto`；**15 个输入法按键的 `scrollHeight` 读取 = 0 次**（改前 15 次）；高度行为：单行 34px → 3 行 82px → 内容超长 150px（封顶 + 内部滚动）→ 清空回落 34px；无内联 height；`use-case/FIX-590/FIX-590-UC-0003.md`。
     - 实测（隔离实例 28279 + 调试浏览器）：渲染档位 `[0, 100, 330]ms`、默认上限 `2,000,000` 字符；**输入法期间 200 次 chunk 调度仅 0.2ms、`mdRender` 调用 0 次**，`compositionend` 后补渲染 **1 次**；`.ev` 计算样式 `content-visibility:auto` / `contain-intrinsic-size:auto 300px`，最后一块为 `visible`；重 DOM 下「追加 + 强制布局」0.4ms；文本上限驱逐生效（cap=3000 时收敛到 4,515 字符 / 5 组）；无残留 `.ev-head.streaming`。
     - 对照基准（改前）：`scheduleMd` 每帧全文重渲染 2KB→2.3ms、10KB→2.7ms、50KB→7.8ms、**200KB→29.7ms/帧**；强制布局随文本量线性增长（1MB→66ms、20MB→2.21s）。
