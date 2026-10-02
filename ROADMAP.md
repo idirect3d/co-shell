@@ -4,6 +4,36 @@
 
 ---
 
+## v0.91.1 — 工具超时不再误报为“用户中断” + iOS 启动屏白等去除与 AppIcon 重制
+
+> **版本**: v0.91.1
+
+> **状态**: ✅ 已完成（分支 FIX-585，待用户验收）
+> **里程碑**: ① 修正 FEATURE-582 中断机制的语义混淆——工具自身超时（`timeout_seconds` / 用户最小超时）走的是与用户中断同一条取消路径，导致**超时被报成“被用户中断”、并丢弃整轮上下文**（日志表现为 `interrupted by user (reason=)`，reason 为空）；本次区分“超时”与“用户中断”，超时回落到普通工具失败（错误反馈给 LLM），只有真实中断才丢弃整轮。② 为发布 App Store 做准备：去掉 iOS 启动屏的白底黑字停留（启动屏与 App 首屏背景一致、无文字，WebView 加载期不再白屏），并按新规范重制 AppIcon（去掉左右两条粗竖直光带，改为上边缘强、下边缘弱的边缘光照）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-585 | 0.91.1 | P0 | 工具超时不再误报为“用户中断”（区分 timeout / user interrupt，超时不再丢弃整轮）+ iOS 启动屏白等去除 + AppIcon 重制（去左右粗光带、加上强下弱边缘光） |
+
+> 当前 BUILD: 1190
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-585 工具超时不再误报为“用户中断” + iOS 启动屏白等去除 + AppIcon 重制**
+  - 问题（用户报告 2026-10-02，日志实证）：会话在 19:01:06 执行 `grep -ril "splash" --include=* .`（含 ~1GB 日志目录）时，于 19:02:06.514（整 60s）被杀并报 `tool execute_command interrupted (user)`，`Agent.RunStream` 打印 `interrupted by user (reason=)`（reason 为空）后**丢弃整轮 assistant 消息与工具结果**并结束本轮——用户并未按 ESC。同日 18:08:05→18:09:05 有同构记录（同为 `effective timeout=60s`、整 60s）。
+  - 根因：`agent/tools.go` 的工具超时用 `context.WithTimeout` 取消同一个工具上下文（`effectiveTimeout = max(userMin, llmSuggested)`）；`agent/command_tools.go` 的非 detach 循环只 `select { case <-ctx.Done(): ... }`，不分取消原因，统一打 `Interrupt: killing process group of PID ...` 并返回 `newToolInterruptedError`；`agent/run_stream.go` 见 `ErrToolInterrupted` 即按“用户中断”丢弃整轮。因 ctx 计时器先于命令内部 `time.After` 启动，ctx 分支总抢先，故日志中看不到本应由超时 goroutine 打印的 `Timeout kill: ...`。
+  - 实施方案：① `agent/command_tools.go`（非 detach 与 direct 两处 `select`）：以 `a.IsInterrupted()` 判据区分——用户中断保持原行为（`Interrupt:` 日志 + `ErrToolInterrupted`）；否则视为工具超时，打 `Timeout kill: ...`、置 `timedOut`、kill 进程组，落回既有超时错误分支（`command timed out after Ns`）；② `agent/run_stream.go`：`interruptAborted` 且 `a.IsInterrupted()` 为真才走“丢弃整轮 + 中断提示”，否则按普通工具失败把错误交回 LLM（并打可区分的日志），杜绝无中断标记时丢弃上下文；③ iOS：`mobile/ios/Runner/Base.lproj/LaunchScreen.storyboard` 去掉白底与居中 “co-shell” 文字，背景改用自适应颜色集（浅色=系统背景白、深色=黑，新增 `Assets.xcassets/LaunchBackground.colorset`），`WebViewController` 的 `WKWebView` 去掉不透明白底（`isOpaque=false` + 与首屏一致的背景），使“启动屏 → 首屏”无缝、无白等；④ AppIcon：以 1024 主图确定性处理（水平插值去除左右竖直光带 → 沿 squircle 上/下边缘叠加边缘光，上强下弱），再由主图等比重采样出 20/29/40/60/76/83.5 各尺寸。
+  - 验收标准：见 `use-case/FIX-585/`。
+  - 交付物：`agent/command_tools.go`、`agent/interrupt.go`、`agent/run_stream.go`、`agent/fix585_test.go`、`mobile/ios/Runner/Base.lproj/LaunchScreen.storyboard`、`mobile/ios/Runner/Assets.xcassets/`、`mobile/ios/Runner/WebViewController.swift`、`mobile/tools/appicon_regen.py`、`mobile/tools/launch_logo_gen.py`、`use-case/FIX-585/`。
+  - 完成情况：✅ 已完成（分支 FIX-585，待用户验收）[BUILD-1190]
+    - 实施：① A/中断语义：新增 `agent/interrupt.go`（`toolTimeoutGrace=2s`、`isTimeoutCancel` 用 `errors.Is(ctx.Err(), context.DeadlineExceeded)` 判定）；`command_tools.go` 三处 select（detach/非 detach/direct）改为“超时且未中断 → 打 `Timeout kill: ...`、置 `timedOut`、回落到既有超时错误分支”，用户中断仍保持 `Interrupt: ...` + `ErrToolInterrupted`；`run_stream.go` 超时分支加 `toolTimeoutGrace` 宽限取回工具自身错误，只有确认无中断才 `interruptAborted=true`（不再误丢整轮）。② B/启动屏：`LaunchScreen.storyboard` 改为纯黑背景 + 居中 `LaunchLogo`（72×72，新增 `LaunchLogo.imageset` 由 `mobile/tools/launch_logo_gen.py` 生成，图案与 `CoShellLogoView.art` 一致），去掉白底与 “co-shell” 文案；`WebViewController.swift` 加载背景改黑、`isOpaque=false`，消除加载期白屏。③ C/AppIcon：`mobile/tools/appicon_regen.py` 以 1024 主图确定性处理（白画布检测 squircle 轮廓 → 外侧 8% 区域去侧带 → 沿轮廓加上强下弱边缘光），输出 RGB（去 alpha 通道，上架要求）并 LANCZOS 重采样全部尺寸，`AppIcon.appiconset` 15 个 PNG 全部更新。
+    - 实测证据：A：`go build ./... && go vet ./...` 通过；`go test ./agent/ -run FIX585 -v -count=1` 3/3 PASS（超时不报中断、真中断仍报、`isTimeoutCancel` 判定）；`go test ./... -short` 失败集与 main 基线一致（仅 `TestLineRendererTokenEvents`、`TestRetryCountLimit_EnterResets` 两个既有 i18n 失败，非本次引入）。C：`side bands removed`、`side-band delta before=64.91 after=0.86`（|Δ|≤3/255 ✅）、`edge light top=53.03 bottom=28.94 ratio=1.83`（≥1.5 ✅）、`artwork unchanged mean=0.00`（≤2/255 ✅）、`output mode RGB (no alpha)`、`RESULT: OK`。移动端：模拟器不可用（`CoreSimulator is out of date`），改用 `xcodebuild -project Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build` → `CompileStoryboard .../LaunchScreen.storyboard`、`CompileAssetCatalogVariant thinned .../Assets.xcassets`、`** BUILD SUCCEEDED **`。
+    - 已知遗留：① 无可用模拟器/真机，启动屏与图标观感未做真机实测（仅视觉复核静态图）；② 图标四角仍为白色（用户未要求修改）；③ 两个 i18n 既有失败属 main 基线环境问题。
+
+---
+
 ## v0.91.0 — skill 加载/卸载机制（pin 消息 · 可感知 · 抗压缩）
 
 > **版本**: v0.91.0
