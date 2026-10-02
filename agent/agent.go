@@ -2087,6 +2087,15 @@ func (a *Agent) getCommandTimeout() time.Duration {
 	return 0
 }
 
+// getDemoCommandTimeout returns the timeout applied to the attempt_completion
+// demo command (FIX-581). Zero means no timeout; config.DefaultConfig sets 3s.
+func (a *Agent) getDemoCommandTimeout() time.Duration {
+	if a.cfg != nil && a.cfg.LLM.DemoCommandTimeout > 0 {
+		return time.Duration(a.cfg.LLM.DemoCommandTimeout) * time.Second
+	}
+	return 0
+}
+
 func (a *Agent) Reset() {
 	a.mu.Lock()
 	defer a.mu.Unlock()

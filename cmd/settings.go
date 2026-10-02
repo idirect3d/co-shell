@@ -528,6 +528,10 @@ func (h *SettingsHandler) showSettingsHelp() string {
 	if cfg.LLM.CommandTimeout <= 0 {
 		cmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
 	}
+	demoCmdTimeoutStr := fmt.Sprintf("%d", cfg.LLM.DemoCommandTimeout)
+	if cfg.LLM.DemoCommandTimeout <= 0 {
+		demoCmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
 	llmTimeoutStr := fmt.Sprintf("%d", cfg.LLM.LLMTimeout)
 	if cfg.LLM.LLMTimeout <= 0 {
 		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
@@ -853,6 +857,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
 		makeLine("tool-timeout", toolTimeoutStr, i18n.T(i18n.KeyCol3ToolTimeout)),
 		makeLine("cmd-timeout", cmdTimeoutStr, i18n.T(i18n.KeyCol3CmdTimeout)),
+		makeLine("demo-cmd-timeout", demoCmdTimeoutStr, i18n.T(i18n.KeyCol3DemoCmdTimeout)),
 		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
@@ -1113,6 +1118,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.ErrorMaxTypeCount = def.LLM.ErrorMaxTypeCount
 	h.cfg.LLM.ToolTimeout = def.LLM.ToolTimeout
 	h.cfg.LLM.CommandTimeout = def.LLM.CommandTimeout
+	h.cfg.LLM.DemoCommandTimeout = def.LLM.DemoCommandTimeout
 	h.cfg.LLM.LLMTimeout = def.LLM.LLMTimeout
 	h.cfg.LLM.LoopIntervention = def.LLM.LoopIntervention
 	h.cfg.LLM.LoopAutoReorganizeThreshold = def.LLM.LoopAutoReorganizeThreshold

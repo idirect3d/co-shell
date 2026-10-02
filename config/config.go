@@ -172,6 +172,7 @@ type LLMConfig struct {
 	// Timeout settings (in seconds, 0 means no timeout)
 	ToolTimeout         int `json:"tool_timeout"`          // Tool call timeout (default: 0 = no timeout)
 	CommandTimeout      int `json:"command_timeout"`       // System command execution timeout (default: 0 = no timeout)
+	DemoCommandTimeout  int `json:"demo_command_timeout"`  // attempt_completion demo command timeout (default: 3 = 3s; 0 = no timeout)
 	LLMTimeout          int `json:"llm_timeout"`           // LLM API non-streaming request timeout (default: 0 = no timeout)
 	EndpointTestTimeout int `json:"endpoint_test_timeout"` // Endpoint connectivity test timeout (default: 0 = no timeout)
 
@@ -1163,6 +1164,11 @@ func DefaultConfig() *Config {
 			SearchContextLines:       5,
 			ToolResultMaxSize:        65536, // 64KB (FEATURE-491)
 
+			// FIX-581: attempt_completion demo command timeout. 3s by default so a
+			// non-returning command (e.g. a stray `--serve`) can never block the
+			// delivery tool forever; 0 = no timeout.
+			DemoCommandTimeout: 3,
+
 			// FEATURE-579 token optimizations: all switches default to on; turning
 			// any of them off restores the previous behaviour exactly.
 			EnvHistoryPrune:     true,
@@ -1467,6 +1473,10 @@ func (c *Config) Show() string {
 	if c.LLM.CommandTimeout <= 0 {
 		cmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
 	}
+	demoCmdTimeoutStr := fmt.Sprintf("%ds", c.LLM.DemoCommandTimeout)
+	if c.LLM.DemoCommandTimeout <= 0 {
+		demoCmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
 	llmTimeoutStr := fmt.Sprintf("%ds", c.LLM.LLMTimeout)
 	if c.LLM.LLMTimeout <= 0 {
 		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
@@ -1487,6 +1497,7 @@ func (c *Config) Show() string {
 	col3Confirm := i18n.T(i18n.KeyCol3Confirm)
 	col3ToolTimeout := i18n.T(i18n.KeyCol3ToolTimeout)
 	col3CmdTimeout := i18n.T(i18n.KeyCol3CmdTimeout)
+	col3DemoCmdTimeout := i18n.T(i18n.KeyCol3DemoCmdTimeout)
 	col3LLMTimeout := i18n.T(i18n.KeyCol3LLMTimeout)
 	col3Log := i18n.T(i18n.KeyCol3Log)
 	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
@@ -1574,6 +1585,7 @@ func (c *Config) Show() string {
 		"result-mode:", resultModeStr, col3ResultMode,
 		"tool-timeout:", toolTimeoutStr, col3ToolTimeout,
 		"cmd-timeout:", cmdTimeoutStr, col3CmdTimeout,
+		"demo-cmd-timeout:", demoCmdTimeoutStr, col3DemoCmdTimeout,
 		"llm-timeout:", llmTimeoutStr, col3LLMTimeout,
 		"log:", logStatus, col3Log,
 		"name:", agentName, col3Name,

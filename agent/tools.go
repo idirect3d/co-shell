@@ -30,7 +30,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -2498,16 +2497,11 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	var cmdOutput string
 	if command != "" {
 		log.Info("attemptCompletion: executing demo command: %s", command)
-		shell, shellArg := shellCmd()
-		cmd := exec.CommandContext(ctx, shell, shellArg, command)
-		output, err := cmd.CombinedOutput()
-		decoded := decodeToUTF8(output)
-		if err != nil {
-			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
-			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, decoded)
-		} else {
-			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_611), strings.TrimSpace(decoded))
-		}
+		// FIX-581: bounded execution. The command runs in its own process group
+		// and the whole group is killed when it exceeds the configured demo
+		// timeout, so a non-returning command (e.g. a stray --serve) can never
+		// block this tool forever.
+		cmdOutput = a.runDemoCommand(ctx, command)
 	}
 
 	// FEATURE-479: completion-confirm behavior mode (active/simple/exit).
