@@ -806,9 +806,21 @@
     refresh();
   }
 
+  // exportPayload returns the export context of one window (an empty name means
+  // the active window): the tree it currently shows and its title. It returns
+  // null when no window matches or the window holds no content yet, so the
+  // export entry (FEATURE-580) degrades to a no-op instead of writing an empty
+  // document.
+  function exportPayload(name) {
+    var rec = find(name || activeName);
+    if (!rec || !rec.tree) return null;
+    return { tree: rec.tree, title: rec.title || rec.name };
+  }
+
   global.UIWin = {
     render: render,
     applyWindowEvent: applyWindowEvent,
+    exportPayload: exportPayload,
     closeWindow: closeWindow,
     closeFromShell: closeFromShell,
     maximizeFromShell: maximizeFromShell,
