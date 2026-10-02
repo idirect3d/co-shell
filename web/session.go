@@ -247,7 +247,16 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 			s.wio.resolveInteraction(msg.ID, res)
 		}
 	case "interrupt":
-		s.ag.Interrupt()
+		if s.ag.IsToolRunning() {
+			// FEATURE-582 Q3-A: during tool execution ESC / the pause button
+			// interrupts the tool immediately (kills its process groups) and
+			// returns to the prompt, with no confirmation prompt.
+			s.ag.InterruptTool("web-interrupt")
+		} else {
+			// FEATURE-201/427: during LLM output ESC keeps the existing
+			// "pause the stream and ask" semantics.
+			s.ag.Interrupt()
+		}
 		// FEATURE-524: ESC also ends a parked render_ui(waiting=true) instead of
 		// leaving the turn blocked until the timeout.
 		s.ag.ReleaseUIWait()

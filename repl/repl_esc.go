@@ -30,6 +30,15 @@ func (s *tuiSession) startEscConsumer(ag *agent.Agent) func() {
 			if io := ag.IO(); io != nil && io.IsReading() {
 				return
 			}
+			// FEATURE-582 Q2-A/Q3-A: while a tool runs, ESC / Ctrl+C interrupts
+			// the tool (kills its process groups) and returns to the prompt
+			// without exiting the program. The former "yield while a command
+			// runs" branch made the keys dead exactly when they were needed.
+			if ag.IsToolRunning() {
+				log.Info("Tool interrupt detected (%v) during tool execution", ev.Kind)
+				ag.InterruptTool("tui-interrupt")
+				return
+			}
 			if ag.IsCommandRunning() {
 				return
 			}

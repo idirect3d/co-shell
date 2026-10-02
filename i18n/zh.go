@@ -607,6 +607,11 @@ var zhMessages = map[string]string{
 	// FIX-581: attempt_completion demo 命令执行超时提示
 	KeySettingCmd_784: "\n⚠️ demo 命令执行超时（%ds），已终止该进程组。\n已产生的输出:\n%s",
 
+	// FEATURE-582: tool-call interrupt notices
+	KeyInterruptToolNotice:    "⛔ 已中断：工具执行已终止，已回到输入态。",
+	KeyInterruptToolKilled:    "⛔ 已终止 %d 个工具进程组（%s）",
+	KeyInterruptShellTerminal: "⚠️ shell 会话已被中断终止，请用 shell_start 重新建立会话。",
+
 	// FEATURE-452: attempt_completion completion-confirm dialog
 	KeyAttemptCompletionSuggestNext: "给出下一步建议",
 	KeyAttemptCompletionPrompt:      "任务结果已就绪，请选择下一步：",

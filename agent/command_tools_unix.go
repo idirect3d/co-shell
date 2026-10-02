@@ -67,3 +67,18 @@ func setProcessGroupAttr(cmd *exec.Cmd) {
 func killProcessGroup(cmd *exec.Cmd) {
 	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 }
+
+// terminateProcessGroup sends SIGTERM to the process group with the given id
+// (FEATURE-582: first, polite step of an interrupt-initiated cleanup).
+func terminateProcessGroup(pgid int) {
+	if pgid > 0 {
+		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	}
+}
+
+// killProcessGroupByID sends SIGKILL to the process group with the given id.
+func killProcessGroupByID(pgid int) {
+	if pgid > 0 {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	}
+}

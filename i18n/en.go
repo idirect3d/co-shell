@@ -625,6 +625,11 @@ var enMessages = map[string]string{
 	// FIX-581: attempt_completion demo command timeout notice
 	KeySettingCmd_784: "\n⚠️ Demo command timed out after %ds; its process group was terminated.\nOutput so far:\n%s",
 
+	// FEATURE-582: tool-call interrupt notices
+	KeyInterruptToolNotice:    "⛔ Interrupted: tool execution terminated, back to input.",
+	KeyInterruptToolKilled:    "⛔ Terminated %d tool process group(s) (%s)",
+	KeyInterruptShellTerminal: "⚠️ The shell session was terminated by the interrupt. Use shell_start to create a new one.",
+
 	// FEATURE-452: attempt_completion completion-confirm dialog
 	KeyAttemptCompletionSuggestNext: "Give next-step suggestions",
 	KeyAttemptCompletionPrompt:      "The task result is ready. Choose a next step:",

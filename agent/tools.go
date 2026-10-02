@@ -2209,6 +2209,28 @@ func (a *Agent) shouldDeferVisionToolResult(toolName string) bool {
 	return a.visionPendingIntent != "" && len(a.imagePaths) > 0
 }
 
+// toolExecOutcome is the result of a tool executed in its own goroutine
+// (FEATURE-582), delivered back to the run loop over a buffered channel.
+type toolExecOutcome struct {
+	result string
+	err    error
+}
+
+// runToolWithGate executes one tool call, applying the board completion gate to
+// attempt_completion first (FEATURE-567: a board message that expects a reply
+// is a duty of this agent, so finishing is refused while one is unanswered;
+// the refusal goes back to the LLM as the tool result).
+//
+// It is the body of the tool goroutine in RunStream (FEATURE-582).
+func (a *Agent) runToolWithGate(ctx context.Context, tc llm.ToolCall) (string, error) {
+	if tc.Name == "attempt_completion" {
+		if gateMsg, blocked := a.BoardCompletionGate(); blocked {
+			return "", fmt.Errorf("%s", gateMsg)
+		}
+	}
+	return a.executeToolCall(ctx, tc)
+}
+
 // executeToolCall runs a single tool call and returns the result.
 func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, error) {
 	// Parse arguments

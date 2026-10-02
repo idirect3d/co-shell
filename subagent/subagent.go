@@ -168,6 +168,10 @@ type Manager struct {
 	cmds   map[string]*execHandle
 	done   map[string]chan struct{}
 	loaded bool
+	// procRegistrar, when set, is called right after a sub-agent process
+	// starts and returns an unregister func run on reap (FEATURE-582). It is
+	// read through procRegistrarFor so the setter and the launcher do not race.
+	procRegistrar func(id, command string, pid int) func()
 	// noStream drops the default machine-readable display flags from launches
 	// (set only when the operator explicitly switched the display off).
 	noStream bool
@@ -190,6 +194,26 @@ type Manager struct {
 type execHandle struct {
 	killed   bool          // set by Kill so the waiter keeps the killed status
 	exitWait chan struct{} // closed by the reaper once the process exited
+	// unregister removes the process-group registration installed at launch
+	// (FEATURE-582); nil when no registrar is configured.
+	unregister func()
+}
+
+// SetProcRegistrar installs a hook invoked right after a sub-agent process
+// starts; the returned function is called once the process is reaped. It lets
+// the caller register the process group for interrupt-driven cleanup
+// (FEATURE-582 Q4-B: an interrupt also kills sub-agent children).
+func (m *Manager) SetProcRegistrar(fn func(id, command string, pid int) func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.procRegistrar = fn
+}
+
+// procRegistrarFor returns the process registrar under the manager lock.
+func (m *Manager) procRegistrarFor() func(id, command string, pid int) func() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.procRegistrar
 }
 
 // NewManager creates a manager. The process table is loaded lazily on first use.

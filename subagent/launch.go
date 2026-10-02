@@ -223,6 +223,11 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 	pgid := readPGID(pid)
 	done := make(chan struct{})
 	handle := &execHandle{exitWait: done}
+	// FEATURE-582: register the sub-agent's process group so a user interrupt
+	// can terminate it; the unregister func runs once the process is reaped.
+	if registrar := m.procRegistrarFor(); registrar != nil {
+		handle.unregister = registrar(pr.task.ID, strings.Join(cmd.Args, " "), pid)
+	}
 	proc := &Proc{
 		ID:          pr.task.ID,
 		PID:         pid,
@@ -256,6 +261,11 @@ func (m *Manager) startOne(pr *prepared) (*Proc, error) {
 // exit code, duration, parsed final answer and tool-call trail.
 func (m *Manager) reap(pr *prepared, cmd *exec.Cmd, handle *execHandle, done chan struct{}) {
 	err := cmd.Wait()
+	if handle.unregister != nil {
+		// FEATURE-582: the process exited, so the interrupt registry no longer
+		// needs to track its (possibly reused) process group.
+		handle.unregister()
+	}
 	exitCode := 0
 	if err != nil {
 		var ee *exec.ExitError

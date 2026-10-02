@@ -29,6 +29,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -1543,21 +1544,56 @@ iterationLoop:
 				if toolCtx == nil {
 					toolCtx = ctx // fallback if not set
 				}
-				if !skipExec {
-					// FEATURE-567: board messages that expect a reply are a duty of
-					// this agent, so attempt_completion is refused while one is
-					// still unanswered. The refusal goes back to the LLM as the
-					// tool result, so it can answer first and finish afterwards.
-					if tc.Name == "attempt_completion" {
-						if gateMsg, blocked := a.BoardCompletionGate(); blocked {
-							result = ""
-							execErr = fmt.Errorf("%s", gateMsg)
-						} else {
-							result, execErr = a.executeToolCall(toolCtx, tc)
+				// FEATURE-582: run the tool in its own goroutine and wait on either
+				// its result or the interrupt/cancel signal. Go cannot kill a
+				// goroutine, so on interrupt the loop returns to the prompt without
+				// joining the tool: the leaked goroutine exits on its own once its
+				// process group is killed and its context cancelled, and the
+				// in-flight watchdog warns if it is still alive 5s later.
+				interruptAborted := a.IsInterrupted() || toolCtx.Err() != nil
+				if !skipExec && !interruptAborted {
+					stopInFlight := a.trackToolInFlight(tc.Name)
+					resCh := make(chan toolExecOutcome, 1)
+					go func() {
+						r, e := a.runToolWithGate(toolCtx, tc)
+						resCh <- toolExecOutcome{result: r, err: e}
+					}()
+					select {
+					case out := <-resCh:
+						result, execErr = out.result, out.err
+						stopInFlight()
+					case <-toolCtx.Done():
+						// Prefer a result that is already available (the tool may have
+						// finished at the same instant); otherwise abort the turn.
+						select {
+						case out := <-resCh:
+							result, execErr = out.result, out.err
+							stopInFlight()
+						default:
+							interruptAborted = true
 						}
-					} else {
-						result, execErr = a.executeToolCall(toolCtx, tc)
 					}
+				}
+				// A tool that saw the cancellation may return ErrToolInterrupted
+				// instead of waiting to be abandoned — treat it the same way.
+				if !interruptAborted && errors.Is(execErr, ErrToolInterrupted) {
+					interruptAborted = true
+				}
+				if interruptAborted {
+					// FEATURE-582 Q1-A: discard the assistant message carrying
+					// tool_calls together with any tool results already appended for
+					// this batch, so the history never keeps an unclosed tool_calls
+					// message (which the API would reject with a 400). Memory keeps
+					// the assistant text, mirroring the FIX-314 parse-error path.
+					a.mu.Lock()
+					if assistantMsgIdx >= 0 && assistantMsgIdx <= len(a.messages) {
+						a.messages = a.messages[:assistantMsgIdx]
+					}
+					a.mu.Unlock()
+					log.Warn("Agent.RunStream: tool %s interrupted by user (reason=%s); discarded unclosed assistant message and tool results (idx=%d)",
+						tc.Name, a.InterruptReason(), assistantMsgIdx)
+					cb(NewStreamEvent(EventError, ChannelSystem, LevelError, i18n.T(i18n.KeyInterruptToolNotice)))
+					return "", nil
 				}
 				if execErr != nil {
 					errStr := execErr.Error()
