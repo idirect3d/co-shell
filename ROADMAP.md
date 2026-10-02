@@ -4,6 +4,36 @@
 
 ---
 
+## v0.91.6 — Web 前端渲染性能：md 增量渲染与节流 + 输入期间让路 + 屏外块跳过布局 + 流窗口按文本量收敛
+
+> **版本**: v0.91.6
+
+> **状态**: ✅ 已完成（分支 FIX-590，待用户验收）
+> **里程碑**: 用户反馈「输入框打字/输入法很慢、输入时 CPU 很高，空闲时也卡」。已实测定位：主输入框每键工作本身很轻（`autoGrow` 实测 0~1.8ms、无每键网络发送），瓶颈在渲染侧——`scheduleMd` 每动画帧对整段文本重跑 `mdRender`（2KB→2.3ms、10KB→2.7ms、50KB→7.8ms、**200KB→29.7ms/帧**），叠加每帧 `scrollTop=scrollHeight` 强制布局与 `scroll` 事件上的全量 `updateBlockNav`；流窗口上限 300 块/30000 节点仍可容纳数 MB 文本，而**强制布局成本随文本量线性增长**（1MB→66ms、5MB→316ms、10MB→628ms、20MB→2.21s）。本次做四项：**D1** md 增量渲染 + 自适应节流；**D2** 输入/输入法期间暂停 md 重渲染与滚动跟随；**A** 屏外块 `content-visibility` 跳过布局/绘制（配套滚动跟随改造）；**B** 按文本字节数收敛流窗口并去掉裁剪时的两次强制布局。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-590 | 0.91.6 | P1 | 前端渲染性能：md 增量渲染与节流、输入让路、屏外块跳过布局、流窗口按文本量收敛 |
+
+> 当前 BUILD: 1195
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-590 前端渲染性能优化（输入卡顿 / 高 CPU）**
+  - 需求（用户 2026-10-03）：输入框打字与输入法输入很慢、输入时 CPU 很高；空闲时也卡。
+  - 决议：任务号 FIX-590，版本 v0.91.6（patch+1）；范围 = D1 + D2 + A + B（用户选定；E `updateBlockNav` 节流与 F 历史回放分帧暂不做）。
+  - 实施：① D1：`scheduleMd` 分档节流（≤4KB 每帧 / >4KB 100ms / >32KB 330ms），并新增 `flushPendingMd` 保证尾块必渲染；② D2：`noteInputActivity`/`inputQuiet` 输入与输入法期间让路（input 事件、keydown、compositionstart 均登记），结束后延时补渲染；③ A：`.ev{content-visibility:auto;contain-intrinsic-size:auto 300px}` + `.ev:last-child{content-visibility:visible}`（最后一块保持完整布局，滚动跟随与 `scrollHeight` 不变）；④ B：新增 `streamWindowMaxChars`（默认 2000000，设置项 `stream-window-max-chars`，config/cmd/i18n 全链）参与驱逐，裁剪改用「存活组首块锚点」补偿不再读两次 `scrollHeight`，`updateBlockNav` 延至下一帧；⑤ 空闲清理：`clearStreamingMarks` 在 await_input/done/断连时清除 `.ev-head.streaming` 呼吸动画。
+  - 验收标准：见 `use-case/FIX-590/`。
+  - 交付物：`web/static/app.js`、`web/static/style.css`、`config/config.go`、`cmd/settings_web.go`、`cmd/settings_display.go`、`cmd/settings.go`、`i18n/{keys,zh,en}.go`、`use-case/FIX-590/`。
+  - 完成情况：✅ 已完成（分支 FIX-590，待用户验收）[BUILD-1195]
+    - 实测（隔离实例 28279 + 调试浏览器）：渲染档位 `[0, 100, 330]ms`、默认上限 `2,000,000` 字符；**输入法期间 200 次 chunk 调度仅 0.2ms、`mdRender` 调用 0 次**，`compositionend` 后补渲染 **1 次**；`.ev` 计算样式 `content-visibility:auto` / `contain-intrinsic-size:auto 300px`，最后一块为 `visible`；重 DOM 下「追加 + 强制布局」0.4ms；文本上限驱逐生效（cap=3000 时收敛到 4,515 字符 / 5 组）；无残留 `.ev-head.streaming`。
+    - 对照基准（改前）：`scheduleMd` 每帧全文重渲染 2KB→2.3ms、10KB→2.7ms、50KB→7.8ms、**200KB→29.7ms/帧**；强制布局随文本量线性增长（1MB→66ms、20MB→2.21s）。
+    - 产物：`work/co-shell-0.91.6.darwin.arm64`、`work/co-shell-hub-0.91.6.darwin.arm64`（0.91.6 / BUILD-1195）。
+
+---
+
 ## v0.91.5 — 工作区文件树按需加载（/api/tree 按层返回 + 收起清空 DOM）
 
 > **版本**: v0.91.5

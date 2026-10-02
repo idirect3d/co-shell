@@ -325,6 +325,12 @@ type LLMConfig struct {
 	// stream. This bounds the case where a few blocks contain huge content
 	// (FEATURE-508). Default: 30000.
 	StreamWindowMaxNodes int `json:"stream_window_max_nodes"`
+
+	// StreamWindowMaxChars: maximum amount of stream text (in characters) kept
+	// in the Web UI. Text volume is what drives the browser's layout cost, so
+	// this bounds very long sessions even when the block and node caps are not
+	// reached (FIX-590). Default: 2000000.
+	StreamWindowMaxChars int `json:"stream_window_max_chars"`
 	// PageBufferSize: how many message groups the Web UI requests per history
 	// page when the user scrolls up to load older events (FIX-509). It bounds
 	// both the initial replay and every subsequent `before`-cursor page.
@@ -1253,6 +1259,7 @@ func DefaultConfig() *Config {
 			VisualAnalysisMaxImages:     5,
 			StreamWindowMaxBlocks:       300,
 			StreamWindowMaxNodes:        30000,
+			StreamWindowMaxChars:        2000000,
 			PageBufferSize:              20,
 			VisionContextMode:           "minimal",
 			VisionSupport:               true,

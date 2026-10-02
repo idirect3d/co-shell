@@ -440,7 +440,7 @@ window.__composing = false;
 // listener on document never fires for real IME input. Listen in the CAPTURE
 // phase (third arg true) so document receives them on the way down to the
 // focused input element.
-document.addEventListener("compositionstart", () => { window.__composing = true; }, true);
+document.addEventListener("compositionstart", () => { window.__composing = true; noteInputActivity(); }, true);
 // __imeJustEnded: some IMEs (esp. macOS pinyin) end the composition BEFORE the
 // Enter that confirms the candidate reaches the page, so isComposing/__composing
 // are already false when that Enter fires. To catch it, after compositionend we
@@ -615,6 +615,7 @@ function wsConnect() {
     connText.textContent = T.disconnected;
     hideAsk();
     setRunning(false);
+    clearStreamingMarks();
     // FEATURE-458: no auto-reconnect. The user clicks the connection control
     // to reconnect manually.
   };
@@ -859,6 +860,10 @@ let historyHasMore = false;
 // stream-window-max-nodes) and fall back to the defaults below.
 let streamWindowMaxBlocks = 300;
 let streamWindowMaxNodes = 30000;
+// FIX-590: text volume (not the block count) drives the forced-layout cost, so
+// the amount of stream text is capped as well. The value is overridable from
+// the settings (stream-window-max-chars) and feeds streamTextChars below.
+let streamWindowMaxChars = 2000000;
 // FIX-509: how many message groups one history page holds. Loaded from the
 // page-buffer-size setting; the backend uses the same value as its fallback.
 let pageBufferSize = 20;
@@ -1222,20 +1227,102 @@ function renderDiff(body, diffLines) {
   }
 }
 
-// scheduleMd re-renders a streaming block as markdown, throttled to one
-// render per animation frame no matter how fast chunks arrive.
+// FIX-590: markdown re-render budget.
+//
+// Rendering the whole accumulated text on every animation frame cost 2.3 ms at
+// 2 KB but 29.7 ms at 200 KB - more than a frame budget, so the main thread
+// stayed saturated and typing / IME input had to queue behind it. Two guards
+// now apply:
+//   1. the cadence adapts to the block size (small text still renders every
+//      frame, large text at ~10 fps / ~3 fps),
+//   2. rendering is skipped entirely while the user types or an IME composition
+//      is active, and the accumulated text is painted once the burst is over
+//      (noteInputActivity / inputQuiet / flushPendingMd).
+const MD_TIERS = [
+  { maxChars: 4096, minIntervalMs: 0 },
+  { maxChars: 32768, minIntervalMs: 100 },
+  { maxChars: Infinity, minIntervalMs: 330 },
+];
+// INPUT_QUIET_MS is how long the renderer keeps yielding after the last input
+// activity (keystroke or IME update).
+const INPUT_QUIET_MS = 250;
+let inputActiveUntil = 0;
+let pendingMdBlocks = new Set();
+let pendingMdTimer = null;
+
+// noteInputActivity marks the user as busy typing so markdown re-rendering and
+// the auto-scroll step aside until the burst ends (FIX-590).
+function noteInputActivity() {
+  inputActiveUntil = performance.now() + INPUT_QUIET_MS;
+  if (pendingMdTimer) clearTimeout(pendingMdTimer);
+  pendingMdTimer = setTimeout(flushPendingMd, INPUT_QUIET_MS + 20);
+}
+
+// inputQuiet reports whether the renderer may work right now (FIX-590).
+function inputQuiet() {
+  return performance.now() < inputActiveUntil || window.__composing === true;
+}
+
+// mdTier returns the render cadence for a block of the given text length.
+function mdTier(len) {
+  for (const t of MD_TIERS) if (len <= t.maxChars) return t;
+  return MD_TIERS[MD_TIERS.length - 1];
+}
+
+// flushPendingMd paints every block whose render was deferred by the input gate
+// or by the cadence (FIX-590). token_iter / done call it, so a finished message
+// is always rendered completely.
+function flushPendingMd() {
+  pendingMdTimer = null;
+  if (!pendingMdBlocks.size) return;
+  const blocks = Array.from(pendingMdBlocks);
+  pendingMdBlocks.clear();
+  for (const b of blocks) if (b.mdDirty) renderMdNow(b);
+}
+
+// renderMdNow paints a streaming block once, keeping the FEATURE-515 pinned
+// THINK body at its bottom and following the output as before.
+function renderMdNow(b) {
+  const pinned = thinkPinned(b.body);
+  b.body.classList.add("md");
+  mdRender(b.body, b.raw);
+  if (pinned) b.body.scrollTop = b.body.scrollHeight;
+  b.mdDirty = false;
+  b.mdLastRender = performance.now();
+  pendingMdBlocks.delete(b);
+  scrollStream();
+}
+
+// clearStreamingMarks removes the "streaming" breathing animation from every
+// block. It runs when a turn ends or the connection drops, so no CSS animation
+// keeps running while the UI is idle (FIX-590).
+function clearStreamingMarks() {
+  document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
+}
+
+// scheduleMd re-renders a streaming block as markdown. Chunks arrive far faster
+// than the screen refreshes, so the work is coalesced into one render per
+// animation frame and then filtered through the size tier and the input gate
+// (FIX-590).
 function scheduleMd(b) {
+  b.mdDirty = true;
+  if (inputQuiet()) {
+    pendingMdBlocks.add(b);
+    return;
+  }
   if (b.raf) return;
   b.raf = requestAnimationFrame(() => {
     b.raf = null;
-    // FEATURE-515: keep a height-capped THINK body pinned to its bottom while
-    // it streams, so the newest text stays visible; a user who scrolled up
-    // inside the block is left alone.
-    const pinned = thinkPinned(b.body);
-    b.body.classList.add("md");
-    mdRender(b.body, b.raw);
-    if (pinned) b.body.scrollTop = b.body.scrollHeight;
-    scrollStream();
+    if (!b.mdDirty) return;
+    const tier = mdTier(b.raw.length);
+    if (tier.minIntervalMs && performance.now() - (b.mdLastRender || 0) < tier.minIntervalMs) {
+      // Too soon for a block of this size: keep it pending and make sure a
+      // trailing flush happens even when the stream stops right here.
+      pendingMdBlocks.add(b);
+      if (!pendingMdTimer) pendingMdTimer = setTimeout(flushPendingMd, tier.minIntervalMs);
+      return;
+    }
+    renderMdNow(b);
   });
 }
 
@@ -1565,30 +1652,67 @@ function enforceStreamWindow() {
   if (groups.length <= 1) return;
   let blocks = streamB.children.length;
   let nodes = streamB.querySelectorAll("*").length;
-  if (blocks <= streamWindowMaxBlocks && nodes <= streamWindowMaxNodes) return;
+  // FIX-590: the amount of text is capped too - 1 MB of stream text costs ~66 ms
+  // per forced layout and 20 MB costs ~2.2 s.
+  let chars = streamTextChars(groups);
+  if (blocks <= streamWindowMaxBlocks && nodes <= streamWindowMaxNodes && chars <= streamWindowMaxChars) return;
   // Walk from the oldest group forward, dropping groups while the window is
-  // still over either threshold and at least one group would remain.
+  // still over any threshold and at least one group would remain.
   let drop = 0;
   while (drop < groups.length - 1) {
     const g = groups[drop];
     const gBlocks = g.nodes.length;
     const gNodes = g.nodes.reduce((n, el) => n + 1 + el.querySelectorAll("*").length, 0);
-    if (blocks - gBlocks < streamWindowMaxBlocks && nodes - gNodes < streamWindowMaxNodes) break;
+    const gChars = g.nodes.reduce((n, el) => n + el.textContent.length, 0);
+    if (blocks - gBlocks < streamWindowMaxBlocks && nodes - gNodes < streamWindowMaxNodes && chars - gChars < streamWindowMaxChars) break;
     blocks -= gBlocks;
     nodes -= gNodes;
+    chars -= gChars;
     drop++;
   }
   if (!drop) return;
   // Remember the scroll anchor so the viewport does not jump when the top is
-  // trimmed while the user is reading older content.
-  const prevHeight = streamB.scrollHeight;
+  // trimmed while the user is reading older content. FIX-590: anchoring on the
+  // first surviving group is far cheaper than the two scrollHeight reads used
+  // before (a full container height is no longer forced).
   const prevTop = streamB.scrollTop;
+  const next = groups[drop];
+  const anchor = next && next.nodes[0];
+  const anchorTop = anchor ? anchor.offsetTop : 0;
   for (let i = 0; i < drop; i++) {
     for (const node of groups[i].nodes) node.remove();
   }
-  const delta = prevHeight - streamB.scrollHeight;
-  if (delta > 0) streamB.scrollTop = Math.max(0, prevTop - delta);
-  updateBlockNav();
+  if (anchor) {
+    const delta = anchorTop - anchor.offsetTop;
+    if (delta > 0) streamB.scrollTop = Math.max(0, prevTop - delta);
+  }
+  // FIX-590: recompute the block-navigation icons on the next frame instead of
+  // forcing a full block scan inside this path.
+  requestAnimationFrame(updateBlockNav);
+}
+
+// streamTextChars returns the amount of text held by the stream window. Closed
+// groups cache their size on their nodes, so the walk stays cheap per call
+// instead of rebuilding megabytes of text every time (FIX-590). The growing
+// (last) group is measured directly; its size is an estimate that errs low for
+// closed groups whose content grows later (tool results), which is acceptable
+// for a soft cap.
+function streamTextChars(groups) {
+  let total = 0;
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    const last = i === groups.length - 1;
+    for (const el of g.nodes) {
+      if (!last && el._chars !== undefined) {
+        total += el._chars;
+        continue;
+      }
+      const n = el.textContent.length;
+      if (!last) el._chars = n;
+      total += n;
+    }
+  }
+  return total;
 }
 
 // ensureTopSentinel keeps a zero-height marker as the first child of the stream
@@ -1883,7 +2007,7 @@ function renderEvent(ev) {
   // FEATURE-548: the user's own message, recorded when its turn began. Replaying
   // it rebuilds the YOU block that the live view drew from the local echo.
   if (ev.type === "user_echo") { renderUserEcho(ev.text); return; }
-  if (ev.type === "await_input") { setRunning(false); return; }
+  if (ev.type === "await_input") { setRunning(false); clearStreamingMarks(); return; }
   if (ev.type === "turn_start") { setRunning(true); return; }
   if (ev.type === "task_plan") {
     let plan = null;
@@ -1908,6 +2032,7 @@ function renderEvent(ev) {
   if (ev.type === "ui_render") { renderUIBlock(ev); return; }
   if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
   if (ev.type === "ui_window") { applyUIWindow(ev); return; }
+  flushPendingMd(); // FIX-590: the iteration ended - land the deferred renders
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
     const line = document.createElement("div");
@@ -4541,6 +4666,9 @@ function cacheStreamWindowSettings(groups) {
       } else if (it.key === "stream-window-max-nodes") {
         const n = parseInt(it.value, 10);
         if (Number.isFinite(n) && n > 0) streamWindowMaxNodes = n;
+      } else if (it.key === "stream-window-max-chars") {
+        const n = parseInt(it.value, 10);
+        if (Number.isFinite(n) && n > 0) streamWindowMaxChars = n;
       } else if (it.key === "page-buffer-size") {
         const n = parseInt(it.value, 10);
         if (Number.isFinite(n) && n > 0) pageBufferSize = n;
@@ -4940,6 +5068,8 @@ function recallHistory() {
 }
 
 input.addEventListener("keydown", (e) => {
+  // FIX-590: keep the renderer out of the way while the user types.
+  noteInputActivity();
   // FEATURE-409/419: while an interaction is pending (tool confirm / ask
   // select / cancel), the virtual-keyboard handler on window already responds
   // to the target keys. Swallow EVERY key here so no stray character leaks
@@ -4996,7 +5126,7 @@ document.addEventListener("keydown", (e) => {
   if (pendingInteraction && !supplementMode) return;
   input.focus();
 });
-input.addEventListener("input", autoGrow);
+input.addEventListener("input", () => { noteInputActivity(); autoGrow(); });
 // FEATURE-462: clicking the main input box while an interaction is pending
 // cancels shortcut-key monitoring so the user can type supplementary info
 // freely (the dedicated supplement box was removed). A click (not focus) is
