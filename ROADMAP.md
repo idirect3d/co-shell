@@ -28,6 +28,7 @@
   - 目标值（同口径复核，§9 对照表）：S1 schema **≥-30%**、`meta` **≤4,000 B**；S2 L0 **≤3,000 B** / L1 **≤1,000 B**；S3 N=3 → **5,338 B（-65.2%）**；S4 斜率 **≤~120 B/轮**、50 轮 **≤~11 KB**；S5 第 50 轮固定开销占比 **≤5%**；S6 累计 prompt 显著下降、`reorganize` 触发轮次后移。
   - 验收标准：① 9 项开关在 config、`:set` 清单、Web 设置页、i18n（zh/en）四处齐备，默认开启且关闭即现状行为；② 两项默认值变更生效且 config.json 同步；③ S0–S5 确定性测量重跑（3 次 md5 一致）与基线逐项对比达成目标值；④ S6 同任务成对复测有前后对比；⑤ 任务正确性不回归（文件定位 / 任务计划追踪 / loop retry / `attempt_completion` 的 `task_message_no` 语义 / Web UI 回放 / `:context full`）；⑥ `go build ./... && go vet ./...` 通过，新增测试全绿（基线既有失败如实标注）；⑦ 提交在分支 FEATURE-579，用户确认后合并。
   - 交付物：`agent/env_prune.go` + `loop.go` 接入 + `run_stream.go` 同轮单份 env + env 瘦身与变更检测 + 工具声明瘦身 + config/`:set`/Web 设置页/i18n + 单测 + `use-case/FEATURE-579/` 用例 + 优化后基线复核数据（含前后对比）。
+  - 调整（用户 2026-10-02）：新增开关从「智能体设置」组迁到「记忆与上下文」组——含 FEATURE-524 的 `ui-enabled` / `ui-context-prune`，共 10 项；Web 设置页（`cmd/settings_web.go`）追加于 `env-include-*` 之后，TUI `:set`（`cmd/settings.go`）置于 `memory-search-max-results` 之后、特殊项 `db` 之前；新增 `cmd/settings_group_placement_test.go` 断言两处分组位置 [BUILD-1177]。
 
 ---
 

@@ -11,15 +11,15 @@
 
 | 配置项 | 类型 | 默认 | 归属分组 |
 |---|---|---|---|
-| `env_history_prune` | bool | true | Agent / LLM 上下文 |
+| `env_history_prune` | bool | true | 记忆与上下文 |
 | `env_history_full_keep` | int | 1 | 同上 |
 | `env_history_lite_keep` | int | 1 | 同上 |
 | `env_tool_batch_single` | bool | true | 同上 |
 | `env_board_roster_brief` | bool | true | 同上 |
 | `env_dir_change_detect` | bool | true | 同上 |
 | `env_runtime_info_once` | bool | true | 同上 |
-| `tool_desc_compact` | bool | true | 工具 |
-| `tool_lazy_load` | bool | true | 工具（本期无实现，仅登记开关） |
+| `tool_desc_compact` | bool | true | 记忆与上下文 |
+| `tool_lazy_load` | bool | true | 记忆与上下文（本期无实现，仅登记开关） |
 | `read_file_max_size` | int | **0 → 65536** | 工具（默认值变更） |
 | `context_reorganize_threshold` | int | **80 → 92** | LLM（默认值变更；`config.json` 现值 90 需同步为 92） |
 
@@ -63,7 +63,7 @@ go run . --serve --port 28310 &
 go test ./cmd -run TestTokenOptSettingsWeb -v -count=1
 ```
 
-**期望**：Web 设置页对应分组（Agent/工具）出现 9 项控件，值为默认值；修改任一项并保存后，后端 config 生效（重新读取配置可见新值）；**页面不得出现硬编码内网 IP/密钥**。
+**期望**：Web 设置页对应分组（「记忆与上下文」，与 TUI `:set` 同组）出现 9 项控件，值为默认值；修改任一项并保存后，后端 config 生效（重新读取配置可见新值）；**页面不得出现硬编码内网 IP/密钥**。
 
 ## 用例 E：i18n 文案齐备
 
