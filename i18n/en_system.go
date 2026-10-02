@@ -778,7 +778,7 @@ Usage:
 	enMessages[KeySystemPromptSkillsLoadedTag] = "[loaded]"
 
 	enMessages[KeyToolUsageSkillLoad] = `## skill_load
-Description: Load a skill's full SKILL.md content into this conversation and pin it there: no matter how the context is reorganized, trimmed or rolled back afterwards, the text never degrades or disappears. Call it when you need to follow a skill's detailed instructions. Loading an already-loaded skill refreshes its content.
+Description: Load a skill's full SKILL.md content into this conversation and pin it there: no matter how the context is reorganized, trimmed or rolled back afterwards, the text never degrades or disappears. Call it when you need to follow a skill's detailed instructions. Loading an already-loaded skill refreshes its content. **Unload when done**: once the skill's task is finished or it is no longer needed, call skill_unload to free the context.
 Parameters:
 - meta (required) transparency metadata object with intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
 
@@ -793,7 +793,7 @@ Usage:
 </{XML_TAG_PREFIX}skill_load>`
 
 	enMessages[KeyToolUsageSkillUnload] = `## skill_unload
-Description: Release a loaded skill and remove it from the loaded set. Note: the text is not removed from the context immediately - it is dropped at the next context reorganization or trimming.
+Description: Release a loaded skill and remove it from the loaded set. **Call it as soon as the skill's task is done, its by-products have been consumed, or later steps no longer need it**, so the loaded text stops occupying the context. Note: the text is not removed from the context immediately - it is dropped at the next context reorganization or trimming.
 Parameters:
 - meta (required) transparency metadata object with intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
 
@@ -1485,7 +1485,8 @@ A skill is a directory containing a SKILL.md file. **The list of available skill
 
 Rules:
 - Load: when you need to follow a skill's detailed instructions, call skill_load (parameter name) to bring its full SKILL.md into the context; once loaded the content is protected and never degrades through context reorganization, trimming or rollback.
-- Unload: call skill_unload (parameter name) to release it when it is no longer needed; the text is not removed immediately - it is dropped at the next context reorganization or trimming.
+- **Unload (unload as soon as it is no longer needed - the default wrap-up action)**: a loaded skill keeps occupying the context, so **call skill_unload (parameter name) as soon as you no longer need it** - e.g. the skill's task is done, a cross-task by-product has been consumed, or later steps no longer depend on its instructions or rules. Do not keep it loaded just in case you might need it later; timely unloading is the normal wrap-up action, not an exception (the text is not removed immediately - it is dropped at the next context reorganization or trimming, so the earlier you unload, the earlier the context is reclaimed).
+- Self-check before delivering: before replying to the user, review the current turn and task; if a loaded skill's content no longer participates in the remaining reasoning, skill_unload it first.
 - Do not read_file a loaded skill's SKILL.md again.
 - A skill disabled on the Settings -> Skills page is neither listed nor loadable.
 

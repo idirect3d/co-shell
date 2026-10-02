@@ -4,6 +4,35 @@
 
 ---
 
+## v0.91.4 — SKILLS 段明确“不再需要即及时卸载 skill”的上下文纪律
+
+> **版本**: v0.91.4
+
+> **状态**: ✅ 已完成（分支 FIX-588，待用户验收）
+> **里程碑**: 系统提示词 SKILLS 段对“卸载”的表述偏被动（仅写“不再需要时调用 skill_unload”），未形成“用完即卸”的纪律，导致已加载技能长期占用上下文。本次将卸载改写为默认收尾动作，补“任务结束 / 中间产物用完 / 后续步骤不再依赖”等场景与交付前自检要求，并同步 skill_load / skill_unload 的工具描述、工具用法块与 pinned 提示行，使四处口径一致（zh/en 双语）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-588 | 0.91.4 | P1 | SKILLS 段 + skill 工具描述 + pinned 提示行：明确“不再需要即及时 skill_unload” |
+
+> 当前 BUILD: 1193
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-588 SKILLS 段明确“用完即卸”**
+  - 需求（用户 2026-10-02）：系统提示词 SKILLS 段需进一步明确，当不再需要时，应及时卸载 skill。
+  - 决议：任务编号 FIX-588，版本 v0.91.4（patch+1）；改动范围取最全档——SKILLS 段 + skill_load/skill_unload 工具描述 + 工具用法块 + pinned 提示行，四处口径一致。
+  - 实施：① `i18n/zh_system.go` / `i18n/en_system.go` 的 `KeySystemPromptSkills`：“卸载”一条改写为强约束（不再需要立即 skill_unload，含任务完成/中间产物用完/后续不再依赖等场景），并新增“交付前自检”一条；② 同文件的 `KeyToolUsageSkillLoad` / `KeyToolUsageSkillUnload` 描述块补“用完即卸”引导；③ `i18n/zh.go` / `i18n/en.go` 的 `KeySkillToolLoadDesc` / `KeySkillToolUnloadDesc` / `KeySkillLoadPinnedNote` 同步补卸载引导。
+  - 验收标准：见 `use-case/FIX-588/`。
+  - 交付物：`i18n/zh_system.go`、`i18n/en_system.go`、`i18n/zh.go`、`i18n/en.go`、`agent/fix588_test.go`、`use-case/FIX-588/`。
+  - 完成情况：✅ 已完成（分支 FIX-588，待用户验收）[BUILD-1193]
+    - 实测：`TestFIX588SkillsSectionDemandsTimelyUnload` PASS（zh/en）——zh 命中“一旦不再需要就应立即调用 skill_unload / 用完即卸 / 任务已完成 / 中间产物 / 交付前自检”，en 命中“call skill_unload (parameter name) as soon as you no longer need it / unload as soon as it is no longer needed / task is done / by-product / Self-check before delivering”，并反向断言旧被动措辞（“- 卸载：不再需要时调用 skill_unload” / “- Unload: call skill_unload … when it is no longer needed”）已不存在；`TestFIX588SkillTextsCarryUnloadGuidance` PASS（zh/en）——`skill_load`/`skill_unload` 工具描述、两个工具用法块与 pinned 提示行均含 `skill_unload` 且含紧迫性词；`go test ./agent -run 'FIX588|FIX587|Feature583|Skill'` 全绿；`gofmt -l i18n/ agent/` 无输出；`go build ./... && go vet ./...` 通过；`go test ./... -short` 用例级失败 26 条，与 main 基线逐条 diff 为空（BASELINE_IDENTICAL）。
+    - 产物：`work/co-shell-0.91.4.darwin.arm64`、`work/co-shell-hub-0.91.4.darwin.arm64`（co-shell 与 hub 均为 0.91.4 / BUILD-1193）。
+
+---
+
 ## v0.91.3 — 已加载技能清单显示优化（去大小/sha、位置右对齐、悬停显示描述）
 
 > **版本**: v0.91.3
