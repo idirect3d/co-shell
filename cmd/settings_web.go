@@ -81,6 +81,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
 		{Key: "board-ack-timeout", Value: strconv.Itoa(boardAckTimeoutValue(cfg)), Desc: i18n.T(i18n.KeyCol3BoardAckTimeout), Type: "number", Default: strconv.Itoa(5)},
 		{Key: "board-must-reply", Value: boolStr(cfg.BoardMustReply), Desc: i18n.T(i18n.KeyCol3BoardMustReply), Type: "bool", Default: boolStr(defCfg.BoardMustReply)},
+		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
+		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool", Default: boolStr(def.ShellSessionEnabled)},
 		{Key: "shell-session-timeout", Value: strconv.Itoa(llm.ShellSessionTimeout), Desc: i18n.T(i18n.KeyCol3ShellSessionTimeout), Type: "number", Default: strconv.Itoa(def.ShellSessionTimeout)},
@@ -210,8 +212,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "env-include-tools", Value: boolStr(llm.EnvIncludeTools), Desc: i18n.T(i18n.KeyCol3EnvIncludeTools), Type: "bool", Default: boolStr(def.EnvIncludeTools)},
 		{Key: "env-include-research", Value: boolStr(llm.EnvIncludeResearch), Desc: i18n.T(i18n.KeyCol3EnvIncludeResearch), Type: "bool", Default: boolStr(def.EnvIncludeResearch)},
 		{Key: "env-include-user-dynamic", Value: boolStr(llm.EnvIncludeUserDynamic), Desc: i18n.T(i18n.KeyCol3EnvIncludeUserDynamic), Type: "bool", Default: boolStr(def.EnvIncludeUserDynamic)},
-		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
-		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
+		// FEATURE-524: rendered-UI context pruning switch.
 		{Key: "ui-context-prune", Value: boolStr(cfg.UIContextPrune), Desc: i18n.T(i18n.KeyCol3UIContextPrune), Type: "bool", Default: boolStr(defCfg.UIContextPrune)},
 		// FEATURE-579: token-optimization switches (env rendering / tool schema).
 		{Key: "env-history-prune", Value: boolStr(llm.EnvHistoryPrune), Desc: i18n.T(i18n.KeyCol3EnvHistoryPrune), Type: "bool", Default: boolStr(def.EnvHistoryPrune)},

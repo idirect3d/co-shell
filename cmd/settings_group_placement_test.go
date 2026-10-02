@@ -18,10 +18,10 @@ import (
 )
 
 // movedSettingsKeys are the switches relocated to the Memory & Context group:
-// the FEATURE-524 UI rendering switches followed by the FEATURE-579 token
-// optimization switches (same order as the group definition).
+// the FEATURE-524 UI context pruning switch followed by the FEATURE-579 token
+// optimization switches (same order as the group definition). ui-enabled was put
+// back to the Agent Settings group.
 var movedSettingsKeys = []string{
-	"ui-enabled",
 	"ui-context-prune",
 	"env-history-prune",
 	"env-history-full-keep",
@@ -78,4 +78,47 @@ func TestMovedSettingsGroupPlacement(t *testing.T) {
 			t.Logf("SETTINGS|%s|ok|group=%s", key, memoryTitle)
 		})
 	}
+}
+
+// TestUiEnabledBackInAgentGroup verifies ui-enabled belongs to the "Agent
+// Settings" group in both the Web settings panel and the :set output, while
+// ui-context-prune stays in the "Memory & Context" group.
+func TestUiEnabledBackInAgentGroup(t *testing.T) {
+	h, _, _ := setupUISwitchTestHandler(t)
+
+	agentTitle := i18n.T(i18n.KeySettingsGroupModel)
+	memoryTitle := i18n.T(i18n.KeySettingsGroupMemory)
+
+	groupOf := map[string]string{}
+	for _, g := range h.SettingsJSON() {
+		for _, it := range g.Items {
+			groupOf[it.Key] = g.Title
+		}
+	}
+	if got := groupOf["ui-enabled"]; got != agentTitle {
+		t.Errorf("SETTINGS|ui-enabled|Web group = %q, want %q", got, agentTitle)
+	}
+	if got := groupOf["ui-context-prune"]; got != memoryTitle {
+		t.Errorf("SETTINGS|ui-context-prune|Web group = %q, want %q", got, memoryTitle)
+	}
+
+	help := h.showSettingsHelp()
+	agentStart := strings.Index(help, "\n  "+agentTitle+"\n")
+	memStart := strings.Index(help, "\n  "+memoryTitle+"\n")
+	if agentStart < 0 || memStart <= agentStart {
+		t.Fatalf("SETTINGS|group|sections not found in :set output (agent=%d memory=%d)", agentStart, memStart)
+	}
+	idx := strings.Index(help, "ui-enabled")
+	if idx < 0 {
+		t.Fatalf("SETTINGS|ui-enabled|missing from the :set output")
+	}
+	if idx < agentStart || idx > memStart {
+		t.Errorf("SETTINGS|ui-enabled|not inside the %q section of the :set output", agentTitle)
+	}
+	pruneIdx := strings.Index(help, "ui-context-prune")
+	if pruneIdx < memStart {
+		t.Errorf("SETTINGS|ui-context-prune|not inside the %q section of the :set output", memoryTitle)
+	}
+	t.Logf("SETTINGS|ui-enabled|ok|group=%s", agentTitle)
+	t.Logf("SETTINGS|ui-context-prune|ok|group=%s", memoryTitle)
 }

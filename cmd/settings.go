@@ -728,6 +728,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
 		makeLine("board-enabled", boolStr(cfg.BoardEnabled), i18n.T(i18n.KeyCol3BoardEnabled)),
 		makeLine("board-must-reply", boolStr(cfg.BoardMustReply), i18n.T(i18n.KeyCol3BoardMustReply)),
+		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
+		makeLine("ui-enabled", boolStr(cfg.UIEnabled), i18n.T(i18n.KeyCol3UIEnabled)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
 		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
@@ -938,8 +940,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("context-reorganize-threshold", reorganizeThresholdStr, "0-100%"),
 		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
 		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
-		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
-		makeLine("ui-enabled", boolStr(cfg.UIEnabled), i18n.T(i18n.KeyCol3UIEnabled)),
+		// FEATURE-524: rendered-UI context pruning switch.
 		makeLine("ui-context-prune", boolStr(cfg.UIContextPrune), i18n.T(i18n.KeyCol3UIContextPrune)),
 		// FEATURE-579: token-optimization switches (env rendering / tool schema).
 		makeLine("env-history-prune", boolStr(cfg.LLM.EnvHistoryPrune), i18n.T(i18n.KeyCol3EnvHistoryPrune)),
