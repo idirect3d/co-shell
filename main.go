@@ -52,9 +52,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.90.0"
+const version = "0.91.0"
 
-const build = "1183"
+const build = "1188"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1703,6 +1703,38 @@ func main() {
 			// the settings panel ("工作区" tab). The sets are read per tree
 			// request, so a settings change applies without a restart.
 			TreeExcludes: cfg.TreeExcludeSets,
+			// FEATURE-583: the Skills settings page reads the skill list and
+			// applies per-skill / default enable switches. SkillsSetFn validates
+			// the requested names against the discovered list, persists the
+			// config and re-applies the agent skill state (unloading the skills
+			// that just became disabled), then answers like GET.
+			SkillsFn: func() (string, error) {
+				return web.SkillsPayloadJSON(cfg.LLM.SkillsDefaultEnabled, ag.SkillInfos())
+			},
+			SkillsSetFn: func(body []byte) (string, error) {
+				var req struct {
+					DefaultEnabled *bool           `json:"default_enabled"`
+					Skills         map[string]bool `json:"skills"`
+				}
+				if err := json.Unmarshal(body, &req); err != nil {
+					return "", err
+				}
+				infos := ag.SkillInfos()
+				if err := web.ValidateSkillNames(req.Skills, infos); err != nil {
+					return "", err
+				}
+				if req.DefaultEnabled != nil {
+					cfg.LLM.SkillsDefaultEnabled = *req.DefaultEnabled
+				}
+				for name, enabled := range req.Skills {
+					cfg.SetSkillEnabled(name, enabled)
+				}
+				if err := cfg.Save(); err != nil {
+					return "", err
+				}
+				ag.ApplySkillsConfigState()
+				return web.SkillsPayloadJSON(cfg.LLM.SkillsDefaultEnabled, ag.SkillInfos())
+			},
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

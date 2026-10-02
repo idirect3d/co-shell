@@ -11,6 +11,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -124,6 +125,34 @@ func (r *LineRenderer) Render(ev StreamEvent) {
 		r.io.Print(ev.Text)
 		r.io.Print("\n")
 	case EventDone:
+		r.io.Print("\n")
+	case EventSkillState:
+		r.renderSkillState(ev)
+	}
+}
+
+// renderSkillState prints one line for a skill load/unload event (FEATURE-583,
+// R2). Config events leave the terminal untouched.
+func (r *LineRenderer) renderSkillState(ev StreamEvent) {
+	action := ev.Meta[MetaKeySkillAction]
+	name := ev.Meta[MetaKeySkillName]
+	switch action {
+	case SkillActionLoad:
+		var payload SkillStatePayload
+		_ = json.Unmarshal([]byte(ev.Meta[MetaKeySkillState]), &payload)
+		source, size := "", 0
+		for _, ls := range payload.Loaded {
+			if ls.Name == name {
+				source, size = ls.Source, ls.Bytes
+				break
+			}
+		}
+		r.io.Print("\n")
+		r.io.Print(fmt.Sprintf(i18n.T(i18n.KeySkillReplLoaded), name, source, size, payload.TotalBytes))
+		r.io.Print("\n")
+	case SkillActionUnload:
+		r.io.Print("\n")
+		r.io.Print(fmt.Sprintf(i18n.T(i18n.KeySkillReplUnloaded), name))
 		r.io.Print("\n")
 	}
 }

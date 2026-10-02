@@ -142,6 +142,10 @@ var toolUsageKeyMap = map[string]string{
 	"browser_mock":                     i18n.KeyToolUsageBrowserMock,
 	"browser_close":                    i18n.KeyToolUsageBrowserClose,
 
+	// FEATURE-583: skill load/unload.
+	"skill_load":   i18n.KeyToolUsageSkillLoad,
+	"skill_unload": i18n.KeyToolUsageSkillUnload,
+
 	// Vault tools (FEATURE-274)
 	"vault_list":   i18n.KeyToolUsageVaultList,
 	"vault_add":    i18n.KeyToolUsageVaultAdd,

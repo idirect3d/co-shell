@@ -1602,7 +1602,7 @@ iterationLoop:
 						cancelled = true
 						// Remove the incomplete assistant message (with tool_calls) from history
 						a.mu.Lock()
-						a.messages = a.messages[:assistantMsgIdx]
+						a.truncateHistoryLocked(assistantMsgIdx)
 						a.mu.Unlock()
 						break
 					}
@@ -1633,7 +1633,7 @@ iterationLoop:
 						// Memory keeps the assistant text (finalContent) which is
 						// a legitimate reply without tool results.
 						a.mu.Lock()
-						a.messages = a.messages[:assistantMsgIdx]
+						a.truncateHistoryLocked(assistantMsgIdx)
 						a.mu.Unlock()
 						log.Error("Agent.RunStream: tool %s failed, OpenAI retry discarding assistant+tool result: %v", tc.Name, execErr)
 						// Show the user a concise error notice (UI only — does NOT
@@ -1779,6 +1779,10 @@ iterationLoop:
 					})
 					a.mu.Unlock()
 				}
+
+				// FEATURE-583: a skill_load in this round pins the round's messages
+				// (assistant + tool result) now that the result is in the history.
+				a.settlePendingSkillPin(assistantMsgIdx)
 
 				// FEATURE-292: Flush task instruction cache BEFORE injecting
 				// <environment_details>, so the content appears between tool result and <env>.

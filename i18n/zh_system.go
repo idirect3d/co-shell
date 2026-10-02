@@ -711,6 +711,38 @@ Usage:
   </{XML_TAG_PREFIX}next_steps>
 </{XML_TAG_PREFIX}attempt_completion>`
 
+	zhMessages[KeySystemPromptSkillsLoadedTag] = "[已加载]"
+
+	zhMessages[KeyToolUsageSkillLoad] = `## skill_load
+Description: 把某个 skill 的 SKILL.md 全文加载进本次对话上下文，并固定（pinned）在上下文中——之后无论上下文如何压缩、裁剪或回退，正文都不会丢失或退化。当你要按某个 skill 的详细步骤做事时调用。已加载的技能再次加载会刷新内容。
+Parameters:
+- meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
+
+- name (必需) skill 名称（见系统提示词 SKILLS 节索引）。
+Usage:
+<{XML_TAG_PREFIX}skill_load>
+  <{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}intent>需要按该 skill 的详细步骤完成任务</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}name>image-generate</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}skill_load>`
+
+	zhMessages[KeyToolUsageSkillUnload] = `## skill_unload
+Description: 解除某个已加载 skill 的保护并把它从已加载集合中移除。注意：内容不会立即从上下文消失，而是在下一次上下文重整（reorganize）或裁剪时才被丢弃。
+Parameters:
+- meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
+
+- name (必需) 要卸载的已加载 skill 名称。
+Usage:
+<{XML_TAG_PREFIX}skill_unload>
+  <{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}intent>不再需要该 skill 的内容，释放上下文</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}name>image-generate</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}skill_unload>`
+
 	zhMessages[KeyToolUsageReorganizeContext] = `## reorganize_context
 说明: 将当前对话历史重新整理为一段自包含的摘要接续提示词，并以此提示词替换全部历史上下文，移动到新消息位置。用于：
 1. 上下文窗口接近满时压缩对话，清理上下文中的无用内容
@@ -1434,9 +1466,17 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 	zhMessages[KeySystemPromptSkills] = `
 SKILLS
 
-以下 skills 可用。每个 skill 是一个包含 SKILL.md 文件的目录。此处仅列出 skill 索引（名称、简介、路径）。当你需要使用某个 skill 时，用 read_file 读取其 SKILL.md 文件获取完整说明。
+技能（skill）是包含 SKILL.md 文件的目录。**可用技能清单见最新消息的 <environment_details> 中的 <skills> 元素**（标有 [已加载] 的技能，其全文已固定在本次对话上下文中）。
 
-（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，每个 skill 是一个包含 SKILL.md 的目录，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）
+规则：
+- 加载：需要按某个技能的详细步骤做事时，调用 skill_load（参数 name）把其 SKILL.md 全文载入上下文；加载后的内容受保护，不会因上下文压缩、裁剪或回退而丢失。
+- 卸载：不再需要时调用 skill_unload（参数 name）解除保护；正文不会立即消失，将在下一次上下文重整（reorganize）或裁剪时被移除。
+- 已加载的技能不要（也不必）再用 read_file 重复读取其 SKILL.md。
+- 在系统设置 Skills 页被禁用的技能不会出现在清单中，也无法加载。
+
+（本节的规则为静态内容，不随技能加载/卸载变化）
+
+（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES

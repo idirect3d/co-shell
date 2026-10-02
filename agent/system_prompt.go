@@ -662,26 +662,19 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return section
 
 	case "Skills":
-		// FEATURE-453: list skill index (name + description + path) without
-		// loading SKILL.md content. The LLM reads SKILL.md on demand via read_file.
-		skills := scanSkills(env.cwd, env.homeDir)
-		index := buildSkillsIndex(skills)
-		header := i18n.T(i18n.KeySystemPromptSkills)
-		if header == "" || header == i18n.KeySystemPromptSkills {
-			header = "SKILLS"
+		// FEATURE-583: this section is STATIC — it only states the rules (which
+		// tool loads/releases a skill and where the available list lives). The
+		// available-skill list itself is injected into the newest
+		// <environment_details> (see injectSkillsEnvToLast), so loading or
+		// unloading a skill never rewrites the system prompt and the
+		// prompt-prefix cache survives the change.
+		text := loadSectionText(env.cwd, name, func() string {
+			return i18n.T(i18n.KeySystemPromptSkills)
+		})
+		if text == "" || text == i18n.KeySystemPromptSkills {
+			return "SKILLS"
 		}
-		if index == "" {
-			return header
-		}
-		// Insert the index before the trailing parenthesized note (the last
-		// non-empty paragraph of the header), so the note stays at the very end.
-		// The note opens with a full-width paren in zh and a half-width one in en.
-		for _, open := range []string{"\n\n\uff08", "\n\n("} {
-			if i := strings.LastIndex(header, open); i >= 0 {
-				return header[:i] + "\n\n" + index + header[i:]
-			}
-		}
-		return header + "\n\n" + index
+		return text
 
 	case "Objective":
 		text := loadSectionText(env.cwd, name, func() string {

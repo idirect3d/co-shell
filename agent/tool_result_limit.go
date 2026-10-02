@@ -48,6 +48,11 @@ const toolResultDir = "tmp/tool-result"
 // the file path / total size / total lines / truncated bytes is appended so
 // the LLM can decide whether to read more.
 func (a *Agent) limitToolResult(toolName, result string) string {
+	// FEATURE-583 (R3): a loaded skill's content must stay byte-exact — it is
+	// pinned as-is and never truncated.
+	if toolName == toolSkillLoad || toolName == toolSkillUnload {
+		return result
+	}
 	if a.cfg == nil || a.cfg.LLM.ToolResultMaxSize <= 0 {
 		return result
 	}

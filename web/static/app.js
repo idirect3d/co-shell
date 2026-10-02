@@ -104,6 +104,20 @@ const I18N = {
     stcGoal: "目标", stcRunning: "正在执行", stcProgress: "进展情况", stcDone: "已完成",
     yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
     setDefaultTip: "默认值", setDiffTip: "与默认值不一致",
+    // FEATURE-583: loaded-skills panel + Skills settings page
+    skillsLoaded: "已加载技能",
+    skillsSettings: "技能",
+    skillsSettingsHint: "管理技能的启用状态；未单独配置的项跟随默认。",
+    skillsDefaultEnabled: "默认启用",
+    skillsDefaultHint: "对新增或未配置过的 skill 生效",
+    skillFollowDefault: "跟随默认",
+    skillLoadedTag: "已加载",
+    skillSourceWorkspace: "工作区",
+    skillSourceGlobal: "全局",
+    skillsEmpty: "未发现技能",
+    skillsLoading: "加载中…",
+    skillsSaveFailed: "技能设置保存失败",
+    skillsLoadFailed: "技能列表加载失败",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -198,6 +212,20 @@ const I18N = {
     stcGoal: "Goal", stcRunning: "Running", stcProgress: "Progress", stcDone: "done",
     yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
     setDefaultTip: "Default", setDiffTip: "differs from default",
+    // FEATURE-583: loaded-skills panel + Skills settings page
+    skillsLoaded: "Loaded skills",
+    skillsSettings: "Skills",
+    skillsSettingsHint: "Manage skill availability. Items without an explicit choice follow the default.",
+    skillsDefaultEnabled: "Enabled by default",
+    skillsDefaultHint: "Applies to newly added or unconfigured skills",
+    skillFollowDefault: "Default",
+    skillLoadedTag: "Loaded",
+    skillSourceWorkspace: "Workspace",
+    skillSourceGlobal: "Global",
+    skillsEmpty: "No skills found",
+    skillsLoading: "Loading…",
+    skillsSaveFailed: "Failed to save skill settings",
+    skillsLoadFailed: "Failed to load skill list",
   },
 };
 let T = I18N.zh;
@@ -383,6 +411,11 @@ const planBody = document.getElementById("planBody");
 const subAgentHead = document.getElementById("subAgentHead");
 const subAgentBody = document.getElementById("subAgentBody");
 let lastSubAgents = [];
+// FEATURE-583: skills pinned in the current context, rendered below the
+// sub-agent list in the same panel.
+const skillHead = document.getElementById("skillHead");
+const skillBody = document.getElementById("skillBody");
+let lastSkills = [];
 const layout = document.getElementById("layout");
 const askArea = document.getElementById("askArea");
 const askHint = document.getElementById("askHint");
@@ -564,6 +597,9 @@ function wsConnect() {
     // FEATURE-507: replay the tail of the persisted event stream so a refresh
     // (or a reconnect) restores the conversation instead of an empty view.
     wsSend({ type: "history_get", count: pageBufferSize });
+    // FEATURE-583: restore the loaded-skills panel on connect as well (the
+    // recorded skill_state events may not cover the current session tail).
+    refreshSkills();
     // FEATURE-508: watch the top marker so scrolling to the very top loads an
     // older page of persisted events.
     initTopSentinel();
@@ -651,6 +687,9 @@ function wsConnect() {
       // before the history replay re-renders the windows.
       if (window.UIWin && typeof UIWin.setSession === "function") UIWin.setSession(msg.message || "");
       resetStreamView();
+      // FEATURE-583: the pinned skills belong to the session being left, so
+      // rebuild the skills panel for the newly current session.
+      refreshSkills();
       wsSend({ type: "history_get", count: pageBufferSize, value: msg.message || "" });
     }
     // FEATURE-548: the switch was refused (a task is running). Refresh the list so
@@ -1856,6 +1895,13 @@ function renderEvent(ev) {
     renderSubAgents(rows);
     return;
   }
+  // FEATURE-583: the full loaded-skill snapshot; redraw the panel from it.
+  if (ev.type === "skill_state") {
+    let payload = null;
+    try { if (ev.meta && ev.meta.skill_state) payload = JSON.parse(ev.meta.skill_state); } catch { /* keep null */ }
+    renderSkills(payload ? payload.loaded : []);
+    return;
+  }
   // FEATURE-524: LLM component trees (render_ui / ui_update).
   if (ev.type === "ui_render") { renderUIBlock(ev); return; }
   if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
@@ -2533,7 +2579,7 @@ function applyPanels() {
   const showWs = panelPrefs.ws !== false;
   layout.classList.toggle("no-ws", !showWs);
   miWsCheck.classList.toggle("on", showWs);
-  const showPlan = panelPrefs.plan !== false && (!!lastPlan || lastSubAgents.length > 0);
+  const showPlan = panelPrefs.plan !== false && (!!lastPlan || lastSubAgents.length > 0 || lastSkills.length > 0);
   planPanel.classList.toggle("hidden", !showPlan);
   layout.classList.toggle("no-plan", !showPlan);
   miPlanCheck.classList.toggle("on", panelPrefs.plan !== false);
@@ -3310,6 +3356,53 @@ function truncateInstruction(text) {
   const chars = Array.from(String(text || '').trim());
   if (chars.length <= 30) return chars.join('');
   return chars.slice(0, 30).join('') + '...';
+}
+
+/* ---------- loaded skills panel (FEATURE-583, R2) ---------- */
+
+// renderSkills paints the skills whose SKILL.md content is currently pinned in
+// the context. loaded is the "loaded" array of a skill_state event (or the
+// loaded subset of /api/skills). The whole section is hidden when nothing is
+// loaded.
+function renderSkills(loaded) {
+  lastSkills = Array.isArray(loaded) ? loaded.filter((s) => s && s.name) : [];
+  skillBody.textContent = "";
+  const show = lastSkills.length > 0;
+  skillHead.classList.toggle("hidden", !show);
+  skillBody.classList.toggle("hidden", !show);
+  for (const s of lastSkills) {
+    const line = document.createElement("div");
+    line.className = "skill-item";
+    const name = document.createElement("span");
+    name.className = "sk-name";
+    name.textContent = s.name || "";
+    const src = document.createElement("span");
+    src.className = "sk-src";
+    src.textContent = s.source === "global" ? T.skillSourceGlobal : T.skillSourceWorkspace;
+    const size = document.createElement("span");
+    size.className = "sk-size";
+    size.textContent = fmtBytes(s.bytes || 0);
+    const sha = document.createElement("span");
+    sha.className = "sk-sha";
+    sha.textContent = (s.sha256 || "").slice(0, 8);
+    sha.title = s.sha256 || "";
+    line.appendChild(name);
+    line.appendChild(src);
+    line.appendChild(size);
+    line.appendChild(sha);
+    skillBody.appendChild(line);
+  }
+  applyPanels();
+}
+
+// refreshSkills rebuilds the loaded-skills panel from GET /api/skills. It runs
+// on connect and after a session switch, where the recorded skill_state events
+// are not guaranteed to be replayed for the newly current session.
+function refreshSkills() {
+  fetch("api/skills").then((r) => r.json()).then((j) => {
+    if (!j || !Array.isArray(j.skills)) return;
+    renderSkills(j.skills.filter((s) => s.loaded));
+  }).catch(() => { /* endpoint unavailable: keep the current panel */ });
 }
 
 /* ---------- ask area ---------- */
@@ -5925,6 +6018,7 @@ function settingsGroupIcon(title) {
   if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "i-memory";
   if (t.includes("工作区") || t.includes("workspace")) return "i-folder";
   if (t.includes("mcp")) return "i-mcp";
+  if (t.includes("技能") || t.includes("skill")) return "i-skills";
   if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "i-devtools";
   return "i-settings";
 }
@@ -5935,7 +6029,18 @@ function settingsGroupIcon(title) {
 // re-fetch) so the user stays on the current category instead of jumping back
 // to the first one (FEATURE-470).
 function renderSettings(groups) {
-  settingsGroups = groups || [];
+  const prevGroup = settingsGroups[settingsActiveGroup];
+  settingsGroups = (groups || []).slice();
+  // FEATURE-583: the frontend-only "Skills" category (its list and switches come
+  // from /api/skills, not from the backend settings groups) sits right above the
+  // MCP Server category.
+  const mcpIdx = settingsGroups.findIndex((g) => g && g.kind === "mcp");
+  const skillsAt = mcpIdx >= 0 ? mcpIdx : settingsGroups.length;
+  settingsGroups.splice(skillsAt, 0, { title: T.skillsSettings, kind: "skills" });
+  // FEATURE-470: keep the category the user is on selected across refreshes —
+  // the inserted group shifts every later category by one.
+  if (prevGroup && prevGroup.kind === "skills") settingsActiveGroup = skillsAt;
+  else if (settingsActiveGroup >= skillsAt) settingsActiveGroup += 1;
   if (settingsActiveGroup >= settingsGroups.length) settingsActiveGroup = 0;
   cacheWebInputDir(groups);
   // FEATURE-508: pick up the sliding-window thresholds so a settings change
@@ -6016,6 +6121,11 @@ function renderSettingsPane() {
   // plus the editable folder-exclusion list of the workspace tree.
   if (g.kind === "workspace") {
     renderWorkspaceSettings(g);
+    return;
+  }
+  // FEATURE-583: the "skills" group renders the skill list + enable switches.
+  if (g.kind === "skills") {
+    renderSkillsSettings();
     return;
   }
   const frag = document.createDocumentFragment();
@@ -6143,6 +6253,158 @@ function wsExcludeRow(entry, list) {
 function wsSaveTreeExcludes(list) {
   wsTreeRefreshPending = true;
   wsSend({ type: "settings_set", key: "tree-excludes", value: JSON.stringify(list) });
+}
+
+/* ---------- FEATURE-583: Skills settings page ---------- */
+
+// skillsData caches the last GET /api/skills payload so a per-skill toggle can
+// resend the current default alongside its own change.
+let skillsData = null;
+
+// renderSkillsSettings renders the "Skills" page: the discovered skill list
+// (one sliding enable switch per skill) plus the "enabled by default" switch.
+function renderSkillsSettings() {
+  settingsDynamic.innerHTML = "";
+  const hint = document.createElement("div");
+  hint.className = "skills-hint";
+  hint.textContent = T.skillsSettingsHint;
+  settingsDynamic.appendChild(hint);
+  const list = document.createElement("div");
+  list.className = "skills-list";
+  list.textContent = T.skillsLoading;
+  settingsDynamic.appendChild(list);
+  fetch("api/skills").then((r) => r.json()).then((j) => {
+    if (!j || !Array.isArray(j.skills)) throw new Error("bad payload");
+    skillsData = j;
+    list.textContent = "";
+    renderSkillsList(list, j);
+  }).catch(() => {
+    list.textContent = T.skillsLoadFailed;
+  });
+}
+
+// renderSkillsList fills the container with one row per skill plus the default
+// switch block at the bottom.
+function renderSkillsList(box, data) {
+  const skills = data.skills || [];
+  if (!skills.length) {
+    const empty = document.createElement("div");
+    empty.className = "skills-empty";
+    empty.textContent = T.skillsEmpty;
+    box.appendChild(empty);
+  }
+  for (const s of skills) box.appendChild(skillSettingRow(s));
+  box.appendChild(skillDefaultRow(!!data.default_enabled));
+}
+
+// skillSettingRow builds one skill row: name + source/loaded/follow-default
+// badges and the description on the left, the sliding enable switch on the
+// right.
+function skillSettingRow(s) {
+  const row = document.createElement("div");
+  row.className = "skill-row" + (s.enabled ? "" : " off");
+  const info = document.createElement("div");
+  info.className = "skill-info";
+  const head = document.createElement("div");
+  head.className = "skill-row-head";
+  const name = document.createElement("span");
+  name.className = "skill-row-name";
+  name.textContent = s.name || "";
+  head.appendChild(name);
+  const src = document.createElement("span");
+  src.className = "skill-badge skill-badge-src";
+  src.textContent = s.source === "global" ? T.skillSourceGlobal : T.skillSourceWorkspace;
+  head.appendChild(src);
+  if (s.loaded) {
+    const ld = document.createElement("span");
+    ld.className = "skill-badge skill-badge-loaded";
+    ld.textContent = T.skillLoadedTag;
+    head.appendChild(ld);
+  }
+  if (!s.explicit) {
+    // No explicit choice: the effective state comes from the default switch.
+    const fd = document.createElement("span");
+    fd.className = "skill-badge skill-badge-follow";
+    fd.textContent = T.skillFollowDefault;
+    head.appendChild(fd);
+  }
+  info.appendChild(head);
+  if (s.description) {
+    const desc = document.createElement("div");
+    desc.className = "skill-row-desc";
+    desc.textContent = s.description;
+    info.appendChild(desc);
+  }
+  const meta = document.createElement("div");
+  meta.className = "skill-row-meta";
+  meta.textContent = fmtBytes(s.bytes || 0);
+  info.appendChild(meta);
+  row.appendChild(info);
+  row.appendChild(makeSkillToggle(!!s.enabled, (v) => saveSkillToggle(s.name, v)));
+  return row;
+}
+
+// skillDefaultRow builds the "enabled by default" switch block.
+function skillDefaultRow(enabled) {
+  const block = document.createElement("div");
+  block.className = "skill-default";
+  const head = document.createElement("div");
+  head.className = "skill-default-head";
+  const label = document.createElement("span");
+  label.className = "skill-default-label";
+  label.textContent = T.skillsDefaultEnabled;
+  head.appendChild(label);
+  head.appendChild(makeSkillToggle(enabled, (v) => postSkills({ default_enabled: v })));
+  block.appendChild(head);
+  const hint = document.createElement("div");
+  hint.className = "skill-default-hint";
+  hint.textContent = T.skillsDefaultHint;
+  block.appendChild(hint);
+  return block;
+}
+
+// makeSkillToggle builds a sliding on/off switch, reusing the MCP toggle style.
+function makeSkillToggle(checked, onchange) {
+  const label = document.createElement("label");
+  label.className = "mcp-toggle";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = !!checked;
+  input.onchange = () => onchange(input.checked);
+  const slider = document.createElement("span");
+  slider.className = "mcp-toggle-slider";
+  label.appendChild(input);
+  label.appendChild(slider);
+  return label;
+}
+
+// saveSkillToggle posts one skill's new enable state; the current default is
+// sent along so the backend never has to guess it.
+function saveSkillToggle(name, enabled) {
+  const def = skillsData ? !!skillsData.default_enabled : true;
+  const skills = {};
+  skills[name] = enabled;
+  postSkills({ default_enabled: def, skills });
+}
+
+// postSkills applies a change through POST /api/skills, then re-renders the
+// page and the loaded-skills panel from the response.
+function postSkills(body) {
+  fetch("api/skills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => r.json()).then((j) => {
+    if (!j || !Array.isArray(j.skills)) {
+      showSettingsResult({ ok: false, message: (j && j.error) || T.skillsSaveFailed });
+      return;
+    }
+    skillsData = j;
+    const g = settingsGroups[settingsActiveGroup];
+    if (g && g.kind === "skills") renderSkillsSettings();
+    // Disabling a skill unloads it: refresh the R2 panel too.
+    refreshSkills();
+  }).catch(() => showSettingsResult({ ok: false, message: T.skillsSaveFailed }));
 }
 
 // renderSettingItem builds one setting row with its label and form control.

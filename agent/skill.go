@@ -31,6 +31,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
 )
 
 // Skill represents a single skill discovered from a skills directory.
@@ -149,6 +152,102 @@ func parseSkillFrontmatter(content string) (name, description string) {
 		}
 	}
 	return name, description
+}
+
+// filterEnabledSkills drops the skills the user disabled in the settings
+// (FEATURE-583, D-D): a disabled skill is invisible to the model and cannot be
+// loaded. A nil predicate keeps every skill.
+func filterEnabledSkills(skills []Skill, enabled func(string) bool) []Skill {
+	if enabled == nil {
+		return skills
+	}
+	out := make([]Skill, 0, len(skills))
+	for _, s := range skills {
+		if enabled(s.Name) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// buildSkillsEnvBlock renders the <skills> element injected into the NEWEST
+// <environment_details> of a request (FEATURE-583). It lists one line per
+// available skill — name + description, with the loaded marker in front of the
+// skills whose full text is already pinned — and skips disabled skills. It
+// returns "" when no skill is available.
+//
+// The block is built per request and injected only into the last envelope (see
+// injectSkillsEnvToLast), never frozen into a message: loading or unloading a
+// skill then changes the tail of the request only, so the system prompt and the
+// earlier history stay byte-identical and keep their prompt-prefix cache.
+func (a *Agent) buildSkillsEnvBlock() string {
+	ws, home := a.skillScanDirs()
+	skills := ScanSkills(ws, home)
+	if a.cfg != nil {
+		skills = filterEnabledSkills(skills, a.cfg.SkillEnabled)
+	}
+	if len(skills) == 0 {
+		return ""
+	}
+	loaded := a.loadedSkillSet()
+	tag := i18n.T(i18n.KeySystemPromptSkillsLoadedTag)
+	if tag == "" || tag == i18n.KeySystemPromptSkillsLoadedTag {
+		tag = "[loaded]"
+	}
+	var sb strings.Builder
+	sb.WriteString("<skills>")
+	for _, s := range skills {
+		sb.WriteString("\n- ")
+		if loaded[s.Name] {
+			sb.WriteString(tag)
+			sb.WriteString(" ")
+		}
+		sb.WriteString(s.Name)
+		sb.WriteString(": ")
+		sb.WriteString(s.Description)
+	}
+	sb.WriteString("\n</skills>")
+	return sb.String()
+}
+
+// injectSkillsEnvToLast injects the <skills> block into the envelope of the
+// newest message carrying an <environment_details> block, so the
+// available-skill list appears exactly once per request — in its last envelope
+// (FEATURE-583).
+func (a *Agent) injectSkillsEnvToLast(msgs []llm.Message) {
+	block := a.buildSkillsEnvBlock()
+	if block == "" {
+		return
+	}
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if injectEnvBlock(&msgs[i], block) {
+			return
+		}
+	}
+}
+
+// injectEnvBlock inserts block just before the closing tag of the message's
+// envelope and reports whether one was found. The content parts are copied
+// first: the message values share their backing array with the stored history,
+// which must stay untouched.
+func injectEnvBlock(msg *llm.Message, block string) bool {
+	const closeTag = "</environment_details>"
+	for i := len(msg.ContentParts) - 1; i >= 0; i-- {
+		idx := strings.LastIndex(msg.ContentParts[i].Text, closeTag)
+		if idx < 0 {
+			continue
+		}
+		parts := make([]llm.ContentPart, len(msg.ContentParts))
+		copy(parts, msg.ContentParts)
+		parts[i].Text = parts[i].Text[:idx] + block + "\n" + parts[i].Text[idx:]
+		msg.ContentParts = parts
+		return true
+	}
+	if idx := strings.LastIndex(msg.Content, closeTag); idx >= 0 {
+		msg.Content = msg.Content[:idx] + block + "\n" + msg.Content[idx:]
+		return true
+	}
+	return false
 }
 
 // firstNonEmptyLine returns the first non-empty, non-heading line of content.

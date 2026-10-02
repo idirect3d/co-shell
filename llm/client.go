@@ -75,6 +75,17 @@ type Message struct {
 	ToolCallID       string        `json:"tool_call_id,omitempty"`
 	ToolCalls        []ToolCall    `json:"tool_calls,omitempty"`
 	ReasoningContent string        `json:"reasoning_content,omitempty"`
+
+	// FEATURE-583: Pinned marks a message that must survive every
+	// history-rewriting operation (context reorganization, window trimming,
+	// rollback/truncation) because it carries a loaded skill's full text.
+	// The flag is persisted with the session JSON but never sent to the LLM
+	// (buildMessages copies fields explicitly, so it is dropped on the wire).
+	Pinned bool `json:"pinned,omitempty"`
+	// PinnedFor names the skill a pinned message belongs to (empty when the
+	// message is pinned for another reason). It lets skill_unload find and
+	// release exactly the messages of one skill.
+	PinnedFor string `json:"pinned_for,omitempty"`
 }
 
 // HasMultimodalContent returns true if the message contains multimodal content (images).

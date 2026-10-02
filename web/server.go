@@ -266,6 +266,17 @@ type ServerOptions struct {
 	// matched exactly. It is read on every tree request, so a settings change
 	// applies to the next refresh without a restart. Nil disables filtering.
 	TreeExcludes func() (names map[string]bool, paths map[string]bool)
+
+	// SkillsFn returns the JSON body of GET /api/skills (FEATURE-583): the
+	// discovered skill list, the "default enabled" switch and the loaded total.
+	// Nil disables the endpoint.
+	SkillsFn func() (string, error)
+
+	// SkillsSetFn applies a POST /api/skills body (FEATURE-583): it validates
+	// the requested skill names against the discovered list, updates the config,
+	// re-applies the agent skill state and returns the same JSON body as
+	// SkillsFn. Nil disables the endpoint.
+	SkillsSetFn func(body []byte) (string, error)
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -353,6 +364,10 @@ func NewServer(root string, opts ServerOptions) *Server {
 	// FEATURE-524: the escape hatch for LLM-authored HTML runs in a sandboxed
 	// iframe whose shell is served from its own endpoint with its own CSP.
 	s.mux.HandleFunc("GET /api/ui-sandbox", s.handleUISandbox)
+	// FEATURE-583: the Skills settings page reads the skill list and applies
+	// per-skill / default enable switches through these two endpoints.
+	s.mux.HandleFunc("GET /api/skills", s.handleSkillsGet)
+	s.mux.HandleFunc("POST /api/skills", s.handleSkillsSet)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)

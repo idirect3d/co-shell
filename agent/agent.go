@@ -322,6 +322,10 @@ func DefaultToolModes() map[string]string {
 		"evaluate_expression":        "auto",
 		"render_ui":                  "auto",
 		"reorganize_context":         "auto",
+		// FEATURE-583: skill load/unload are auto — the loaded set and its
+		// changes are reported through the skill_state event and the REPL line.
+		"skill_load":   "auto",
+		"skill_unload": "auto",
 		// Vault tools (FEATURE-274) - list is auto, add/remove require confirmation
 		"vault_list":   "auto",
 		"vault_add":    "confirm",
@@ -849,6 +853,10 @@ func (a *Agent) RestoreSession() bool {
 			if err := json.Unmarshal(entry.Messages, &msgs); err == nil && len(msgs) > 0 {
 				a.mu.Lock()
 				a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, msgs...)
+				// FEATURE-583: rebuild the loaded-skill index from the pinned messages.
+				if dropped := a.rebuildLoadedStateLocked(); len(dropped) > 0 {
+					log.Warn("RestoreSession: released %d skill(s) whose content could not be rebuilt: %v", len(dropped), dropped)
+				}
 				a.mu.Unlock()
 				// Use SetCurrentSessionID so the task plan manager binds to the
 				// restored session (FEATURE-386); otherwise the plan panel shows
@@ -895,6 +903,10 @@ func (a *Agent) RestoreSession() bool {
 	}
 	log.Info("RestoreSession: legacy restore of %d non-system messages", len(nonSystemMessages))
 	a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, nonSystemMessages...)
+	// FEATURE-583: rebuild the loaded-skill index from the pinned messages.
+	if dropped := a.rebuildLoadedStateLocked(); len(dropped) > 0 {
+		log.Warn("RestoreSession: released %d skill(s) whose content could not be rebuilt: %v", len(dropped), dropped)
+	}
 	return true
 }
 
@@ -968,6 +980,9 @@ func (a *Agent) PersistSessionNonSystem() error {
 		Keywords:     "",
 		Messages:     data,
 		MessageCount: len(msgs),
+		// FEATURE-583: the loaded-skill names are persisted alongside the
+		// messages; the pinned messages themselves carry the content.
+		LoadedSkills: a.LoadedSkillNames(),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -2111,6 +2126,9 @@ func (a *Agent) Reset() {
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
+	// FEATURE-583: the pinned skill content is gone, so the loaded index must
+	// go with it (otherwise it would claim content that is no longer present).
+	a.loadedSkills = nil
 	log.Info("Agent history reset")
 }
 
@@ -2124,6 +2142,12 @@ func (a *Agent) SetHistory(messages []llm.Message) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.messages = messages
+	// FEATURE-583: derive the loaded-skill index from the pinned messages, so
+	// a replaced history (session switch, import) can never claim content it
+	// does not carry.
+	if dropped := a.rebuildLoadedStateLocked(); len(dropped) > 0 {
+		log.Warn("SetHistory: released %d skill(s) whose pinned content is gone: %v", len(dropped), dropped)
+	}
 }
 
 func (a *Agent) GetMessages() []llm.Message {
@@ -2318,7 +2342,7 @@ func (a *Agent) removeLastAssistantWithToolCalls() string {
 		sb.WriteString("\n")
 	}
 	sb.WriteString(i18n.T(i18n.KeyEndMarker))
-	a.messages = a.messages[:lastAssistantIdx]
+	a.messages = truncateHistoryKeepPinned(a.messages, lastAssistantIdx)
 	return sb.String()
 }
 
@@ -2342,11 +2366,11 @@ func (a *Agent) stripLastAssistantAndContinue() {
 	if a.messages[secondLastIdx].Role == "assistant" && len(a.messages[secondLastIdx].ToolCalls) == 0 &&
 		a.messages[lastIdx].Role == "user" {
 		// Strip both: stale assistant + continue prompt
-		a.messages = a.messages[:secondLastIdx]
+		a.messages = truncateHistoryKeepPinned(a.messages, secondLastIdx)
 		log.Debug("stripLastAssistantAndContinue: stripped stale assistant+continue prompt pair")
 	} else if a.messages[lastIdx].Role == "assistant" && len(a.messages[lastIdx].ToolCalls) == 0 {
 		// Only a stale assistant at the end
-		a.messages = a.messages[:lastIdx]
+		a.messages = truncateHistoryKeepPinned(a.messages, lastIdx)
 		log.Debug("stripLastAssistantAndContinue: stripped stale assistant (no continue prompt)")
 	}
 }

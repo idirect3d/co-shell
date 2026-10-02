@@ -129,10 +129,11 @@ func (a *Agent) collapseAfterReorganize() {
 	summary := a.taskInstructionCache.String()
 	a.taskInstructionCache.Reset()
 	if summary != "" {
-		a.messages = []llm.Message{systemMsg, llm.Message{Role: "user", Content: summary}}
+		// FEATURE-583 (R3): the pinned skill content is never summarized away.
+		a.messages = collapseKeepingPinned(systemMsg, a.messages, llm.Message{Role: "user", Content: summary})
 		a.messagePointer = 1
 		a.needAdjustPointer = true
-		log.Info("Agent.collapseAfterReorganize: collapsed history to [system, user(summary)] using cache")
+		log.Info("Agent.collapseAfterReorganize: collapsed history to [system, pinned, user(summary)] using cache")
 		return
 	}
 
@@ -144,10 +145,10 @@ func (a *Agent) collapseAfterReorganize() {
 			break
 		}
 	}
-	if lastUser.Role == "user" {
-		a.messages = []llm.Message{systemMsg, lastUser}
+	if lastUser.Role == "user" && !isPinnedMessage(lastUser) {
+		a.messages = collapseKeepingPinned(systemMsg, a.messages, lastUser)
 	} else {
-		a.messages = []llm.Message{systemMsg}
+		a.messages = collapseKeepingPinned(systemMsg, a.messages)
 	}
 	a.messagePointer = 1
 	a.needAdjustPointer = true
@@ -218,7 +219,7 @@ func (a *Agent) reorganizeContextOnLoop() string {
 				systemMsg := a.messages[0]
 				lastUserIdx := len(a.messages) - 1
 				lastUserMsg := a.messages[lastUserIdx]
-				a.messages = []llm.Message{systemMsg, lastUserMsg}
+				a.messages = collapseKeepingPinned(systemMsg, a.messages, lastUserMsg)
 				a.messagePointer = 1
 				a.needAdjustPointer = true
 			}

@@ -1082,6 +1082,42 @@ const (
 	KeySkillCmdUsage          = "skill_cmd_usage"
 	KeySkillCmdListHeader     = "skill_cmd_list_header"
 
+	// FEATURE-583: skill load/unload mechanism.
+	KeySkillErrNameRequired   = "skill_err_name_required"
+	KeySkillErrNotFound       = "skill_err_not_found"
+	KeySkillErrDisabled       = "skill_err_disabled"
+	KeySkillErrRead           = "skill_err_read"
+	KeySkillErrNotLoaded      = "skill_err_not_loaded"
+	KeySkillLoadHeader        = "skill_load_header"
+	KeySkillLoadPinnedNote    = "skill_load_pinned_note"
+	KeySkillLoadResources     = "skill_load_resources"
+	KeySkillLoadWarn          = "skill_load_warn"
+	KeySkillUnloadNote        = "skill_unload_note"
+	KeySkillToolLoadDesc      = "skill_tool_load_desc"
+	KeySkillToolUnloadDesc    = "skill_tool_unload_desc"
+	KeyToolUsageSkillLoad     = "tool_usage_skill_load"
+	KeyToolUsageSkillUnload   = "tool_usage_skill_unload"
+	KeySkillReplLoaded        = "skill_repl_loaded"
+	KeySkillReplUnloaded      = "skill_repl_unloaded"
+	KeySkillCmdListLoadedTag  = "skill_cmd_list_loaded_tag"
+	KeySkillCmdListChangedTag = "skill_cmd_list_changed_tag"
+	KeySkillCmdLoadOk         = "skill_cmd_load_ok"
+	KeySkillCmdUnloadOk       = "skill_cmd_unload_ok"
+	KeySkillCmdUnloadNone     = "skill_cmd_unload_none"
+	KeySkillCmdReloadOk       = "skill_cmd_reload_ok"
+	KeySkillCmdLoadUserNote   = "skill_cmd_load_user_note"
+	KeySettingsSkillsPage     = "settings_skills_page"
+	KeySettingsSkillsDesc     = "settings_skills_desc"
+	KeySettingsSkillsDefault  = "settings_skills_default"
+	KeySettingsSkillsDefaultD = "settings_skills_default_desc"
+	KeySettingsSkillsEnabled  = "settings_skills_enabled"
+	KeySettingsSkillsDisabled = "settings_skills_disabled"
+	KeySettingsSkillsFollow   = "settings_skills_follow_default"
+	KeySettingsSkillsSourceWs = "settings_skills_source_workspace"
+	KeySettingsSkillsSourceGl = "settings_skills_source_global"
+	KeySettingsSkillsLoaded   = "settings_skills_loaded"
+	KeySettingsSkillsSaveFail = "settings_skills_save_failed"
+
 	KeySettingCmd_622 = "setting_cmd_622"
 	KeySettingCmd_623 = "setting_cmd_623"
 	KeySettingCmd_624 = "setting_cmd_624"
@@ -2486,6 +2522,11 @@ const (
 	// lists available skills as an index (name + description + path). The
 	// dynamic index body is appended by the agent when building the prompt.
 	KeySystemPromptSkills = "system_prompt_skills"
+
+	// FEATURE-583: marker telling the model which skills are already loaded
+	// (their full text is pinned in the conversation). It marks the entries of
+	// the <skills> element injected into the newest <environment_details>.
+	KeySystemPromptSkillsLoadedTag = "system_prompt_skills_loaded_tag"
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
 	// meta-capability index section. The dynamic index body is appended by the

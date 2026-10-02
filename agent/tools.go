@@ -1981,6 +1981,47 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = filtered
 	}
 
+	// FEATURE-583: skill content loading. skill_load pins the full SKILL.md
+	// text of one skill into the conversation; skill_unload releases the pin.
+	tools = append(tools, llm.Tool{
+		Name:        toolSkillLoad,
+		Description: i18n.T(i18n.KeySkillToolLoadDesc),
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": a.toolMetaDesc(),
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "Skill name as listed in the SKILLS index of the system prompt",
+				},
+			},
+			"required": []string{"meta", "name"},
+		},
+		Callback: a.skillLoadTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        toolSkillUnload,
+		Description: i18n.T(i18n.KeySkillToolUnloadDesc),
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": a.toolMetaDesc(),
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the loaded skill to release",
+				},
+			},
+			"required": []string{"meta", "name"},
+		},
+		Callback: a.skillUnloadTool,
+	})
+
 	// FEATURE-447: the unified meta object parameter is declared directly in
 	// each tool definition above. MCP tools (whose InputSchema comes from the
 	// MCP server) get the meta parameter injected at build time so they also
@@ -2434,7 +2475,9 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			// name (XML mode).
 			a.recordVisionToolCall(tc)
 
+			a.setLLMToolRound(true)
 			result, err := tool.Callback(ctx, args)
+			a.setLLMToolRound(false)
 			if err != nil {
 				log.Error("Tool call failed: %s, error: %v", tc.Name, err)
 				return "", err

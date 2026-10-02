@@ -141,6 +141,20 @@ type LLMConfig struct {
 	// If the map is nil/empty, all categories are shown (backward compatible).
 	OutputCategories map[string]bool `json:"output_categories,omitempty"`
 
+	// FEATURE-583: SKILLS enable/disable configuration.
+	// SkillsEnabled maps a skill name to an explicit enable/disable choice;
+	// SkillsDefaultEnabled is the fallback for skills the user never configured
+	// (default true, so existing setups keep every skill available).
+	// A disabled skill is hidden from the SKILLS prompt index and cannot be
+	// loaded by skill_load (an already-loaded one is unloaded automatically).
+	SkillsDefaultEnabled bool            `json:"skills_default_enabled"`
+	SkillsEnabled        map[string]bool `json:"skills_enabled,omitempty"`
+	// FEATURE-583: warning thresholds for loaded skill size. Exceeding them
+	// only warns (on the tool result, the REPL line and the event); loading is
+	// never refused.
+	SkillsWarnFileBytes  int `json:"skills_warn_file_bytes,omitempty"`  // default 32768 (32 KB)
+	SkillsWarnTotalBytes int `json:"skills_warn_total_bytes,omitempty"` // default 65536 (64 KB)
+
 	// Agent identity
 	AgentDuty string `json:"agent_duty,omitempty"` // Responsibility reported to the hub board (FEATURE-530)
 	// AgentDuty is what this agent is responsible for. It is reported to the
@@ -1004,6 +1018,45 @@ func DefaultSections() []string {
 // Float64Ptr returns a pointer to a float64 value.
 func Float64Ptr(v float64) *float64 { return &v }
 
+// SkillEnabled reports whether a skill is enabled (FEATURE-583).
+// An explicit entry in skills_enabled wins; otherwise skills_default_enabled
+// applies. A nil receiver keeps every skill enabled.
+func (c *Config) SkillEnabled(name string) bool {
+	if c == nil {
+		return true
+	}
+	if v, ok := c.LLM.SkillsEnabled[name]; ok {
+		return v
+	}
+	return c.LLM.SkillsDefaultEnabled
+}
+
+// SetSkillEnabled records an explicit enable/disable choice for one skill and
+// removes the entry when it equals the default (keeping config.json clean).
+func (c *Config) SetSkillEnabled(name string, enabled bool) {
+	if c == nil || name == "" {
+		return
+	}
+	if c.LLM.SkillsEnabled == nil {
+		c.LLM.SkillsEnabled = make(map[string]bool)
+	}
+	if enabled == c.LLM.SkillsDefaultEnabled {
+		delete(c.LLM.SkillsEnabled, name)
+		if len(c.LLM.SkillsEnabled) == 0 {
+			c.LLM.SkillsEnabled = nil
+		}
+		return
+	}
+	c.LLM.SkillsEnabled[name] = enabled
+}
+
+// DefaultSkillWarnFileBytes / DefaultSkillWarnTotalBytes are the default size
+// warning thresholds for loaded skills (FEATURE-583, D-E).
+const (
+	DefaultSkillWarnFileBytes  = 32 * 1024
+	DefaultSkillWarnTotalBytes = 64 * 1024
+)
+
 // DefaultWorkModes returns the list of default work modes. All modes share the
 // same prompt section list (config.DefaultSections); they differ only in the
 // strategy text rendered inside the ResultMode section.
@@ -1129,20 +1182,25 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:              0,
-			MaxTokens:                -1,
-			MaxIterations:            1000,
-			ShowLlmThinking:          true,
-			ShowLlmContent:           true,
-			ShowTool:                 true,
-			ShowToolInput:            true,
-			ShowToolOutput:           false,
-			ShowCommand:              false,
-			ShowCommandOutput:        false,
-			ToolModes:                nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
-			ResultMode:               int(ResultModeFree),
-			ContextLimit:             -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			EnvIncludeDetails:        true,
+			Temperature:       0,
+			MaxTokens:         -1,
+			MaxIterations:     1000,
+			ShowLlmThinking:   true,
+			ShowLlmContent:    true,
+			ShowTool:          true,
+			ShowToolInput:     true,
+			ShowToolOutput:    false,
+			ShowCommand:       false,
+			ShowCommandOutput: false,
+			ToolModes:         nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
+			ResultMode:        int(ResultModeFree),
+			ContextLimit:      -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			EnvIncludeDetails: true,
+			// FEATURE-583: every discovered skill is enabled by default; the size
+			// warning thresholds use the documented 32 KB / 64 KB defaults.
+			SkillsDefaultEnabled:     true,
+			SkillsWarnFileBytes:      DefaultSkillWarnFileBytes,
+			SkillsWarnTotalBytes:     DefaultSkillWarnTotalBytes,
 			EnvIncludeCurrentDir:     true,
 			EnvIncludeTools:          true,
 			EnvIncludeResearch:       true,

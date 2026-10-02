@@ -36,6 +36,12 @@ const (
 	// array (FEATURE-564). The Web UI renders it below the task-plan panel.
 	EventSubAgents = "sub_agents" // sub-agent status list (Meta[MetaKeySubAgents] + Meta[MetaKeySubAgentsSession])
 
+	// FEATURE-583: EventSkillState carries the loaded-skill list of the
+	// session as a JSON payload (Meta[MetaKeySkillState]) whenever a skill is
+	// loaded, unloaded or affected by a configuration change. Renderers redraw
+	// the "loaded skills" area from it.
+	EventSkillState = "skill_state"
+
 	// FEATURE-524: LLM-driven rich component output. EventUIRender carries a
 	// validated component tree for the Web UI to paint; EventUIUpdate replaces
 	// the content of an already rendered node addressed by Meta[MetaKeyUIID].
@@ -113,6 +119,40 @@ func SubAgentsEvent(sessionID, agentsJSON string) StreamEvent {
 		Meta: map[string]string{
 			MetaKeySubAgents:        agentsJSON,
 			MetaKeySubAgentsSession: sessionID,
+		},
+	}
+}
+
+// Skill-state event meta keys and action values (FEATURE-583).
+const (
+	// MetaKeySkillState carries the loaded-skill snapshot as a JSON object.
+	MetaKeySkillState = "skill_state"
+	// MetaKeySkillAction is "load", "unload" or "config".
+	MetaKeySkillAction = "skill_action"
+	// MetaKeySkillName is the skill the action refers to (empty for config).
+	MetaKeySkillName = "skill_name"
+)
+
+// Skill action values (FEATURE-583).
+const (
+	SkillActionLoad   = "load"
+	SkillActionUnload = "unload"
+	SkillActionConfig = "config"
+)
+
+// SkillStateEvent builds an EventSkillState carrying the whole loaded-skill
+// list of the session (FEATURE-583, R2). Renderers redraw the "loaded skills"
+// area from the payload, so a single event keeps every consumer in sync.
+func SkillStateEvent(action, name, payloadJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventSkillState,
+		Chan:  ChannelTaskPlan,
+		Level: LevelInfo,
+		Text:  name,
+		Meta: map[string]string{
+			MetaKeySkillState:  payloadJSON,
+			MetaKeySkillAction: action,
+			MetaKeySkillName:   name,
 		},
 	}
 }

@@ -63,6 +63,12 @@ func (h *SkillHandler) Handle(args []string) (string, error) {
 		return h.handleAdd(args[1:])
 	case "remove":
 		return h.handleRemove(args[1:])
+	case "load":
+		return h.handleLoad(args[1:], false)
+	case "reload":
+		return h.handleLoad(args[1:], true)
+	case "unload":
+		return h.handleUnload(args[1:])
 	default:
 		return "", fmt.Errorf("%s", i18n.T(i18n.KeySkillCmdUsage))
 	}
@@ -102,23 +108,88 @@ func (h *SkillHandler) skillsDir(global bool) string {
 }
 
 func (h *SkillHandler) handleList() (string, error) {
-	skills := agent.ScanSkills(h.workspacePath(), h.homeDir())
-	if len(skills) == 0 {
+	infos := h.skillInfos()
+	if len(infos) == 0 {
 		return i18n.T(i18n.KeySkillCmdNoSkills), nil
 	}
+	loadedTag := i18n.T(i18n.KeySkillCmdListLoadedTag)
+	changedTag := i18n.T(i18n.KeySkillCmdListChangedTag)
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeySkillCmdListHeader))
 	sb.WriteString("\n")
-	for _, s := range skills {
+	for _, info := range infos {
 		sb.WriteString("- ")
-		sb.WriteString(s.Name)
+		if info.Loaded {
+			sb.WriteString(loadedTag)
+			sb.WriteString(" ")
+		}
+		if !info.Enabled {
+			sb.WriteString(i18n.T(i18n.KeySettingsSkillsDisabled))
+			sb.WriteString(" ")
+		}
+		sb.WriteString(info.Name)
 		sb.WriteString(": ")
-		sb.WriteString(s.Description)
+		sb.WriteString(info.Description)
+		sb.WriteString(fmt.Sprintf(" [%s, %d B]", info.Source, info.Bytes))
+		if info.Changed {
+			sb.WriteString(" ")
+			sb.WriteString(changedTag)
+		}
 		sb.WriteString(" (")
-		sb.WriteString(s.Path)
+		sb.WriteString(info.Path)
 		sb.WriteString(")\n")
 	}
 	return strings.TrimRight(sb.String(), "\n"), nil
+}
+
+// skillInfos returns the discovered skills with their state. It falls back to a
+// plain scan when no agent is attached (offline listing).
+func (h *SkillHandler) skillInfos() []agent.SkillInfo {
+	if h.agent != nil {
+		return h.agent.SkillInfos()
+	}
+	skills := agent.ScanSkills(h.workspacePath(), h.homeDir())
+	out := make([]agent.SkillInfo, 0, len(skills))
+	for _, s := range skills {
+		out = append(out, agent.SkillInfo{Name: s.Name, Description: s.Description, Path: s.Path, Enabled: true})
+	}
+	return out
+}
+
+// handleLoad implements :skill load <name> and :skill reload <name>.
+// reload refuses to re-pin a skill whose file disappeared; both share the same
+// implementation because loading an already-loaded skill is a refresh.
+func (h *SkillHandler) handleLoad(args []string, reload bool) (string, error) {
+	if len(args) < 1 {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySkillCmdUsage))
+	}
+	if h.agent == nil {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySkillCmdUsage))
+	}
+	name := args[0]
+	ls, _, err := h.agent.SkillLoadForUser(name)
+	if err != nil {
+		return "", err
+	}
+	if reload {
+		return fmt.Sprintf(i18n.T(i18n.KeySkillCmdReloadOk), ls.Name, ls.Bytes, ls.SHA256[:8]), nil
+	}
+	return fmt.Sprintf(i18n.T(i18n.KeySkillCmdLoadOk), ls.Name, ls.Source, ls.Bytes, h.agent.LoadedSkillBytes()), nil
+}
+
+// handleUnload implements :skill unload <name>.
+func (h *SkillHandler) handleUnload(args []string) (string, error) {
+	if len(args) < 1 {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySkillCmdUsage))
+	}
+	if h.agent == nil {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySkillCmdUsage))
+	}
+	name := args[0]
+	if _, ok := h.agent.SkillUnload(name); !ok {
+		return "", fmt.Errorf(i18n.T(i18n.KeySkillCmdUnloadNone), name)
+	}
+	return fmt.Sprintf(i18n.T(i18n.KeySkillCmdUnloadOk), name), nil
 }
 
 func (h *SkillHandler) handleShow(args []string) (string, error) {

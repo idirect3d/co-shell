@@ -194,6 +194,17 @@ type Agent struct {
 	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
 	metaCapabilityEnabled bool // whether meta-capability awareness (FEATURE-466) is enabled
 
+	// FEATURE-583 skill load/unload state.
+	// loadedSkills indexes the skills whose full text is pinned in the
+	// conversation; pendingSkillPin is set by the skill_load tool inside an LLM
+	// round and consumed by the loop once the tool result has been appended
+	// (the loop owns the message indexes of the round).
+	loadedSkills    map[string]LoadedSkill
+	pendingSkillPin *LoadedSkill
+	// llmToolRound is true while a tool callback runs as part of an LLM
+	// tool-call round (set by executeToolCall).
+	llmToolRound bool
+
 	// supervisorState holds the dedicated supervisor LLM runtime state
 	// (FEATURE-456): session-bound independent context, incremental user-message
 	// pointer, and rejection counter for anti-dead-loop.
@@ -578,29 +589,54 @@ func (a *Agent) buildContextMessages() []llm.Message {
 		effectiveContextLimit = -1 // unlimited
 	}
 
+	// FEATURE-583 (R3): the pinned closure (a loaded skill's content plus the
+	// tool results answering a pinned assistant message's calls) is always part
+	// of the request — whatever the message pointer, the context limit or the
+	// context policy say. It keeps its ORIGINAL position in the sequence: only
+	// the messages the pointer cut away are added back, so loading or unloading a
+	// skill changes the tail of the request only and the prefix (system prompt +
+	// untouched history) stays byte-identical, which is what keeps the
+	// prompt-prefix cache valid.
+	pinnedIdx := pinnedMessageIndexes(a.messages)
+
+	emitRange := func(cutIdx, end int, tail ...llm.Message) []llm.Message {
+		out := make([]llm.Message, 0, 1+len(pinnedIdx)+(end-cutIdx)+len(tail))
+		out = append(out, a.messages[0])
+		for i := 1; i < len(a.messages) && i < end; i++ {
+			if i < cutIdx && !pinnedIdx[i] {
+				continue
+			}
+			out = append(out, a.messages[i])
+		}
+		out = append(out, tail...)
+		return out
+	}
+
 	if a.cfg != nil && effectiveContextLimit != -1 {
 		// Apply context limit: truncate history, keep system + history + current
 		if len(a.messages) <= 1 {
 			msgs = a.messages
 		} else {
-			systemMsg := a.messages[0]
-			currentMsg := a.messages[len(a.messages)-1]
-
 			startIdx := 1
 			if a.messagePointer > 0 && a.messagePointer < len(a.messages) {
 				startIdx = a.messagePointer
 			}
-
-			historyMsgs := a.messages[startIdx : len(a.messages)-1]
-
-			if effectiveContextLimit > 0 && len(historyMsgs) > effectiveContextLimit {
-				historyMsgs = historyMsgs[len(historyMsgs)-effectiveContextLimit:]
+			// The limit counts the visible (non-pinned) history only.
+			cutIdx := startIdx
+			if effectiveContextLimit > 0 {
+				kept := 0
+				for i := len(a.messages) - 2; i >= startIdx; i-- {
+					if pinnedIdx[i] {
+						continue
+					}
+					kept++
+					if kept > effectiveContextLimit {
+						break
+					}
+					cutIdx = i
+				}
 			}
-
-			msgs = make([]llm.Message, 0, 2+len(historyMsgs))
-			msgs = append(msgs, systemMsg)
-			msgs = append(msgs, historyMsgs...)
-			msgs = append(msgs, currentMsg)
+			msgs = emitRange(cutIdx, len(a.messages)-1, a.messages[len(a.messages)-1])
 		}
 	} else {
 		// Unlimited: use messages from messagePointer onwards, respecting pointer position.
@@ -613,11 +649,7 @@ func (a *Agent) buildContextMessages() []llm.Message {
 			if a.messagePointer > 1 && a.messagePointer < len(a.messages) {
 				startIdx = a.messagePointer
 			}
-			systemMsg := a.messages[0]
-			historyMsgs := a.messages[startIdx:]
-			msgs = make([]llm.Message, 0, 1+len(historyMsgs))
-			msgs = append(msgs, systemMsg)
-			msgs = append(msgs, historyMsgs...)
+			msgs = emitRange(startIdx, len(a.messages))
 		}
 	}
 
@@ -706,7 +738,11 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	// FEATURE-579 (plan A): degrade the envelopes of older messages on the
 	// copy handed to the provider. The persisted history keeps every full
 	// envelope, so the Web UI replay and :context full are unaffected.
-	msgs = a.pruneEnvContext(msgs)
+	// FEATURE-583: the available-skill list (with the loaded markers) lives in
+	// the newest envelope only; it is rebuilt per request and never becomes part
+	// of the frozen history, so loading or unloading a skill leaves the request
+	// prefix (and its prompt-prefix cache) untouched.
+	a.injectSkillsEnvToLast(msgs)
 
 	return msgs
 }

@@ -4,6 +4,34 @@
 
 ---
 
+## v0.91.0 — skill 加载/卸载机制（pin 消息 · 可感知 · 抗压缩）
+
+> **版本**: v0.91.0
+
+> **状态**: 🚧 开发中（FEATURE-583）
+> **里程碑**: 为 skill 引入显式的加载/卸载机制——LLM 可用 `skill_load`/`skill_unload` 自主管理技能正文在上下文中的驻留；加载内容以“成对 pin 的历史消息”承载，压缩/裁剪/回退均豁免，卸载前保持完整不退化；加载状态与内容对 co-shell（提示词标注）与用户（REPL 行、Web“已加载技能”区、设置页）可见可控。方案见 `docs/skill-load-unload-design.md`，现状与缺陷见 `docs/skills-mechanism.md`。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-583 | 0.91.0 | P0 | skill 加载/卸载机制：`skill_load`/`skill_unload` 工具（auto）+ 消息 pin 与五处豁免 + SKILLS 节 `[已加载]` 标注 + `skill_state` 事件与 Web/REPL 显示 + 设置页 Skills 启用禁用 + 会话级持久化 + 超阈值告警 |
+
+> 当前 BUILD: 1188
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-583 skill 加载/卸载机制**
+  - 需求（用户确认 2026-10-02，三条硬要求）：① LLM 可按需把某个 skill 的详细内容加载进上下文，并可卸载；② 加载动作与当前已加载集合对 co-shell 与用户可感知（显示）；③ 已加载 skill 的完整正文在卸载前始终完整，不因上下文压缩（`reorganize_context`）或重整而丢失/退化。
+  - 交互决策（用户逐项确认）：D-A 两工具 `skill_load`/`skill_unload`，均 auto；D-B 载体取“历史消息 pin”（成对 pin `assistant(tool_calls)` + `tool(结果)`），卸载仅取消 pin，内容在下一次上下文重整/裁剪时移除；D-C 加载状态会话级持久化（`SessionEntry` 加字段）；D-D 可见性 = 提示词标注 + REPL 行 + Web“已加载技能”区 + 系统设置新增 Skills 页（逐项滑动开关 + 底部“默认启用”开关，控制新增/未配置项的默认状态）；D-E 不设硬上限，仅超阈值告警；D-F D-001（`description` 块标量解析）另开 FIX。
+  - 实现要点：`agent/skill_state.go`（状态/告警/事件）、`agent/skills_tools.go`（工具实现）、`llm.Message.Pinned`（发送前剥离）、`buildContextMessages`/`collapseAfterReorganize`/window 裁剪/回滚与截断点的 pin 豁免、SKILLS 节 `[已加载]` 标注、`skill_state` 事件与前端“已加载技能”区、`cmd/skill.go` 子命令、设置页与配置项（`skills_default_enabled`/`skills_enabled`）、`SessionEntry.LoadedSkills`、i18n 中英双语。
+  - 验收标准：见 `use-case/FEATURE-583/`。
+  - 交付物：`agent/`、`llm/`、`cmd/`、`config/`、`store/`、`web/`、`repl/`、`i18n/`、`use-case/FEATURE-583/`。
+  - 进度：编码与单测完成（UC-0001~UC-0019 覆盖），编译产物 `work/co-shell-0.91.0.darwin.arm64` 与 `work/co-shell-hub-0.91.0.darwin.arm64` 已生成；等待用户验收测试结果，通过后合并 main（工作流 /merge）。[BUILD-1186]
+  - 界面微调（用户要求，用例 `use-case/FEATURE-583/FEATURE-583-UC-0003.md`）：设置页分类「技能」移到「MCP Server」上方，并改用专属钢琴键盘矢量图标（4 个白键 + 3 个半音黑键，黑键长度约白键 2/3（黑键 2.3×9.5，白键分隔线与黑键位于 4 个白键的 3 条接缝处），与 MCP 插头图标区分）；「已加载技能」面板标题共用同一图标。[BUILD-1188]
+
+---
+
 ## v0.90.0 — 工具调用中断机制（ESC/暂停键/Ctrl+C 立即中断并杀死工具子进程）
 
 > **版本**: v0.90.0

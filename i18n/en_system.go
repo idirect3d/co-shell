@@ -775,6 +775,38 @@ Usage:
 </{XML_TAG_PREFIX}evaluate_expression>
 `
 
+	enMessages[KeySystemPromptSkillsLoadedTag] = "[loaded]"
+
+	enMessages[KeyToolUsageSkillLoad] = `## skill_load
+Description: Load a skill's full SKILL.md content into this conversation and pin it there: no matter how the context is reorganized, trimmed or rolled back afterwards, the text never degrades or disappears. Call it when you need to follow a skill's detailed instructions. Loading an already-loaded skill refreshes its content.
+Parameters:
+- meta (required) transparency metadata object with intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
+
+- name (required) skill name as listed in the SKILLS section of the system prompt.
+Usage:
+<{XML_TAG_PREFIX}skill_load>
+  <{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}intent>I need to follow this skill's detailed instructions</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}name>image-generate</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}skill_load>`
+
+	enMessages[KeyToolUsageSkillUnload] = `## skill_unload
+Description: Release a loaded skill and remove it from the loaded set. Note: the text is not removed from the context immediately - it is dropped at the next context reorganization or trimming.
+Parameters:
+- meta (required) transparency metadata object with intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
+
+- name (required) name of the loaded skill to release.
+Usage:
+<{XML_TAG_PREFIX}skill_unload>
+  <{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}intent>The skill content is no longer needed; free the context</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}name>image-generate</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}skill_unload>`
+
 	enMessages[KeyToolUsageReorganizeContext] = `## reorganize_context
 Description: Reorganize the conversation history into a self-contained summary continuation prompt, replacing all previous history with it by moving the messagePointer to the new message. Use this when:
 1. The context window is nearly full and you need to compress the conversation
@@ -1449,9 +1481,17 @@ The bin/ directory provides Python tools for document format conversion and mult
 	enMessages[KeySystemPromptSkills] = `
 SKILLS
 
-The following skills are available. Each skill is a directory containing a SKILL.md file. Only the skill index (name, description, path) is listed here. When you need to use a skill, read its SKILL.md file with read_file to get the full instructions.
+A skill is a directory containing a SKILL.md file. **The list of available skills is in the <skills> element of the newest message's <environment_details>** (a skill marked [loaded] already has its full text pinned in this conversation).
 
-(You can customize skills by placing skill directories under ./skills/ (workspace-level) or ~/.co-shell/skills/ (global-level); each skill is a directory containing a SKILL.md, workspace-level takes precedence on name conflicts, and you can manage them with the :skill list/show/add/remove commands.)
+Rules:
+- Load: when you need to follow a skill's detailed instructions, call skill_load (parameter name) to bring its full SKILL.md into the context; once loaded the content is protected and never degrades through context reorganization, trimming or rollback.
+- Unload: call skill_unload (parameter name) to release it when it is no longer needed; the text is not removed immediately - it is dropped at the next context reorganization or trimming.
+- Do not read_file a loaded skill's SKILL.md again.
+- A skill disabled on the Settings -> Skills page is neither listed nor loadable.
+
+(This section holds static rules only: it never changes when a skill is loaded or unloaded.)
+
+(You can customize skills by placing skill directories under ./skills/ (workspace-level) or ~/.co-shell/skills/ (global-level); workspace-level takes precedence on name conflicts, and you can manage them with the :skill list/show/add/remove commands.)
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES

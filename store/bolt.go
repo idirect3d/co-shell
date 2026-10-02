@@ -59,12 +59,16 @@ func formatMemoryKey(key string) string {
 
 // SessionEntry represents a named conversation session entry stored in the sessions bucket.
 type SessionEntry struct {
-	ID           string    `json:"id"`            // sess-YYYYMMDDhhmmss-xxxxxxxx
-	Title        string    `json:"title"`         // Human-readable title
-	Keywords     string    `json:"keywords"`      // Comma-separated keywords
-	SystemPrompt string    `json:"system_prompt"` // System prompt at time of save (for reference)
-	Messages     []byte    `json:"messages"`      // JSON-encoded messages (without system prompt)
-	MessageCount int       `json:"message_count"` // Number of messages (for list display)
+	ID           string `json:"id"`            // sess-YYYYMMDDhhmmss-xxxxxxxx
+	Title        string `json:"title"`         // Human-readable title
+	Keywords     string `json:"keywords"`      // Comma-separated keywords
+	SystemPrompt string `json:"system_prompt"` // System prompt at time of save (for reference)
+	Messages     []byte `json:"messages"`      // JSON-encoded messages (without system prompt)
+	MessageCount int    `json:"message_count"` // Number of messages (for list display)
+	// LoadedSkills lists the skills whose content is pinned in Messages
+	// (FEATURE-583). Missing on records written before the feature, which simply
+	// means "no skill loaded" (the pinned messages remain authoritative).
+	LoadedSkills []string  `json:"loaded_skills,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
