@@ -514,6 +514,9 @@ aside {
   display: none;
 }
 .tree-row .name { overflow: hidden; text-overflow: ellipsis; }
+/* FIX-589: single placeholder row shown while a directory level is being
+   fetched; it disappears as soon as the level arrives. */
+.tree-row.loading .name { color: var(--fg-faint); font-style: italic; }
 .tree-row.dir > .name { color: var(--fg); }
 /* Right-aligned action group (FEATURE-383): directory change-count badge +
    reveal button. margin-left:auto pushes the whole group to the right edge,

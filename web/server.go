@@ -890,12 +890,100 @@ type treeWalk struct {
 	statusMap map[string]string
 	names     map[string]bool
 	paths     map[string]bool
+	// dirChanges caches, per immediate parent directory, the number of changed
+	// files it contains (FIX-589); a directory's recursive change count is then
+	// derived by prefix lookup instead of walking the filesystem again.
+	dirChanges map[string]int
 }
 
 // excluded reports whether a directory entry is hidden from the tree. Only
 // folders are matched, so a file sharing a listed name stays visible.
 func (tw *treeWalk) excluded(name, rel string) bool {
 	return tw.names[name] || tw.paths[rel]
+}
+
+// underExcludedDir reports whether any ancestor directory of the
+// workspace-relative path is hidden by the exclusion list.
+func (tw *treeWalk) underExcludedDir(rel string) bool {
+	parts := strings.Split(rel, "/")
+	acc := ""
+	for i := 0; i+1 < len(parts); i++ {
+		if acc == "" {
+			acc = parts[i]
+		} else {
+			acc = acc + "/" + parts[i]
+		}
+		if tw.excluded(parts[i], acc) {
+			return true
+		}
+	}
+	return false
+}
+
+// parentDir returns the workspace-relative parent directory of a
+// slash-separated path ("" for a top-level entry).
+func parentDir(rel string) string {
+	if i := strings.LastIndex(rel, "/"); i >= 0 {
+		return rel[:i]
+	}
+	return ""
+}
+
+// changesIndex maps each immediate parent directory to the number of changed
+// files it directly contains (FIX-589). Deleted files are skipped (they are no
+// longer part of the listing) and so are files below an excluded directory, so
+// the recursive counts keep the pre-FIX-589 semantics while costing no extra
+// filesystem walk.
+func (tw *treeWalk) changesIndex(root string) map[string]int {
+	if tw.dirChanges != nil {
+		return tw.dirChanges
+	}
+	m := make(map[string]int)
+	for f := range tw.statusMap {
+		if tw.underExcludedDir(f) {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(f)))
+		if err != nil || info.IsDir() {
+			continue
+		}
+		m[parentDir(f)]++
+	}
+	tw.dirChanges = m
+	return m
+}
+
+// countChangesBelow sums the changed-file counts of dir and every directory
+// below it ("" means the workspace root).
+func countChangesBelow(idx map[string]int, dir string) int {
+	total := 0
+	for k, n := range idx {
+		if dir == "" || k == dir || strings.HasPrefix(k, dir+"/") {
+			total += n
+		}
+	}
+	return total
+}
+
+// pathExcluded reports whether the directory itself or any of its ancestors is
+// hidden by the exclusion list: the level API must not leak a folder the tree
+// intentionally hides (FEATURE-553/FIX-589).
+func (tw *treeWalk) pathExcluded(rel string) bool {
+	acc := ""
+	for _, seg := range strings.Split(rel, "/") {
+		if seg == "" {
+			continue
+		}
+		if acc == "" {
+			acc = seg
+		} else {
+			acc = acc + "/" + seg
+		}
+		if tw.excluded(seg, acc) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildTree walks the workspace recursively (depth-capped), skipping the
@@ -948,6 +1036,100 @@ func (s *Server) buildTree(abs, rel string, depth int, tw *treeWalk) *treeNode {
 	return n
 }
 
+// buildTreeLevel returns a directory node carrying only its immediate children
+// (FIX-589). Directory children keep their recursive changed-file count (the
+// git badge in the sidebar) but no children array, so the client requests
+// deeper levels on demand and a refresh transfers one level instead of the
+// whole workspace.
+func (s *Server) buildTreeLevel(abs, rel string, tw *treeWalk) *treeNode {
+	idx := tw.changesIndex(s.root)
+	n := &treeNode{Name: filepath.Base(abs), Path: rel, Dir: true, Changes: countChangesBelow(idx, rel)}
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		return n
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].IsDir() != entries[j].IsDir() {
+			return entries[i].IsDir()
+		}
+		return entries[i].Name() < entries[j].Name()
+	})
+	count := 0
+	for _, e := range entries {
+		if count >= 500 {
+			continue
+		}
+		childRel := e.Name()
+		if rel != "" {
+			childRel = rel + "/" + e.Name()
+		}
+		if e.IsDir() && tw.excluded(e.Name(), childRel) {
+			continue
+		}
+		count++
+		if e.IsDir() {
+			n.Children = append(n.Children, &treeNode{
+				Name:    e.Name(),
+				Path:    childRel,
+				Dir:     true,
+				Changes: countChangesBelow(idx, childRel),
+			})
+			continue
+		}
+		child := &treeNode{Name: e.Name(), Path: childRel}
+		if info, err := e.Info(); err == nil {
+			child.Mtime = info.ModTime().Unix()
+			child.Size = info.Size()
+		}
+		if st, ok := tw.statusMap[childRel]; ok {
+			child.Status = st
+		}
+		n.Children = append(n.Children, child)
+	}
+	return n
+}
+
+// resolveTreePath maps a workspace-relative directory path from the query
+// string to an absolute path inside the workspace root. Traversal (".."),
+// absolute paths, symlink escapes and anything outside the root are rejected
+// (FIX-589, path-traversal protection).
+func (s *Server) resolveTreePath(rel string) (string, bool) {
+	rootClean := filepath.Clean(s.root)
+	rootReal := rootClean
+	if r, err := filepath.EvalSymlinks(rootClean); err == nil {
+		rootReal = r
+	}
+	if rel == "" {
+		return rootClean, true
+	}
+	if filepath.IsAbs(rel) {
+		return "", false
+	}
+	for _, seg := range strings.Split(rel, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return "", false
+		}
+	}
+	abs := filepath.Join(rootClean, filepath.FromSlash(rel))
+	if abs != rootClean && !strings.HasPrefix(abs, rootClean+string(os.PathSeparator)) {
+		return "", false
+	}
+	// A symlink must not lead outside the workspace; the resolved root is the
+	// comparison base as well (on macOS t.TempDir() resolves through
+	// /private, so comparing against the unresolved root would reject it).
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		if real != rootReal && !strings.HasPrefix(real, rootReal+string(os.PathSeparator)) {
+			return "", false
+		}
+	}
+	return abs, true
+}
+
+// handleTree serves the workspace tree. FIX-589: by default it returns the
+// requested directory (the workspace root when path is empty) with its
+// immediate children only, so a refresh transfers one level instead of the
+// whole workspace; ?depth=full keeps the recursive listing for callers that
+// need the whole tree at once.
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 	// FEATURE-553: the exclusion list comes from the workspace settings and is
 	// re-read per request, so a change in the settings panel shows up on the
@@ -956,8 +1138,36 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 	if s.opts.TreeExcludes != nil {
 		tw.names, tw.paths = s.opts.TreeExcludes()
 	}
-	root := s.buildTree(s.root, "", 0, tw)
-	root.Name = filepath.Base(s.root)
+	rel := strings.Trim(strings.TrimSpace(r.URL.Query().Get("path")), "/")
+	abs, ok := s.resolveTreePath(rel)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+	if rel != "" && tw.pathExcluded(rel) {
+		// A folder the tree hides must not be reachable through the level API
+		// either, otherwise ?path= would bypass the exclusion list.
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "directory not found"})
+		return
+	}
+	if rel != "" {
+		info, err := os.Stat(abs)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "directory not found"})
+			return
+		}
+		if !info.IsDir() {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a directory"})
+			return
+		}
+	}
+	var root *treeNode
+	if r.URL.Query().Get("depth") == "full" {
+		root = s.buildTree(abs, rel, 0, tw)
+	} else {
+		root = s.buildTreeLevel(abs, rel, tw)
+	}
+	root.Name = filepath.Base(abs)
 	writeJSON(w, http.StatusOK, root)
 }
 

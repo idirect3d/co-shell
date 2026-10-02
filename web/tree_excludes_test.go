@@ -60,7 +60,9 @@ func collectTreePaths(n *treeNode, prefix string, out map[string]bool) {
 func treePaths(t *testing.T, ts *httptest.Server) map[string]bool {
 	t.Helper()
 	var root treeNode
-	getJSON(t, ts.URL+"/api/tree", &root)
+	// FIX-589: the default response covers one level only; this helper walks the
+	// whole tree, so it asks for the recursive listing explicitly.
+	getJSON(t, ts.URL+"/api/tree?depth=full", &root)
 	out := map[string]bool{}
 	for _, c := range root.Children {
 		collectTreePaths(c, "", out)
@@ -143,7 +145,7 @@ func TestTreeExcludesIgnoreFiles(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	var tree treeNode
-	getJSON(t, ts.URL+"/api/tree", &tree)
+	getJSON(t, ts.URL+"/api/tree?depth=full", &tree)
 	dirs := map[string]bool{}
 	for _, c := range tree.Children {
 		dirs[c.Name] = c.Dir
