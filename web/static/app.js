@@ -938,11 +938,21 @@ function endHistoryReplay() {
 const FOLLOW_THRESHOLD = 100;
 let followOutput = true; // whether new output should auto-scroll to the bottom
 
+// FIX-591: the follow-scroll is coalesced into one animation frame. Reading
+// scrollHeight forces a synchronous layout of the whole stream (~40 ms once the
+// session holds megabytes of text), and the streaming path used to call this
+// once per chunk - far more often than the markdown render, which is throttled
+// - so most of those layouts were wasted: the content had not changed yet.
+let scrollPending = false;
 function scrollStream() {
-  if (followOutput) {
+  if (scrollPending) return;
+  scrollPending = true;
+  requestAnimationFrame(() => {
+    scrollPending = false;
+    if (!followOutput) return;
     streamB.scrollTop = streamB.scrollHeight;
     if (scrollDownBtn) scrollDownBtn.classList.remove("on");
-  }
+  });
 }
 
 // updateFollowState recomputes followOutput from the current scroll position
@@ -1008,7 +1018,17 @@ function bindBlockNav() {
     if (!blockNavCurrent) return;
     streamB.scrollTop = blockNavCurrent.offsetTop + blockNavCurrent.offsetHeight - streamB.clientHeight;
   });
-  streamB.addEventListener("scroll", updateBlockNav);
+  // FIX-591: coalesce the block-navigation scan into one animation frame - it
+  // walks every block and reads offsetTop/offsetHeight (a forced layout), and
+  // scroll events arrive in bursts.
+  let blockNavRaf = 0;
+  streamB.addEventListener("scroll", () => {
+    if (blockNavRaf) return;
+    blockNavRaf = requestAnimationFrame(() => {
+      blockNavRaf = 0;
+      updateBlockNav();
+    });
+  });
 }
 
 function newStreamBlock(cls, label, msgIndex) {
@@ -2257,7 +2277,9 @@ function renderEvent(ev) {
       markStreaming(curThinking.body);
       scheduleMd(curThinking);
     }
-    scrollStream();
+    // FIX-591: no per-chunk follow-scroll here. The throttled markdown render
+    // (renderMdNow) scrolls once per rendered update, which is the only moment
+    // the content actually changes.
     return;
   }
 
@@ -5013,7 +5035,17 @@ if (yoloSwitch) {
 // 100px of the bottom we follow (auto-scroll to the newest line); beyond that we
 // stop following so the user can read history, and the floating down-arrow
 // button appears to jump back to the bottom.
-streamB.addEventListener("scroll", updateFollowState);
+// FIX-591: the follow-state probe reads scrollTop/clientHeight/scrollHeight on
+// every scroll event; coalescing it keeps a scroll burst to one measurement per
+// frame.
+let followStateRaf = 0;
+streamB.addEventListener("scroll", () => {
+  if (followStateRaf) return;
+  followStateRaf = requestAnimationFrame(() => {
+    followStateRaf = 0;
+    updateFollowState();
+  });
+});
 
 // FEATURE-445: clicking the floating down-arrow jumps to the bottom and resumes
 // following output.
