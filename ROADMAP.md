@@ -4,11 +4,35 @@
 
 ---
 
+## v0.89.1 — attempt_completion demo 命令执行超时上限（默认 3s，可配置）
+
+> **版本**: v0.89.1
+
+> **状态**: 🚧 进行中（分支 FIX-581）
+> **里程碑**: 为 `attempt_completion` 的 demo 命令（交付时用来自动打开/展示成果的命令）增加**执行返回超时上限**，避免命令不退出（如误写 `--serve`、`tail -f` 等常驻命令）导致交付工具永久阻塞、交付界面卡死，并遗留孤儿进程占用端口与存储。超时上限通过**系统参数**配置，默认 **3s**，`0` = 不限制。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-581 | 0.89.1 | P0 | attempt_completion demo 命令执行超时上限（默认 3s，可配置）：超时按进程组 kill 并返回“命令超时”提示；新增系统参数 `demo-cmd-timeout` |
+
+### 任务详情
+
+- [ ] **FIX-581 attempt_completion demo 命令执行超时上限（默认 3s，可配置）** [BUILD-1181]
+  - 缺陷（2026-10-02 实测）：`attempt_completion` 的 demo 命令若为常驻进程（如 `--serve`），工具内 `exec.CommandContext(ctx,…).CombinedOutput()` **同步等待且无超时**，导致工具永久阻塞（日志 14:28:19→14:47:05 静默 18 分 46 秒），并遗留孤儿进程占用端口与 `work/db`（PID 10184）。
+  - 需求（用户确认 2026-10-02）：① demo 命令增加**执行返回超时上限**，通过**系统参数**配置，默认 **3s**；② 超时后 **kill 整个进程组**（含 `--serve` 这类孙进程）并返回“命令超时”提示；③ 参数支持 `0` = 不限制（与 `cmd-timeout` / `tool-timeout` 语义一致）；④ **只有超时才杀死子进程**——命令正常结束时不得误杀其后台子进程（遵循 FIX-320 约束）。
+  - 方案：`config.LLMConfig` 新增 `demo_command_timeout`（默认 3）；`agent/tools.go:attemptCompletionTool` 改用 `exec.Command` + `setProcessGroupAttr` + 超时 goroutine（超时 `killProcessGroup`，正常结束撤销待杀）+ `Cmd.Cancel` / `Cmd.WaitDelay` 兜底（防止孙进程持有管道导致 Wait 永久阻塞）；参数接入 `.set demo-cmd-timeout`、设置页与 LLM set 工具；i18n 中英文案。
+  - 验收标准：① 常驻命令在超时上限内返回并杀掉整组进程（无孤儿）；② 正常短命令行为不变，超时前结束不误杀后台子进程；③ `0` = 不限制；④ 默认值为 3s；⑤ 单测与 `go build ./... && go vet ./...` 通过；⑥ 提交在分支 FIX-581，用户确认后合并。
+  - 交付物：`config/config.go`（字段+默认值）、`agent/tools.go`（超时执行）、`agent/agent.go`（取值）、设置入口（`cmd/config.go` / `cmd/settings.go` / `cmd/settings_web.go` / `agent/settings_tools.go`）、`i18n/`、`use-case/FIX-581/`。
+  - 修复记录（2026-10-02）[BUILD-1181]：`config.LLMConfig` 新增 `demo_command_timeout`（默认 3，`0` = 不限制）；`agent/command_tools.go` 新增 `runDemoCommand`（`exec.Command` + `setProcessGroupAttr` 独立进程组；stdout/stderr 用 `*os.File` 管道，`cmd.Wait()` 只等进程退出、不会被后台子进程持有的管道阻塞；超时后 `killProcessGroup` 整组 SIGKILL；**仅超时才杀子进程**，命令自行结束则保留其后台子进程；外层 ctx 取消同样按整组终止）；`agent/tools.go:attemptCompletionTool` 改调 `runDemoCommand`；参数接入 `.set safetyParams`、设置列表（`cmd/settings.go`）、Web 设置页（`cmd/settings_web.go`）、LLM set 工具（`agent/settings_tools.go`）、`config.String()` 摘要与 `:set defaults` 重置；i18n 新增 `setting_cmd_784`（超时提示 zh/en）与 `col3_demo_cmd_timeout`（描述 zh/en）。
+  - 验证（2026-10-02）[BUILD-1181]：① 新增 12 项测试全绿 —— `agent/fix581_test.go`（默认 3s、常驻命令 1.03s 返回并整组清理、管道孙进程一并清理、正常结束保留后台子进程、后台进程持有管道不阻塞且不被杀、`0` = 不限制、失败不误报超时、i18n 中英齐备、工具层不阻塞、无 command 行为不变）、`cmd/fix581_test.go`（`.set` 读写/非法值/`0`/重置）、`config/fix581_test.go`（默认值与旧配置回落）；② `go build ./... && go vet ./...` 无输出；③ `go test ./agent/ ./config/ ./cmd/ -short` 与 `main` 基线失败集**逐项一致**（4 项既有失败，零新增，`git worktree` 对比）；④ 产物 `work/co-shell-0.89.1.darwin.arm64`（`co-shell v0.89.1 [BUILD-1181]`）与 `work/co-shell-hub-0.89.1.darwin.arm64`；用例证据见 `use-case/FIX-581/` 各文件「验收记录」。
+
+---
+
 ## v0.89.0 — render_ui 区块/窗口导出（Markdown 下载 + PDF 打印）
 
 > **版本**: v0.89.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-580）
+> **状态**: ✅ 已合并 main（tag `v0.89.0`，分支 FEATURE-580，BUILD-1180）
 > **里程碑**: 为 render_ui 渲染的**对话流区块**与**窗口（浮窗/面板）**增加导出能力：**Markdown 下载** + **PDF 打印**（浏览器打印 / 另存为 PDF），让用户可以对生成内容下载、保存与打印。Word（.docx）本轮暂缓，下一轮实现。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -17,7 +41,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-580 render_ui 区块/窗口导出（MD 下载 + PDF 打印）** [BUILD-1180]
+- [X] **FEATURE-580 render_ui 区块/窗口导出（MD 下载 + PDF 打印）**（已完成并合并 main，tag `v0.89.0`，[BUILD-1180]）
   - 需求（用户确认 2026-10-02）：① 入口覆盖**对话流区块 + 窗口（浮窗/面板）**；② 本轮交付 **PDF 打印导出 + Markdown 下载**，**Word 暂缓**（下一轮）；③ PDF 走**浏览器打印**（前端重建打印视图后 `window.print()`，零新增依赖，图表/figure/中文所见即所得）；④ 打印/导出顶部输出**页眉**（标题 + 导出时间 + co-shell 标识）。
   - 方案：新增 `web/static/ui-export.js`（组件树→Markdown 转换 + 打印视图构建 + 导出入口注入 + 文档级事件委托）；`app.js:renderUIBlock` 为 `ui` 区块挂载导出入口并缓存原始树；`ui-windows.js` 为浮窗/面板窗口挂载导出入口并暴露窗口上下文（tree/title）；`index.html` 引入脚本并给窗口模板加按钮；`style.css` 增加按钮/菜单样式与 `@media print` 打印样式（打印时仅保留 `.ui-print-root`，`@page` 页边距）。
   - 验收标准：① 区块与窗口均有导出入口，导出内容为该区块/窗口**完整内容**；② MD 下载为 UTF-8 `.md`，含页眉且组件语义完备（card/kv/table/chart/steps/callout/progress/row/col/form 等）；③ 打印视图仅输出导出内容（其余页面元素不打印）、含页眉、图表/figure 保真、可另存为 PDF 与直接打印；④ 中英文文案齐备；⑤ `node --check` 与 `go build ./... && go vet ./...` 通过；⑥ 浏览器运行时断言全绿；⑦ 提交在分支 FEATURE-580，用户确认后合并。

@@ -604,6 +604,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_610: "\n命令执行失败: %v\n输出: %s",
 	KeySettingCmd_611: "\n命令执行成功，输出:\n%s",
 	KeySettingCmd_612: "✅ 任务完成\n\n%s",
+	// FIX-581: attempt_completion demo 命令执行超时提示
+	KeySettingCmd_784: "\n⚠️ demo 命令执行超时（%ds），已终止该进程组。\n已产生的输出:\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
 	KeyAttemptCompletionSuggestNext: "给出下一步建议",
@@ -1141,6 +1143,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Confirm:                     "全局确认模式(confirm/auto/disabled/custom)",
 	KeyCol3ToolTimeout:                 "工具调用超时(0 ~ N 秒)",
 	KeyCol3CmdTimeout:                  "命令执行超时(0 ~ N 秒)",
+	KeyCol3DemoCmdTimeout:              "demo 命令超时(0 ~ N 秒)",
 	KeyCol3LLMTimeout:                  "LLM 请求超时(0 ~ N 秒)",
 	KeyCol3Log:                         "日志级别(debug/info/warn/error/off)",
 	KeyCol3LLMInteractionLog:           "LLM 交互完整日志(on/off)",

@@ -282,6 +282,11 @@ func getSettingValue(cfg *config.Config, dir, param string) string {
 			return "unlimited"
 		}
 		return fmt.Sprintf("%ds", cfg.LLM.CommandTimeout)
+	case "demo-cmd-timeout":
+		if cfg.LLM.DemoCommandTimeout <= 0 {
+			return "unlimited"
+		}
+		return fmt.Sprintf("%ds", cfg.LLM.DemoCommandTimeout)
 	case "llm-timeout":
 		if cfg.LLM.LLMTimeout <= 0 {
 			return "unlimited"
@@ -820,6 +825,20 @@ func applySetting(a *Agent, param, value string) error {
 			return err
 		}
 		log.Info("Command timeout set via LLM tool: %d", n)
+
+	case "demo-cmd-timeout":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid demo command timeout: %s", value)
+		}
+		if n < 0 {
+			return fmt.Errorf("demo-cmd-timeout must be >= 0")
+		}
+		cfg.LLM.DemoCommandTimeout = n
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Demo command timeout set via LLM tool: %d", n)
 
 	case "llm-timeout":
 		n, err := strconv.Atoi(value)
@@ -1448,6 +1467,11 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 		cmdTimeoutStr = i18n.T(i18n.KeySettingCmd_537)
 	}
 	sb.WriteString(formatLine("cmd-timeout", cmdTimeoutStr, i18n.KeySettingCmd_568))
+	demoCmdTimeoutStr := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_541), cfg.LLM.DemoCommandTimeout)
+	if cfg.LLM.DemoCommandTimeout <= 0 {
+		demoCmdTimeoutStr = i18n.T(i18n.KeySettingCmd_537)
+	}
+	sb.WriteString(formatLine("demo-cmd-timeout", demoCmdTimeoutStr, i18n.KeyCol3DemoCmdTimeout))
 	llmTimeoutStr := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_541), cfg.LLM.LLMTimeout)
 	if cfg.LLM.LLMTimeout <= 0 {
 		llmTimeoutStr = i18n.T(i18n.KeySettingCmd_537)

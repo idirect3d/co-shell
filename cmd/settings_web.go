@@ -159,6 +159,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "confirm-tool", Value: confirmToolValue(llm.ToolModes), Desc: i18n.T(i18n.KeyCol3Confirm), Type: "enum", Options: []string{"disabled", "auto", "confirm"}, Default: confirmToolValue(def.ToolModes)},
 		{Key: "tool-timeout", Value: strconv.Itoa(llm.ToolTimeout), Desc: i18n.T(i18n.KeyCol3ToolTimeout), Type: "number", Default: strconv.Itoa(def.ToolTimeout)},
 		{Key: "cmd-timeout", Value: strconv.Itoa(llm.CommandTimeout), Desc: i18n.T(i18n.KeyCol3CmdTimeout), Type: "number", Default: strconv.Itoa(def.CommandTimeout)},
+		{Key: "demo-cmd-timeout", Value: strconv.Itoa(llm.DemoCommandTimeout), Desc: i18n.T(i18n.KeyCol3DemoCmdTimeout), Type: "number", Default: strconv.Itoa(def.DemoCommandTimeout)},
 		{Key: "llm-timeout", Value: strconv.Itoa(llm.LLMTimeout), Desc: i18n.T(i18n.KeyCol3LLMTimeout), Type: "number", Default: strconv.Itoa(def.LLMTimeout)},
 		{Key: "error-max-single-count", Value: strconv.Itoa(llm.ErrorMaxSingleCount), Desc: i18n.T(i18n.KeyCol3ErrorMaxSingleCount), Type: "number", Default: strconv.Itoa(def.ErrorMaxSingleCount)},
 		{Key: "error-max-type-count", Value: strconv.Itoa(llm.ErrorMaxTypeCount), Desc: i18n.T(i18n.KeyCol3ErrorMaxTypeCount), Type: "number", Default: strconv.Itoa(def.ErrorMaxTypeCount)},

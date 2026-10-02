@@ -622,6 +622,8 @@ var enMessages = map[string]string{
 	KeySettingCmd_610: "\nCommand execution failed: %v\nOutput: %s",
 	KeySettingCmd_611: "\nCommand executed successfully, output:\n%s",
 	KeySettingCmd_612: "✅ Task completed\n\n%s",
+	// FIX-581: attempt_completion demo command timeout notice
+	KeySettingCmd_784: "\n⚠️ Demo command timed out after %ds; its process group was terminated.\nOutput so far:\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
 	KeyAttemptCompletionSuggestNext: "Give next-step suggestions",
@@ -1131,6 +1133,7 @@ no liability whatsoever.`,
 	KeyCol3Confirm:                     "confirm tool(on|off)",
 	KeyCol3ToolTimeout:                 "tool timeout(0 ~ N sec)",
 	KeyCol3CmdTimeout:                  "cmd timeout(0 ~ N sec)",
+	KeyCol3DemoCmdTimeout:              "demo cmd timeout(0 ~ N sec)",
 	KeyCol3LLMTimeout:                  "LLM timeout(0 ~ N sec)",
 	KeyCol3Log:                         "log level(debug/info/warn/error/off)",
 	KeyCol3LLMInteractionLog:           "LLM interaction full log(on/off)",

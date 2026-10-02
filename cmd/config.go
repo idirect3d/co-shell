@@ -682,6 +682,23 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			h.cfg.LLM.CommandTimeout = 0
 			return i18n.TF(i18n.KeySettingsUpdated, "cmd-timeout", i18n.T(i18n.KeyUnlimited))
 		}},
+		{Name: "demo-cmd-timeout", CurrentValue: func() string {
+			n := h.cfg.LLM.DemoCommandTimeout
+			if n <= 0 {
+				return i18n.T(i18n.KeyUnlimited)
+			}
+			return strconv.Itoa(n) + "s"
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 {
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_355))
+			}
+			h.cfg.LLM.DemoCommandTimeout = n
+			return i18n.TF(i18n.KeySettingsUpdated, "demo-cmd-timeout", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.DemoCommandTimeout = 3
+			return i18n.TF(i18n.KeySettingsUpdated, "demo-cmd-timeout", "3")
+		}},
 		{Name: "llm-timeout", CurrentValue: func() string {
 			n := h.cfg.LLM.LLMTimeout
 			if n <= 0 {

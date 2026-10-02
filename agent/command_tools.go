@@ -520,3 +520,100 @@ func readLine(io UserIO) string {
 	}
 	return strings.TrimSpace(line)
 }
+
+// runDemoCommand executes the attempt_completion demo command and returns the
+// message appended to the completion report (FIX-581).
+//
+// Behaviour:
+//   - The command runs in its own process group, so a timeout can terminate the
+//     whole group (shell + pipe children + grandchildren, e.g. a stray --serve).
+//   - getDemoCommandTimeout() bounds the run; 0 means no timeout.
+//   - Only a timeout kills processes. When the command finishes on its own the
+//     pending kill is abandoned, so background children started by the command
+//     (e.g. `sleep 300 &`) keep running (FIX-320 rule).
+//   - The command's own exit is observed with cmd.Wait(), which does not wait
+//     for I/O because stdout/stderr are plain *os.File pipes. A background child
+//     that inherited the pipe therefore cannot block the wait, and it is NOT
+//     killed when the command finished on its own (the FIX-320 rule).
+func (a *Agent) runDemoCommand(ctx context.Context, command string) string {
+	timeout := a.getDemoCommandTimeout() // 0 = no timeout
+
+	shell, shellArg := shellCmd()
+	encodedCommand := encodeForShell(command)
+
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		log.Warn("attemptCompletion: cannot create pipe for demo command: %v", err)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, "")
+	}
+
+	cmd := exec.Command(shell, shellArg, encodedCommand)
+	setProcessGroupAttr(cmd)
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	if err := cmd.Start(); err != nil {
+		pw.Close()
+		pr.Close()
+		log.Warn("attemptCompletion: cannot start demo command: %v", err)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, "")
+	}
+	// Close the parent's copy of the write end: the reader only sees EOF once
+	// the command and every child holding the pipe are gone.
+	pw.Close()
+
+	var buf bytes.Buffer
+	ioDone := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, pr)
+		close(ioDone)
+	}()
+
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- cmd.Wait() }()
+
+	// An outer cancel (e.g. the user stopping the run) must terminate the whole
+	// group as well.
+	watchDone := make(chan struct{})
+	defer close(watchDone)
+	go func() {
+		select {
+		case <-ctx.Done():
+			killProcessGroup(cmd)
+		case <-watchDone:
+		}
+	}()
+
+	var waitErr error
+	timedOut := false
+	if timeout > 0 {
+		select {
+		case waitErr = <-waitDone:
+			// Finished before the timeout: nothing is killed, so background
+			// children started by the command keep running.
+		case <-time.After(timeout):
+			timedOut = true
+			log.Warn("Timeout kill: demo command timed out after %s, killing process group of PID %d: %s",
+				timeout, cmd.Process.Pid, command)
+			killProcessGroup(cmd)
+			waitErr = <-waitDone
+		}
+	} else {
+		waitErr = <-waitDone
+	}
+
+	// Stop waiting for output: closing the read end releases the copy goroutine
+	// even if a lingering child still holds the write end.
+	pr.Close()
+	<-ioDone
+
+	decoded := decodeToUTF8(buf.Bytes())
+	if timedOut {
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_784), int(timeout.Seconds()), strings.TrimSpace(decoded))
+	}
+	if waitErr != nil {
+		log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", waitErr, decoded)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), waitErr, decoded)
+	}
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_611), strings.TrimSpace(decoded))
+}
