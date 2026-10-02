@@ -4,6 +4,28 @@
 
 ---
 
+## v0.89.0 — render_ui 区块/窗口导出（Markdown 下载 + PDF 打印）
+
+> **版本**: v0.89.0
+
+> **状态**: 🚧 进行中（分支 FEATURE-580）
+> **里程碑**: 为 render_ui 渲染的**对话流区块**与**窗口（浮窗/面板）**增加导出能力：**Markdown 下载** + **PDF 打印**（浏览器打印 / 另存为 PDF），让用户可以对生成内容下载、保存与打印。Word（.docx）本轮暂缓，下一轮实现。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-580 | 0.89.0 | P1 | render_ui 导出：区块/窗口导出入口（MD 下载 + PDF 打印）、组件树→Markdown 转换、打印视图与打印样式、i18n、用例 |
+
+### 任务详情
+
+- [ ] **FEATURE-580 render_ui 区块/窗口导出（MD 下载 + PDF 打印）** [BUILD-1180]
+  - 需求（用户确认 2026-10-02）：① 入口覆盖**对话流区块 + 窗口（浮窗/面板）**；② 本轮交付 **PDF 打印导出 + Markdown 下载**，**Word 暂缓**（下一轮）；③ PDF 走**浏览器打印**（前端重建打印视图后 `window.print()`，零新增依赖，图表/figure/中文所见即所得）；④ 打印/导出顶部输出**页眉**（标题 + 导出时间 + co-shell 标识）。
+  - 方案：新增 `web/static/ui-export.js`（组件树→Markdown 转换 + 打印视图构建 + 导出入口注入 + 文档级事件委托）；`app.js:renderUIBlock` 为 `ui` 区块挂载导出入口并缓存原始树；`ui-windows.js` 为浮窗/面板窗口挂载导出入口并暴露窗口上下文（tree/title）；`index.html` 引入脚本并给窗口模板加按钮；`style.css` 增加按钮/菜单样式与 `@media print` 打印样式（打印时仅保留 `.ui-print-root`，`@page` 页边距）。
+  - 验收标准：① 区块与窗口均有导出入口，导出内容为该区块/窗口**完整内容**；② MD 下载为 UTF-8 `.md`，含页眉且组件语义完备（card/kv/table/chart/steps/callout/progress/row/col/form 等）；③ 打印视图仅输出导出内容（其余页面元素不打印）、含页眉、图表/figure 保真、可另存为 PDF 与直接打印；④ 中英文文案齐备；⑤ `node --check` 与 `go build ./... && go vet ./...` 通过；⑥ 浏览器运行时断言全绿；⑦ 提交在分支 FEATURE-580，用户确认后合并。
+  - 交付物：`web/static/ui-export.js` + `app.js`/`ui-windows.js`/`index.html`/`style.css` 改动 + `use-case/FEATURE-580/` 用例 + ROADMAP 记录。
+  - 验证（2026-10-02）[BUILD-1180]：① 15 条用例在浏览器运行时全部通过（`--serve --port 28261` + `browser_evaluate`，直调 `UIExport.treeToMarkdown` 做逐字比对、stub `window.print` 后断言打印视图 DOM 与 `afterprint` 清理）；② `node --check`（app.js/ui-windows.js/ui.js/ui-export.js）与 `go build ./... && go vet ./...` 通过；③ 新增 `web/feature580_test.go::TestFEATURE580ExportWiring` 通过；④ `go test ./web/ -short` 与 `main` 基线失败集**逐项一致**（19 项既有失败，零新增，对比方法见用例文档）；⑤ 用例修正 1 处：UC-0009 探针原用 `selectorText || cssText` 取不到声明文本，改为 `cssText`。证据见 `use-case/FEATURE-580/` 各文件「验收记录」。
+
+---
+
 ## v0.88.0 — token 优化 A+B+C+D1（历史 env 三级降级 / 同轮单份 env / env 瘦身 / 工具定义瘦身）
 
 > **版本**: v0.88.0

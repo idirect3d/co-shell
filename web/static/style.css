@@ -4034,6 +4034,7 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ui-window-export,
 .ui-window-max,
 .ui-window-close {
   border: 0;
@@ -4319,3 +4320,76 @@ select,
    anchor is built by md.js's pathLinkNodes (DOM nodes only, no innerHTML). */
 .md-path { color: var(--accent); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
 .md-path:hover { text-decoration: underline; }
+
+/* FEATURE-580: export entries for render_ui blocks and windows (Markdown
+   download / PDF print). The menu is a fixed-position popup anchored under the
+   button that opened it, so it never disturbs the surrounding layout. */
+.ui-export-btn { font-size: 12px; }
+.ui-export-menu {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.ui-export-item {
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-export-item:hover { background: var(--accent-dim); color: var(--accent); }
+
+/* The print container exists only between printTree() and afterprint, so it is
+   never visible on screen; and it is the only thing that reaches paper. */
+.ui-print-root { display: none; }
+
+@media print {
+  @page { margin: 14mm; }
+
+  /* Everything but the export container is hidden: app chrome, message blocks,
+     windows and overlays must never bleed into the sheet. */
+  body > *:not(.ui-print-root) { display: none !important; }
+
+  /* The sheet always uses the light paper palette, whatever theme the app is
+     showing -- a dark theme must not print as a black page. [data-theme] is a
+     plain attribute selector, so ui-export.js sets it on the container itself. */
+  .ui-print-root {
+    display: block !important;
+    background: #fff;
+    color: #111;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  }
+  .ui-print-head {
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #dcdcdc;
+  }
+  .ui-print-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #111; }
+  .ui-print-meta { font-size: 11px; color: #666; }
+
+  /* Interactive chrome has no meaning on paper, and a tall figure must not be
+     clipped by the on-screen viewport cap. */
+  .ui-print-root .ev-act,
+  .ui-print-root .ui-export-btn,
+  .ui-print-root .ui-fig-grip,
+  .ui-print-root .ui-figure-zoom,
+  .ui-print-root .ui-figure-download { display: none !important; }
+  .ui-print-root .ui-figure-viewport { max-height: none; overflow: visible; }
+
+  /* Keep the vector graphics' own colours instead of letting the browser drop
+     them as "background" decoration. */
+  .ui-print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

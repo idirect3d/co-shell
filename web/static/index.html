@@ -458,6 +458,7 @@
     <div id="uiPanel" class="ui-panel hidden" role="dialog" aria-label="task panel">
       <div class="ui-panel-head">
         <div class="ui-panel-tabs" id="uiPanelTabs"></div>
+        <button type="button" class="ui-panel-btn ui-panel-export" id="uiPanelExport" data-ui-export="window" title="导出">⤓</button>
         <button type="button" class="ui-panel-btn" id="uiPanelList" title="窗口列表">≡</button>
         <button type="button" class="ui-panel-btn" id="uiPanelFloat" title="收成浮窗">⇱</button>
         <button type="button" class="ui-panel-btn ui-panel-close" id="uiPanelClose" title="关闭">✕</button>
@@ -681,6 +682,7 @@
 <div id="uiWindow" class="ui-window hidden" role="dialog" aria-label="task window">
   <div class="ui-window-head">
     <span class="ui-window-title" id="uiWindowTitle"></span>
+    <button type="button" class="ui-window-export" id="uiWindowExport" data-ui-export="window" aria-label="export">⤓</button>
     <button type="button" class="ui-window-max" id="uiWindowMax" aria-label="maximize window">⛶</button>
     <button type="button" class="ui-window-close" id="uiWindowClose" aria-label="close window">✕</button>
   </div>
@@ -696,6 +698,11 @@
 <script src="static/ui-layout.js"></script>
 <script src="static/usage-pop.js"></script>
 <script src="static/app.js"></script>
+<!-- FEATURE-580: export entries (Markdown download / PDF print) for every
+     render_ui block and window. Loaded after app.js so renderUIBlock can call
+     UIExport.attachBlock, and before ui-windows.js so the window buttons are
+     live as soon as the registry opens a shell. -->
+<script src="static/ui-export.js"></script>
 <!-- FEATURE-571: multi-window registry + main-area panel. Loaded after app.js
      so it can wrap renderUIBlock/applyUIWindow and the UI window helpers. -->
 <script src="static/ui-windows.js"></script>

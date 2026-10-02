@@ -1705,6 +1705,12 @@ function renderUIBlock(ev) {
   } else {
     host.textContent = m.ui_id || "";
   }
+  // FEATURE-580: every rendered block carries its own export entry (Markdown
+  // download / PDF print) so the user can keep or print the whole content.
+  // The tree is the event meta's ui_tree, so the export never scrapes the DOM.
+  if (window.UIExport && typeof UIExport.attachBlock === "function") {
+    UIExport.attachBlock(body.closest(".ev"), m);
+  }
 }
 
 // applyUIUpdate replaces an already rendered component in place: the agent
