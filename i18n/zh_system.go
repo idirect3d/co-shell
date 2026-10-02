@@ -714,7 +714,7 @@ Usage:
 	zhMessages[KeySystemPromptSkillsLoadedTag] = "[已加载]"
 
 	zhMessages[KeyToolUsageSkillLoad] = `## skill_load
-Description: 把某个 skill 的 SKILL.md 全文加载进本次对话上下文，并固定（pinned）在上下文中——之后无论上下文如何压缩、裁剪或回退，正文都不会丢失或退化。当你要按某个 skill 的详细步骤做事时调用。已加载的技能再次加载会刷新内容。
+Description: 把某个 skill 的 SKILL.md 全文加载进本次对话上下文，并固定（pinned）在上下文中——之后无论上下文如何压缩、裁剪或回退，正文都不会丢失或退化。当你要按某个 skill 的详细步骤做事时调用。已加载的技能再次加载会刷新内容。**用完即卸**：该技能的任务完成或不再需要时，记得调用 skill_unload 释放上下文。
 Parameters:
 - meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 
@@ -729,7 +729,7 @@ Usage:
 </{XML_TAG_PREFIX}skill_load>`
 
 	zhMessages[KeyToolUsageSkillUnload] = `## skill_unload
-Description: 解除某个已加载 skill 的保护并把它从已加载集合中移除。注意：内容不会立即从上下文消失，而是在下一次上下文重整（reorganize）或裁剪时才被丢弃。
+Description: 解除某个已加载 skill 的保护并把它从已加载集合中移除。**技能的任务完成、中间产物用完或后续步骤不再需要它时，应及时调用本工具**，避免已加载内容长期占用上下文。注意：内容不会立即从上下文消失，而是在下一次上下文重整（reorganize）或裁剪时才被丢弃。
 Parameters:
 - meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 
@@ -1470,7 +1470,8 @@ SKILLS
 
 规则：
 - 加载：需要按某个技能的详细步骤做事时，调用 skill_load（参数 name）把其 SKILL.md 全文载入上下文；加载后的内容受保护，不会因上下文压缩、裁剪或回退而丢失。
-- 卸载：不再需要时调用 skill_unload（参数 name）解除保护；正文不会立即消失，将在下一次上下文重整（reorganize）或裁剪时被移除。
+- **卸载（用完即卸，默认要做的动作）**：已加载的技能会持续占用上下文，**一旦不再需要就应立即调用 skill_unload（参数 name）解除保护**——例如该技能对应的任务已完成、跨任务借用的中间产物已用完、或后续步骤不再依赖它的流程与规则。不要因为“后面可能还会用到”而长期保留；及时卸载是常规收尾动作而非例外（正文不会立即消失，而是在下一次上下文重整或裁剪时才被丢弃，因此越早卸载越早回收上下文）。
+- 交付前自检：回复用户前回看本轮与当前任务，若某个已加载技能的内容已不再参与后续推理，先 skill_unload 再交付。
 - 已加载的技能不要（也不必）再用 read_file 重复读取其 SKILL.md。
 - 在系统设置 Skills 页被禁用的技能不会出现在清单中，也无法加载。
 
