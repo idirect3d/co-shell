@@ -8,7 +8,7 @@
 
 > **版本**: v0.90.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-582）
+> **状态**: ✅ 已完成并合入 main（FEATURE-582 工具调用中断机制，v0.90.0 / BUILD-1183）
 > **里程碑**: 工具调用执行期间，用户的中断（Web UI ESC / 暂停按钮、TUI Ctrl+C）目前无效：命令类工具不响应取消上下文，中断信号要么无人接收、要么在命令运行期被让出。本版本建立**统一中断机制**：中断入口单点收敛、活动子进程注册表（整组 SIGTERM→SIGKILL）、工具以独立 goroutine 执行并“中断即返回”、ctx 传播到全部工具，覆盖 62 个已注册工具。方案见 `research/工具中断机制/工具调用中断机制方案.md`。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -17,7 +17,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-582 工具调用中断机制** [BUILD-1183]
+- [x] **FEATURE-582 工具调用中断机制** [BUILD-1183]
   - 需求（用户确认 2026-10-02）：Q1-A 中断即终止本轮回到输入态并丢弃未闭合 `tool_calls`；Q2-A 工具期间 Ctrl+C=中断、空闲=退出程序；Q3-A 工具期间 ESC/Web 暂停/TUI Ctrl+C 统一为“立即中断 + 杀子进程”且不弹确认框（LLM 输出阶段的 ESC 保留“暂停+确认”）；Q4-B 杀死所有由工具启动且仍在运行的进程组（含 detach 后台与 **sub-agent**）；Q5-A 一次性覆盖全部工具；Q6-B shell 持久会话直接整组 kill（会话需可 `shell_start` 重建）。
   - 方案：新增 `agent/interrupt.go`（`InterruptTool` + `ErrToolInterrupted`）与 `agent/proc_registry.go`（Register/KillActive/KillAll/Snapshot，复用 `setProcessGroupAttr`/`killProcessGroup`）；`run_stream.go` 改为工具在独立 goroutine 中执行、中断即返回（不 join）+ 在途登记与 5s 告警；`command_tools.go` 补 `ctx.Done()` 整组 kill；shell 会话整组 kill + 状态复位；sub-agent ctx 透传；浏览器/MCP/文档/视觉/文件搜索等逐个体检补齐可取消点；三出口接线（`web/session.go`、`repl/repl_esc.go`、`repl/repl.go` SIGINT 分层）。
   - 验收标准：① Web ESC / 暂停按钮、TUI Ctrl+C 在工具执行期间 ≤1s 内中断并杀死子进程组；② `detach` 后台与 sub-agent 一并清理（Q4-B）；③ 中断后消息序列闭合（无 `insufficient tool messages following tool_calls`）；④ 全工具审计矩阵逐项落地（每个工具至少一个可取消点或纳入在途告警）；⑤ `go build ./... && go vet ./...` 通过、新增测试全绿、与 main 基线失败集逐项一致；⑥ 提交在分支 FEATURE-582，用户确认后合并。
