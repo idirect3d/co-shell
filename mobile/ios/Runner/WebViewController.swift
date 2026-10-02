@@ -21,7 +21,11 @@ final class WebViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        // FIX-585: the launch screen is dark, so keep the web view loading phase
+        // dark as well — WKWebView defaults to an opaque white layer, which used
+        // to flash white between the launch screen and the hub page.
+        let loadingBackground = UIColor.black
+        view.backgroundColor = loadingBackground
 
         // Left: a refresh button to reload the hub page.
         navigationItem.leftBarButtonItem = UIBarButtonItem(
@@ -45,6 +49,9 @@ final class WebViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
 
         webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = loadingBackground
+        webView.scrollView.backgroundColor = loadingBackground
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false

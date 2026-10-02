@@ -1565,11 +1565,29 @@ iterationLoop:
 					case <-toolCtx.Done():
 						// Prefer a result that is already available (the tool may have
 						// finished at the same instant); otherwise abort the turn.
+						got := false
 						select {
 						case out := <-resCh:
 							result, execErr = out.result, out.err
 							stopInFlight()
+							got = true
 						default:
+						}
+						// FIX-585: the tool context is cancelled both by a user
+						// interrupt and by the tool timeout (context.WithTimeout in
+						// executeToolCall). A plain timeout is not an interrupt: give
+						// the tool a short grace period to return its own timeout
+						// error so the round survives and the LLM can react.
+						if !got && isTimeoutCancel(toolCtx) && !a.IsInterrupted() {
+							select {
+							case out := <-resCh:
+								result, execErr = out.result, out.err
+								stopInFlight()
+								got = true
+							case <-time.After(toolTimeoutGrace):
+							}
+						}
+						if !got {
 							interruptAborted = true
 						}
 					}

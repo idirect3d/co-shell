@@ -12,6 +12,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -46,6 +47,24 @@ func (e *interruptedToolError) Is(target error) bool { return target == ErrToolI
 // newToolInterruptedError builds the typed interrupt error for a tool.
 func newToolInterruptedError(tool, reason string) error {
 	return &interruptedToolError{Tool: tool, Reason: reason}
+}
+
+// toolTimeoutGrace is how long the run loop waits for a tool to report its own
+// error after the tool-timeout deadline cancelled the tool context (FIX-585).
+// The tool kills its process group and returns promptly, so the wait is short;
+// it must stay bounded because a tool that ignores its context would otherwise
+// block the loop.
+const toolTimeoutGrace = 2 * time.Second
+
+// isTimeoutCancel reports whether ctx was cancelled by the tool timeout
+// (context.WithTimeout set up in executeToolCall) rather than by a user
+// interrupt (InterruptTool) or an explicit Cancel.
+//
+// FEATURE-582 routes both a user interrupt and a tool timeout through the same
+// cancelled context, which made a timeout look like "interrupted by user"; the
+// deadline error is the only signal that tells them apart (FIX-585).
+func isTimeoutCancel(ctx context.Context) bool {
+	return ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)
 }
 
 // interruptWatchdogDelay is how long after an interrupt the watchdog waits

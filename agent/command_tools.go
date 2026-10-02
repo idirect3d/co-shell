@@ -287,17 +287,28 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		// Detach mode: race cmd.Wait() against the timeout signal.
 		waitCh := make(chan error, 1)
 		go func() { waitCh <- cmd.Wait() }()
+		detached := false
 		select {
 		case err = <-waitCh:
 			close(done)
 		case <-ctx.Done():
-			// FEATURE-582 Q4-B: an interrupt terminates a detached group too.
-			interrupted = true
-			log.Warn("Interrupt: killing detached process group of PID %d: %s", cmd.Process.Pid, command)
-			killProcessGroup(cmd)
-			err = <-waitCh
-			close(done)
+			if isTimeoutCancel(ctx) && !a.IsInterrupted() {
+				// FIX-585: the tool timeout cancels the same context as a user
+				// interrupt. In detach mode a timeout must leave the process
+				// running (FEATURE-355), exactly like the detachCh branch.
+				detached = true
+			} else {
+				// FEATURE-582 Q4-B: an interrupt terminates a detached group too.
+				interrupted = true
+				log.Warn("Interrupt: killing detached process group of PID %d: %s", cmd.Process.Pid, command)
+				killProcessGroup(cmd)
+				err = <-waitCh
+				close(done)
+			}
 		case <-detachCh:
+			detached = true
+		}
+		if detached {
 			// Timeout in detach mode: stop waiting, leave the process running.
 			// A reaper goroutine finishes Wait/close/release in the background.
 			go func() {
@@ -331,8 +342,17 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		select {
 		case err = <-waitCh:
 		case <-ctx.Done():
-			interrupted = true
-			log.Warn("Interrupt: killing process group of PID %d: %s", cmd.Process.Pid, command)
+			if isTimeoutCancel(ctx) && !a.IsInterrupted() {
+				// FIX-585: a plain tool timeout is not a user interrupt: kill the
+				// process group but report a timeout error below so the run loop
+				// keeps the round instead of discarding it.
+				timedOut.Store(true)
+				log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
+					cmd.Process.Pid, effectiveTimeout, command)
+			} else {
+				interrupted = true
+				log.Warn("Interrupt: killing process group of PID %d: %s", cmd.Process.Pid, command)
+			}
 			killProcessGroup(cmd)
 			err = <-waitCh
 		}
@@ -480,9 +500,17 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	select {
 	case err = <-waitCh:
 	case <-ctx.Done():
-		// FEATURE-582: kill the whole process group, then reap the command.
-		interrupted = true
-		log.Warn("Interrupt: killing direct command process group of PID %d: %s", cmd.Process.Pid, command)
+		if isTimeoutCancel(ctx) && !a.IsInterrupted() {
+			// FIX-585: same as execute_command — a tool timeout is not a user
+			// interrupt; report the timeout below and keep the round.
+			timedOut.Store(true)
+			log.Warn("Timeout kill: killing direct command process group of PID %d after %ds timeout: %s",
+				cmd.Process.Pid, timeoutSec, command)
+		} else {
+			// FEATURE-582: kill the whole process group, then reap the command.
+			interrupted = true
+			log.Warn("Interrupt: killing direct command process group of PID %d: %s", cmd.Process.Pid, command)
+		}
 		killProcessGroup(cmd)
 		err = <-waitCh
 	}
