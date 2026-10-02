@@ -255,6 +255,11 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 	}
 
 	err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		// FEATURE-582: a directory walk can take seconds on a large tree; abort
+		// as soon as the run is interrupted instead of finishing it.
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
 		if err != nil {
 			return nil // skip inaccessible files
 		}
@@ -398,13 +403,17 @@ type listFilesForPromptResult struct {
 // depth controls recursion: 0 = top-level only, 1 = one level deep, etc.
 // -1 means unlimited recursion. maxEntries limits the number of items returned.
 // When maxEntries <= 0, no truncation is applied (returns all entries).
-func listFilesForPrompt(dirPath string, depth int, maxEntries int) listFilesForPromptResult {
+func listFilesForPrompt(ctx context.Context, dirPath string, depth int, maxEntries int) listFilesForPromptResult {
 	var result strings.Builder
 	var count int
 	unlimited := maxEntries <= 0
 
 	if depth < 0 || depth > 0 {
 		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			// FEATURE-582: abort the walk once the run is interrupted.
+			if cerr := ctx.Err(); cerr != nil {
+				return cerr
+			}
 			if err != nil {
 				return nil
 			}
@@ -534,14 +543,14 @@ func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) 
 		maxEntries = a.cfg.LLM.ListMaxItems
 	}
 
-	res := listFilesForPrompt(dirPath, depth, maxEntries)
+	res := listFilesForPrompt(ctx, dirPath, depth, maxEntries)
 	if res.listing == "" {
 		return "", fmt.Errorf("cannot read directory %q", dirPath)
 	}
 
 	if res.truncated {
 		// Save the full listing to a .md file under workspace tmp/
-		fullRes := listFilesForPrompt(dirPath, depth, -1) // unlimited
+		fullRes := listFilesForPrompt(ctx, dirPath, depth, -1) // unlimited
 		dirName := filepath.Base(dirPath)
 		if dirName == "." || dirName == "" {
 			dirName = "root"

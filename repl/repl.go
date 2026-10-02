@@ -301,15 +301,25 @@ func (r *REPL) Run() error {
 	done := make(chan struct{})
 
 	go func() {
-		select {
-		case <-sigCh:
-			if r.decorationsOn() {
-				r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+		for {
+			select {
+			case <-sigCh:
+				// FEATURE-582 Q2-A/Q3-A: while a tool is running, SIGINT
+				// (Ctrl+C in cooked mode, i.e. during a system command)
+				// interrupts the tool and kills its process groups instead
+				// of exiting the program. An idle prompt keeps exiting.
+				if ag := r.agent; ag != nil && ag.IsToolRunning() {
+					ag.InterruptTool("sigint")
+					continue
+				}
+				if r.decorationsOn() {
+					r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+				}
+				r.cleanup()
+				os.Exit(0)
+			case <-done:
+				return
 			}
-			r.cleanup()
-			os.Exit(0)
-		case <-done:
-			return
 		}
 	}()
 

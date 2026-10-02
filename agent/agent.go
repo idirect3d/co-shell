@@ -71,6 +71,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 		excelSessionMgr: newExcelSessionManager(),
 		docxSessionMgr:  newDocxSessionManager(),
 		supervisorState: newSupervisorState(),
+		procReg:         newProcRegistry(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -81,6 +82,11 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 	// Every sub-agent that finishes on its own (success or failure) must reach
 	// this agent, even when the user is not interacting (FEATURE-566).
 	ag.subAgentMgr.SetCompletionNotifier(ag.onSubAgentCompleted)
+	// FEATURE-582 Q4-B: register every sub-agent process group so a user
+	// interrupt terminates the sub-agent children as well.
+	ag.subAgentMgr.SetProcRegistrar(func(id, command string, pid int) func() {
+		return ag.procReg.RegisterPID("launch_sub_agent", "sub-agent "+id, pid, false)
+	})
 	return ag
 }
 
@@ -1999,6 +2005,9 @@ func (a *Agent) ResetCancel() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.cancelCh = make(chan struct{}, 1)
+	// FEATURE-582: clear the interrupt state so a new turn starts clean.
+	a.interrupted.Store(false)
+	a.interruptReason = ""
 	// Cancel the old cancelCtx if it exists, then create a fresh one
 	if a.cancelFunc != nil {
 		a.cancelFunc()

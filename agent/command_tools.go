@@ -220,6 +220,12 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
+	// FEATURE-582: register the process group so a user interrupt can terminate
+	// it even when this tool never observes the context cancellation itself.
+	// unregister is idempotent; in detach mode the entry stays registered until
+	// the process really exits (Q4-B: an interrupt kills detached groups too).
+	unregister := a.procReg.Register("execute_command", command, cmd, detachMode)
+
 	// timedOut flag indicates whether the timeout goroutine fired.
 	// This distinguishes a real timeout from a normal ExitError (e.g. exit code 1)
 	// so we don't misreport the latter as a timeout. FIX-284.
@@ -276,12 +282,20 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	}
 
 	var err error
+	interrupted := false
 	if detachMode && effectiveTimeout > 0 {
 		// Detach mode: race cmd.Wait() against the timeout signal.
 		waitCh := make(chan error, 1)
 		go func() { waitCh <- cmd.Wait() }()
 		select {
 		case err = <-waitCh:
+			close(done)
+		case <-ctx.Done():
+			// FEATURE-582 Q4-B: an interrupt terminates a detached group too.
+			interrupted = true
+			log.Warn("Interrupt: killing detached process group of PID %d: %s", cmd.Process.Pid, command)
+			killProcessGroup(cmd)
+			err = <-waitCh
 			close(done)
 		case <-detachCh:
 			// Timeout in detach mode: stop waiting, leave the process running.
@@ -293,6 +307,7 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 				if cmd.Process != nil {
 					cmd.Process.Release()
 				}
+				unregister()
 			}()
 			a.SetCommandRunning(false)
 			a.onCommandEnd()
@@ -308,9 +323,22 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 				effectiveTimeout, pid, logPath, logPath, pid, strings.TrimSpace(out)), nil
 		}
 	} else {
-		err = cmd.Wait()
+		// Wait for the command while staying responsive to an interrupt
+		// (FEATURE-582): on context cancellation kill the whole process group
+		// and reap the command, then report the interrupt below.
+		waitCh := make(chan error, 1)
+		go func() { waitCh <- cmd.Wait() }()
+		select {
+		case err = <-waitCh:
+		case <-ctx.Done():
+			interrupted = true
+			log.Warn("Interrupt: killing process group of PID %d: %s", cmd.Process.Pid, command)
+			killProcessGroup(cmd)
+			err = <-waitCh
+		}
 		close(done)
 	}
+	unregister()
 	a.SetCommandRunning(false)
 	// Re-enter raw mode (via the registered CommandHooks) now that the command
 	// has finished reading from stdin.
@@ -326,6 +354,12 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	}
 
 	decoded := readOutput()
+	if interrupted {
+		// FEATURE-582: report the interrupt distinctly from a timeout or a normal
+		// failure so the run loop can discard the round instead of feeding the
+		// error back to the LLM.
+		return strings.TrimSpace(decoded), newToolInterruptedError("execute_command", "user")
+	}
 	if err != nil {
 		// Check for timeout — only report as timeout if the timeout goroutine
 		// killed the process. A normal ExitError (e.g. exit code 1) is not a
@@ -405,6 +439,14 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
+	// FEATURE-582: register the process group and honour the agent's cancel
+	// context so an interrupt terminates the command immediately.
+	unregister := a.procReg.Register("execute_command", command, cmd, false)
+	ctx := a.CancelContext()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// timedOut flag distinguishes a real timeout from a normal ExitError,
 	// mirroring executeSystemCommand (FIX-284).
 	var timedOut atomic.Bool
@@ -431,8 +473,21 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 		}()
 	}
 
-	err := cmd.Wait()
+	var err error
+	interrupted := false
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- cmd.Wait() }()
+	select {
+	case err = <-waitCh:
+	case <-ctx.Done():
+		// FEATURE-582: kill the whole process group, then reap the command.
+		interrupted = true
+		log.Warn("Interrupt: killing direct command process group of PID %d: %s", cmd.Process.Pid, command)
+		killProcessGroup(cmd)
+		err = <-waitCh
+	}
 	close(done)
+	unregister()
 	a.SetCommandRunning(false)
 	// Re-enter raw mode (via the registered CommandHooks) now that the command
 	// has finished reading from stdin.
@@ -443,6 +498,9 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	}
 
 	decoded := decodeToUTF8(buf.Bytes())
+	if interrupted {
+		return strings.TrimSpace(decoded), newToolInterruptedError("execute_command", "user")
+	}
 	if err != nil {
 		if timedOut.Load() && isSignaledExit(err) {
 			log.Warn("Direct command timed out: %s", command)
@@ -562,6 +620,11 @@ func (a *Agent) runDemoCommand(ctx context.Context, command string) string {
 	// the command and every child holding the pipe are gone.
 	pw.Close()
 
+	// FEATURE-582: register the demo command's process group so an interrupt
+	// terminates the whole group together with every other tool child.
+	unregister := a.procReg.Register("attempt_completion", command, cmd, false)
+	defer unregister()
+
 	var buf bytes.Buffer
 	ioDone := make(chan struct{})
 	go func() {
@@ -574,16 +637,17 @@ func (a *Agent) runDemoCommand(ctx context.Context, command string) string {
 
 	// An outer cancel (e.g. the user stopping the run) must terminate the whole
 	// group as well.
+	var interrupted atomic.Bool
 	watchDone := make(chan struct{})
 	defer close(watchDone)
 	go func() {
 		select {
 		case <-ctx.Done():
+			interrupted.Store(true)
 			killProcessGroup(cmd)
 		case <-watchDone:
 		}
 	}()
-
 	var waitErr error
 	timedOut := false
 	if timeout > 0 {
@@ -608,6 +672,11 @@ func (a *Agent) runDemoCommand(ctx context.Context, command string) string {
 	<-ioDone
 
 	decoded := decodeToUTF8(buf.Bytes())
+	if interrupted.Load() {
+		// FEATURE-582: the user interrupted the completion demo command; the
+		// run loop discards the round, so a concise notice is enough.
+		return i18n.T(i18n.KeyInterruptToolNotice)
+	}
 	if timedOut {
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_784), int(timeout.Seconds()), strings.TrimSpace(decoded))
 	}

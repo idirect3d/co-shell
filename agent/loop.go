@@ -35,6 +35,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/idirect3d/co-shell/browser"
@@ -380,6 +381,9 @@ type Agent struct {
 	shellSession     *shell.Session
 	shellEnabled     bool   // whether persistent shell tools are enabled
 	shellSessionMode string // "confirm" or "auto" - user confirmation mode
+	// shellUnregister removes the shell session's process group from the
+	// interrupt registry (FEATURE-582 Q6-B); nil when no session is registered.
+	shellUnregister func()
 
 	// Browser automation via CDP (FEATURE-200)
 	chromeMgr             *browser.ChromeManager
@@ -407,6 +411,21 @@ type Agent struct {
 	cancelCh   chan struct{}      // signals immediate cancellation
 	cancelCtx  context.Context    // parent context for tool execution (canceled on Ctrl+C)
 	cancelFunc context.CancelFunc // cancel function for cancelCtx
+
+	// FEATURE-582: tool-call interrupt state. interrupted is set by
+	// InterruptTool (Web ESC/pause, TUI ESC/Ctrl+C, SIGINT) so RunStream can
+	// tell a user interrupt apart from a tool failure; interruptReason carries
+	// the origin for logs.
+	interrupted     atomic.Bool
+	interruptReason string
+
+	// FEATURE-582: registry of child process groups started by tools, used to
+	// terminate every one of them on interrupt.
+	procReg *ProcRegistry
+
+	// FEATURE-582: in-flight tool executions and their watchdog sequence ids.
+	inFlight    map[int64]string
+	inFlightSeq int64
 
 	// debugMode: when enabled, displays messages to be sent to LLM on the prompt
 	// line for review and editing before sending.

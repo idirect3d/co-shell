@@ -468,6 +468,49 @@ func (s *Session) IsRunning() bool {
 	return s.started && !s.closed
 }
 
+// PID returns the shell process id, or 0 when no session is started.
+func (s *Session) PID() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cmd != nil && s.cmd.Process != nil {
+		return s.cmd.Process.Pid
+	}
+	return 0
+}
+
+// MarkTerminated resets the session after its process was terminated from the
+// outside (FEATURE-582 Q6-B: an interrupt kills the whole session process
+// group). The session is left in a clean "not started" state so a later
+// shell_start can rebuild it.
+func (s *Session) MarkTerminated() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.stdin != nil {
+		_ = s.stdin.Close()
+		s.stdin = nil
+	}
+	if s.stdout != nil {
+		_ = s.stdout.Close()
+		s.stdout = nil
+	}
+	if s.logFile != nil {
+		_ = s.logFile.Close()
+		s.logFile = nil
+	}
+	if s.started && s.stopRead != nil {
+		select {
+		case <-s.stopRead:
+		default:
+			close(s.stopRead)
+		}
+	}
+	s.cmd = nil
+	s.started = false
+	s.closed = false
+	log.Info("Persistent shell session terminated by interrupt; shell_start can rebuild it")
+}
+
 func (s *Session) Status() *Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()

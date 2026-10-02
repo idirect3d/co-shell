@@ -1136,6 +1136,11 @@ const (
 	// FIX-581: attempt_completion demo command timeout notice
 	KeySettingCmd_784 = "setting_cmd_784"
 
+	// FEATURE-582: tool-call interrupt notices
+	KeyInterruptToolNotice    = "interrupt_tool_notice"
+	KeyInterruptToolKilled    = "interrupt_tool_killed"
+	KeyInterruptShellTerminal = "interrupt_shell_terminated"
+
 	// FEATURE-524: UI component/window rendering switches (ui_enabled and
 	// ui_context_prune), exposed in the Web settings panel (Agent group).
 	KeySettingUIEnabledStatus      = "setting_ui_enabled_status"

@@ -37,6 +37,35 @@ import (
 	"github.com/idirect3d/co-shell/shell"
 )
 
+// releaseShellRegistration drops the persistent shell session from the
+// interrupt process registry (FEATURE-582).
+func (a *Agent) releaseShellRegistration() {
+	if a.shellUnregister != nil {
+		a.shellUnregister()
+		a.shellUnregister = nil
+	}
+}
+
+// markShellSessionTerminated resets the persistent shell session when an
+// interrupt terminated its process group (FEATURE-582 Q6-B), so a later
+// shell_start can rebuild it.
+func (a *Agent) markShellSessionTerminated(killed []ProcEntry) {
+	if a.shellSession == nil {
+		return
+	}
+	pid := a.shellSession.PID()
+	if pid <= 0 {
+		return
+	}
+	for _, e := range killed {
+		if e.PID == pid {
+			a.shellSession.MarkTerminated()
+			a.shellUnregister = nil
+			return
+		}
+	}
+}
+
 // shellStartTool starts a persistent interactive shell session.
 // This creates a long-running shell process that maintains state (cd, env vars, etc.)
 // across multiple command executions. Returns the session status.
@@ -52,6 +81,9 @@ func (a *Agent) shellStartTool(ctx context.Context, args map[string]interface{})
 		}
 		a.shellSession = nil
 	}
+	// FEATURE-582: drop the old session's interrupt registration, then start
+	// the new session below (which registers its own process group).
+	a.releaseShellRegistration()
 
 	// Create and start a new session with virtual terminal
 	sess := &shell.Session{}
@@ -65,6 +97,11 @@ func (a *Agent) shellStartTool(ctx context.Context, args map[string]interface{})
 	}
 
 	a.shellSession = sess
+	// FEATURE-582 Q6-B: register the session process group so an interrupt
+	// terminates it; the session is marked terminated afterwards.
+	if pid := sess.PID(); pid > 0 {
+		a.shellUnregister = a.procReg.RegisterPID("shell_start", "persistent shell session", pid, false)
+	}
 
 	result, _ := json.Marshal(map[string]interface{}{
 		"status":      "started",
@@ -93,6 +130,11 @@ func (a *Agent) shellSendTool(ctx context.Context, args map[string]interface{}) 
 
 	if a.shellSession == nil {
 		return "", fmt.Errorf("no persistent shell session is active. Use shell_start to start one first")
+	}
+	if !a.shellSession.IsRunning() {
+		// FEATURE-582 Q6-B: the session was terminated by an interrupt; tell the
+		// caller to rebuild it with shell_start instead of failing obscurely.
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyInterruptShellTerminal))
 	}
 
 	command, ok := args["command"].(string)

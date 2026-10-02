@@ -29,6 +29,7 @@
 package agent
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 	"unsafe"
@@ -194,4 +195,19 @@ func setProcessGroupAttr(cmd *exec.Cmd) {
 // On Windows, process.Kill() terminates the process and its children.
 func killProcessGroup(cmd *exec.Cmd) {
 	cmd.Process.Kill()
+}
+
+// terminateProcessGroup terminates the process whose PID matches pgid.
+// Windows has no process-group concept; the leader PID is used (FEATURE-582).
+func terminateProcessGroup(pgid int) {
+	if p, err := os.FindProcess(pgid); err == nil {
+		_ = p.Kill()
+	}
+}
+
+// killProcessGroupByID terminates the process whose PID matches pgid.
+func killProcessGroupByID(pgid int) {
+	if p, err := os.FindProcess(pgid); err == nil {
+		_ = p.Kill()
+	}
 }
