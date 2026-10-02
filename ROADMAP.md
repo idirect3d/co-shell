@@ -8,7 +8,7 @@
 
 > **版本**: v0.88.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-579，基于 main v0.87.0）
+> **状态**: ✅ 已合并 main（tag `v0.88.0`，分支 FEATURE-579，BUILD-1179）
 > **里程碑**: 按 `research/token优化设计方案.md` 实施 A/B/C/D1 四项优化，压缩多轮迭代中「纯 env + 工具定义」的固定开销：**A** 历史 env 三级降级（L0 完整 / L1 精简 / L2 极简）、**B** 同轮多工具只注入一份完整 env、**C** env 内部瘦身（board_agents 精简 + current_dir/tools/research 变更检测 + runtime_info 仅首条/变化时输出）、**D1** 工具定义瘦身（meta 说明压缩、描述去重、`read_file_max_size` 上限）。**D2 分组懒加载本期不做**。9 项开关默认开启且**关闭即现状行为**。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -17,7 +17,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-579 token 优化 A/B/C+D1 实现**（分支 FEATURE-579，v0.88.0，待用户确认用例后开工）
+- [x] **FEATURE-579 token 优化 A/B/C+D1 实现**（已完成，已合并 main + tag `v0.88.0`，[BUILD-1179]）
   - 范围（用户确认 2026-10-02）：一次做完 **A+B+C+D1**，含 9 项开关与设置界面、2 项默认值变更；**D2 分组懒加载本期不做**。
   - 9 项开关（默认开启，关闭即现状行为）：`env_history_prune` / `env_history_full_keep=1` / `env_history_lite_keep=1` / `env_tool_batch_single` / `env_board_roster_brief` / `env_dir_change_detect` / `env_runtime_info_once` / `tool_desc_compact` / `tool_lazy_load`（`0` 表示不限：`full_keep=0` 等于关闭降级）。
   - 默认值变更：`read_file_max_size` 0→65536（与 `tool_result_max_size` 对齐）；`context_reorganize_threshold` 代码默认 80→92（`config.json` 现为 90，同步）。
