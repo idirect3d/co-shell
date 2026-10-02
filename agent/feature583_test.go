@@ -112,10 +112,18 @@ func TestFeature583UC0001SkillLoadSuccess(t *testing.T) {
 	if body != demoSkillBody {
 		t.Errorf("pinned body mismatch:\ngot  %q\nwant %q", body, demoSkillBody)
 	}
-	// ④ metadata + resources.
-	for _, want := range []string{"demo", "workspace", "helper.py", path} {
+	// ④ name + right-aligned source label + bundled resources.
+	// FIX-587: the header no longer carries the SKILL.md path, the size/token
+	// estimate or the sha256 prefix, so only the name, the localized source
+	// label and the resource list are asserted here.
+	for _, want := range []string{"demo", i18nT(i18n.KeySkillSrcWorkspace), "helper.py"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("result misses %q:\n%s", want, out)
+		}
+	}
+	for _, banned := range []string{"sha256:", path, "tokens"} {
+		if strings.Contains(out, banned) {
+			t.Errorf("FIX-587: result must not carry %q:\n%s", banned, out)
 		}
 	}
 	// ② the tail is a pinned assistant/tool pair.

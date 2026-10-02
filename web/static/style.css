@@ -1251,7 +1251,9 @@ aside {
 .subagent-item .sa-prog { flex: 0 0 auto; }
 
 /* FEATURE-583: loaded-skills list, shown below the sub-agent list in the same
-   panel. One line per skill: name, source, SKILL.md size, sha256 prefix. */
+   panel. One line per skill: name, source. FIX-587: the SKILL.md size and the
+   sha256 prefix were dropped (they squeezed the name) — the row tooltip now
+   shows the skill description. */
 .skill-head { margin-top: 4px; border-top: 1px solid var(--line, rgba(255,255,255,.12)); }
 .skill-head .ico { margin-right: 6px; }
 .skill-body { flex: 0 0 auto; max-height: 32%; overflow: auto; padding: 6px 12px 12px; }
@@ -1266,10 +1268,8 @@ aside {
   line-height: 1.7;
   color: var(--fg-dim);
 }
-.skill-item .sk-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
-.skill-item .sk-src { flex: 0 0 auto; color: var(--accent); }
-.skill-item .sk-size { flex: 0 0 auto; }
-.skill-item .sk-sha { flex: 0 0 auto; color: var(--fg-faint); }
+.skill-item .sk-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
+.skill-item .sk-src { flex: 0 0 auto; margin-left: auto; color: var(--accent); }
 
 /* Plan title and step first lines stand out in plain foreground (white);
    continuation lines of a step stay dim (FEATURE-369). */
