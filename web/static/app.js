@@ -4935,9 +4935,28 @@ function backfillInput(msgs) {
   input.focus();
 }
 
+// FIX-590: with field-sizing support the engine sizes the composer to its own
+// content, so no JavaScript measurement is needed at all - the old per-keystroke
+// read of scrollHeight was a forced synchronous layout on every keystroke (and
+// therefore on every IME update). Engines without support keep the fallback
+// below, coalesced to at most one measurement per animation frame.
+const COMPOSER_FIELD_SIZING = typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
+let composerGrowRaf = 0;
+
 function autoGrow() {
+  if (COMPOSER_FIELD_SIZING) return;
+  if (composerGrowRaf) return;
+  composerGrowRaf = requestAnimationFrame(() => {
+    composerGrowRaf = 0;
+    growComposer();
+  });
+}
+
+// growComposer measures the content height directly (FEATURE-405: +6px
+// increment, 150px cap). It is only used when field-sizing is unavailable.
+function growComposer() {
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight + 6, 150) + "px"; // FEATURE-405: +6px increment, 150px cap
+  input.style.height = Math.min(input.scrollHeight + 6, 150) + "px";
 }
 
 /* ---------- merged send / interrupt button (FEATURE-369) ---------- */

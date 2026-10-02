@@ -25,9 +25,11 @@
   - 需求（用户 2026-10-03）：输入框打字与输入法输入很慢、输入时 CPU 很高；空闲时也卡。
   - 决议：任务号 FIX-590，版本 v0.91.6（patch+1）；范围 = D1 + D2 + A + B（用户选定；E `updateBlockNav` 节流与 F 历史回放分帧暂不做）。
   - 实施：① D1：`scheduleMd` 分档节流（≤4KB 每帧 / >4KB 100ms / >32KB 330ms），并新增 `flushPendingMd` 保证尾块必渲染；② D2：`noteInputActivity`/`inputQuiet` 输入与输入法期间让路（input 事件、keydown、compositionstart 均登记），结束后延时补渲染；③ A：`.ev{content-visibility:auto;contain-intrinsic-size:auto 300px}` + `.ev:last-child{content-visibility:visible}`（最后一块保持完整布局，滚动跟随与 `scrollHeight` 不变）；④ B：新增 `streamWindowMaxChars`（默认 2000000，设置项 `stream-window-max-chars`，config/cmd/i18n 全链）参与驱逐，裁剪改用「存活组首块锚点」补偿不再读两次 `scrollHeight`，`updateBlockNav` 延至下一帧；⑤ 空闲清理：`clearStreamingMarks` 在 await_input/done/断连时清除 `.ev-head.streaming` 呼吸动画。
+  - 追加（本会话续做，用户「按以上方案继续改进」）：⑥ `#input` 改 CSS `field-sizing: content`（`@supports` 门控 + 保留 `max-height:150px; overflow-y:auto`），`autoGrow()` 在支持时**短路返回**（不再设内联 height、不再读 `scrollHeight`），不支持时回退到 rAF 合并的 `growComposer()`，微底消除输入框的每键强制布局。
   - 验收标准：见 `use-case/FIX-590/`。
   - 交付物：`web/static/app.js`、`web/static/style.css`、`config/config.go`、`cmd/settings_web.go`、`cmd/settings_display.go`、`cmd/settings.go`、`i18n/{keys,zh,en}.go`、`use-case/FIX-590/`。
   - 完成情况：✅ 已完成（分支 FIX-590，待用户验收）[BUILD-1195]
+    - 追加项实测（field-sizing，隔离实例 + 浏览器插桩）：`COMPOSER_FIELD_SIZING=true`；`#input` 计算样式 `field-sizing:content` / `max-height:150px` / `overflow-y:auto`；**15 个输入法按键的 `scrollHeight` 读取 = 0 次**（改前 15 次）；高度行为：单行 34px → 3 行 82px → 内容超长 150px（封顶 + 内部滚动）→ 清空回落 34px；无内联 height；`use-case/FIX-590/FIX-590-UC-0003.md`。
     - 实测（隔离实例 28279 + 调试浏览器）：渲染档位 `[0, 100, 330]ms`、默认上限 `2,000,000` 字符；**输入法期间 200 次 chunk 调度仅 0.2ms、`mdRender` 调用 0 次**，`compositionend` 后补渲染 **1 次**；`.ev` 计算样式 `content-visibility:auto` / `contain-intrinsic-size:auto 300px`，最后一块为 `visible`；重 DOM 下「追加 + 强制布局」0.4ms；文本上限驱逐生效（cap=3000 时收敛到 4,515 字符 / 5 组）；无残留 `.ev-head.streaming`。
     - 对照基准（改前）：`scheduleMd` 每帧全文重渲染 2KB→2.3ms、10KB→2.7ms、50KB→7.8ms、**200KB→29.7ms/帧**；强制布局随文本量线性增长（1MB→66ms、20MB→2.21s）。
     - 产物：`work/co-shell-0.91.6.darwin.arm64`、`work/co-shell-hub-0.91.6.darwin.arm64`（0.91.6 / BUILD-1195）。

@@ -1738,6 +1738,15 @@ button.qs-kbd:active { transform: translateY(1px); }
   max-height: 150px; /* FEATURE-405: raise cap 120->150px */
 }
 #input:focus { border-color: var(--accent); }
+
+/* FIX-590: modern engines can size the composer to its own content, so typing
+   no longer needs a JS height measurement - which was a forced synchronous
+   layout on every keystroke (and therefore on every IME update). Engines
+   without support keep the JS fallback (autoGrow); the 150px cap and the inner
+   scrolling then come from the same max-height/overflow rules below. */
+@supports (field-sizing: content) {
+  #input { field-sizing: content; height: auto; max-height: 150px; overflow-y: auto; }
+}
 /* Placeholder hint stays dim so it never outshines the real input text. */
 #input::placeholder { color: var(--placeholder); opacity: 1; }
 
