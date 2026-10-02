@@ -73,6 +73,7 @@ const I18N = {
     statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
+    treeLoading: "加载中…",
     sessionDelete: "删除会话",
     sessionSwitchBusy: "任务运行中，无法切换会话",
     sessionActive: "当前会话",
@@ -181,6 +182,7 @@ const I18N = {
     statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
+    treeLoading: "Loading…",
     sessionDelete: "Delete session",
     sessionSwitchBusy: "A task is running — cannot switch sessions",
     sessionActive: "Current session",
@@ -5013,6 +5015,10 @@ input.addEventListener("click", () => {
 // so a refresh (manual, after upload, or on done) preserves each folder's
 // open/collapsed state instead of collapsing everything.
 const expandedDirs = new Set();
+// FIX-589: relative path -> { ul, node } of every directory row currently in
+// the DOM. loadTree() rebuilds the sidebar from the root level only and then
+// refills the expanded directories through this map (parents first).
+const treeDirRows = new Map();
 
 // FEATURE-515: pending timer for the "hover a long name for 1s" sidebar
 // auto-expand; cleared when the pointer leaves the row before it fires.
@@ -5114,11 +5120,19 @@ async function loadTree() {
     const resp = await fetch("api/tree");
     const root = await resp.json();
     tree.textContent = "";
+    // FIX-589: the sidebar is rebuilt from the root level only, so the map of
+    // directory rows has to be rebuilt with it.
+    treeDirRows.clear();
     const ul = document.createElement("ul");
     // First level shows the workspace root folder itself, so the most
     // salient feature (the workspace name) is visible at a glance.
     ul.appendChild(treeNode(root));
     tree.appendChild(ul);
+    // FIX-589: reopen the directories the user had expanded. Their rows and
+    // their level data were dropped on collapse / rebuild, so each of them is
+    // requested from the server again (parents before children, so every row
+    // exists by the time it is filled).
+    await restoreExpandedDirs();
     // FEATURE-447: re-apply the affected-file highlight after the DOM rebuild.
     applyAffectedHighlight();
   } catch { /* keep old tree */ }
@@ -5223,17 +5237,27 @@ function treeNode(node) {
     // FIX-518: a collapsed directory keeps an empty <ul>; its rows are built the
     // first time it is opened. Rendering every node up front cost ~500 ms and
     // 238k DOM elements for a 21k-entry workspace, all of it hidden.
-    if (open) fillDirChildren(ul, node);
+    // FIX-589: the rows come from the level the server returns for this very
+    // directory, and the row registers its <ul> so a rebuild can refill it.
+    treeDirRows.set(node.path, { ul: ul, node: node });
+    if (open) loadDirLevel(ul, node);
     li.appendChild(ul);
     row.onclick = () => {
       const isOpen = ul.style.display !== "none";
-      ul.style.display = isOpen ? "none" : "";
-      setIcon(tw, isOpen ? "i-tri" : "i-tri-down");
-      tw.classList.toggle("open", !isOpen);
-      if (isOpen) expandedDirs.delete(node.path);
-      else {
+      if (isOpen) {
+        // FIX-589: collapsing drops both the child rows and the level data, so
+        // the next expand asks the server again instead of keeping stale rows.
+        ul.style.display = "none";
+        setIcon(tw, "i-tri");
+        tw.classList.remove("open");
+        expandedDirs.delete(node.path);
+        clearDirLevel(ul, node);
+      } else {
+        ul.style.display = "";
+        setIcon(tw, "i-tri-down");
+        tw.classList.add("open");
         expandedDirs.add(node.path);
-        fillDirChildren(ul, node);
+        loadDirLevel(ul, node);
       }
     };
     // Drop files onto a directory row to upload into it.
@@ -5272,6 +5296,115 @@ function fillDirChildren(ul, node) {
   const frag = document.createDocumentFragment();
   for (const c of node.children || []) frag.appendChild(treeNode(c));
   ul.appendChild(frag);
+}
+
+// loadDirLevel makes sure a directory's <ul> shows that directory's level: the
+// rows are built from the fetched level, and concurrent callers share the one
+// in-flight request (FIX-589).
+async function loadDirLevel(ul, node) {
+  if (ul.dataset.filled) return;
+  if (ul._levelPromise) return ul._levelPromise;
+  if (Array.isArray(node.children)) {
+    fillDirChildren(ul, node);
+    return;
+  }
+  ul._levelPromise = fetchTreeLevel(ul, node);
+  try {
+    await ul._levelPromise;
+  } finally {
+    delete ul._levelPromise;
+  }
+}
+
+// fetchTreeLevel requests one directory level (api/tree?path=...) and turns it
+// into rows. On failure the folder is folded back so the next click retries
+// instead of leaving an empty list behind (FIX-589).
+async function fetchTreeLevel(ul, node) {
+  ul.dataset.loading = "1";
+  appendTreePlaceholder(ul, T.treeLoading);
+  try {
+    const resp = await fetch("api/tree?path=" + encodeURIComponent(node.path));
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const level = await resp.json();
+    node.children = Array.isArray(level.children) ? level.children : [];
+    clearTreePlaceholder(ul);
+    // fillDirChildren marks the <ul> as filled itself; pre-setting the flag here
+    // would make it return early and leave the (already fetched) level unrendered.
+    fillDirChildren(ul, node);
+    // Rows created just now may belong to the affected files of the current
+    // call, so re-apply the highlight after a level arrives.
+    applyAffectedHighlight();
+  } catch (err) {
+    collapseDirOnError(ul, node);
+    console.warn("workspace tree: level request failed", node.path, err);
+  } finally {
+    clearTreePlaceholder(ul);
+    delete ul.dataset.loading;
+  }
+}
+
+// clearDirLevel drops a collapsed directory's rows and its level data
+// (FIX-589): both the DOM and the data are released, and the next expand
+// requests the level from the server again.
+function clearDirLevel(ul, node) {
+  ul.textContent = "";
+  delete ul.dataset.filled;
+  delete node.children;
+}
+
+// restoreExpandedDirs refills the directories the user had expanded after a
+// DOM rebuild (FIX-589), parents before children so a child row exists before
+// its own level is requested.
+async function restoreExpandedDirs() {
+  const paths = Array.from(expandedDirs).filter((p) => p !== "");
+  paths.sort((a, b) => a.split("/").length - b.split("/").length);
+  for (const p of paths) {
+    const entry = treeDirRows.get(p);
+    if (!entry || !entry.ul || entry.ul.dataset.filled) continue;
+    const parent = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+    if (parent && !treeDirRows.has(parent)) continue; // its parent level is not in the DOM
+    await loadDirLevel(entry.ul, entry.node);
+  }
+}
+
+// dirRowOf returns the row element owning a directory's <ul> (the row is the
+// <ul>'s previous sibling).
+function dirRowOf(ul) {
+  const row = ul.previousElementSibling;
+  return row && row.classList && row.classList.contains("tree-row") ? row : null;
+}
+
+// collapseDirOnError folds a directory back after a failed level request so the
+// user can retry by clicking it again (FIX-589).
+function collapseDirOnError(ul, node) {
+  ul.style.display = "none";
+  expandedDirs.delete(node.path);
+  const row = dirRowOf(ul);
+  const tw = row && row.querySelector(".tw");
+  if (tw) {
+    setIcon(tw, "i-tri");
+    tw.classList.remove("open");
+  }
+}
+
+// appendTreePlaceholder shows a single "loading" row inside a directory while
+// its level is being fetched (FIX-589).
+function appendTreePlaceholder(ul, text) {
+  const li = document.createElement("li");
+  li.className = "tree-node tree-loading";
+  const row = document.createElement("div");
+  row.className = "tree-row loading";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = text;
+  row.appendChild(name);
+  li.appendChild(row);
+  ul.appendChild(li);
+}
+
+// clearTreePlaceholder removes the "loading" rows of a directory (FIX-589).
+function clearTreePlaceholder(ul) {
+  ul.querySelectorAll("li.tree-loading").forEach((li) => li.remove());
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;

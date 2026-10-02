@@ -4,6 +4,38 @@
 
 ---
 
+## v0.91.5 — 工作区文件树按需加载（/api/tree 按层返回 + 收起清空 DOM）
+
+> **版本**: v0.91.5
+
+> **状态**: ✅ 已完成并合并 main（v0.91.5 / BUILD-1194，2026-10-03，tag `v0.91.5`）
+> **里程碑**: Web 侧栏文件树原先一次性拉取整棵工作区树（实测 6,892,343 B / 23,549 节点），且每次 `scheduleWorkspaceRefresh()`（每个 LLM 迭代、done、工具结果）都会重新 fetch + 重建；折叠目录虽已按 FIX-518 懒建行，但数据与已建 DOM 仍长期驻留。本次将接口改为「按层返回」（默认只返回请求目录的一层子项，`?depth=full` 保留整树出口），前端展开目录时才请求该层、收起时清空子行 DOM 并丢弃该层数据（再次展开重新请求）；未展开目录仍保留 git status 与目录变更计数徽标（服务端按 git 状态映射一次性构建祖先计数索引，无需额外遍历文件系统）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-589 | 0.91.5 | P1 | /api/tree 支持 path/depth 按层返回；前端逐层加载 + 收起清空 DOM 与数据 |
+
+> 当前 BUILD: 1194
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-589 工作区文件树按需加载**
+  - 需求（用户 2026-10-03）：先修复 /api/tree 全量加载（诊断结论方案 C）；收起文件夹时清理该文件夹下的 DOM 内容，再次打开时重新加载；展开/未展开目录仍需显示 git 变更计数徽标。
+  - 决议：任务号 FIX-589，版本 v0.91.5（patch+1）；收起时 **DOM 与数据都丢弃**，再次展开时**重新向服务端请求该层**；未展开目录**保留** git status / 变更计数（服务端返回某层时一并给出）。
+  - 实施：`web/server.go` 新增 `buildTreeLevel`（单层构建 + 目录变更计数由 git 状态映射的祖先索引得出，不额外遍历文件系统）、`resolveTreePath`（拒绝 `..`/绝对路径/越界/符号链接外逃，并拒绝被排除目录）、`handleTree` 支持 `path`/`depth=full`；`web/static/app.js` 改为 `loadTree` 只拉根层 + `restoreExpandedDirs` 按 `expandedDirs` 逐层补拉、`loadDirLevel`/`fetchTreeLevel` 按需请求（含“加载中…”占位）、`clearDirLevel` 收起时清空子行 DOM 并丢弃该层数据；`web/static/style.css` 加占位行样式；app.js `T` 字典新增 `treeLoading`（zh/en）。
+  - 验收标准：见 `use-case/FIX-589/`。
+  - 交付物：`web/server.go`、`web/static/app.js`、`web/static/style.css`、`web/fix589_test.go`、`use-case/FIX-589/`。
+  - 完成情况：✅ 已完成并合并 main（v0.91.5 / BUILD-1194，2026-10-03，tag `v0.91.5`）[BUILD-1194]
+    - 接口实测（隔离实例 28279 + 临时工作区）：根层 **714 B**（目录项不带 children）；`?path=sub` 返回该层且 `changes=2`、`a.txt=M`、`z.txt=U`；`../`→400、`sub/../..`→400、`/etc`→404、`nope`→404、`top.txt`→400；排除目录 `?path=`→404；`?depth=full` 兼容。
+    - 体量对照（真实仓库：23,549 节点 / 整树 6,892,082 B）：按同一数据折算根层（70 个顶层项）为 **4,419 B**，约为整树的 **0.06%**。
+    - 前端实测（浏览器）：展开根层 0 请求；展开 `sub` 先显示“加载中…”并恰好 1 次 `api/tree?path=sub`，行 = [`deep`, `a.txt M`, `z.txt U`]；收起后 `li` 数=0、`dataset.filled` 清除、`node.children` 丢弃；再次展开再 1 次 `?path=sub`；`loadTree()` 刷新 = 1（根）+ 已展开目录数（实测 2 次请求），展开态与高亮恢复。
+    - 测试：`go test ./web/ -run 'FIX589|Tree'` 全绿；`go build ./... && go vet ./...` 通过；`go test ./... -short` 失败集为 main 的子集（唯一差异 `TestSessionSwitch` 在 main 失败、在本分支通过，属时序相关既有问题），零新增失败。
+    - 产物：`work/co-shell-0.91.5.darwin.arm64`、`work/co-shell-hub-0.91.5.darwin.arm64`（0.91.5 / BUILD-1194）。
+
+---
+
 ## v0.91.4 — SKILLS 段明确“不再需要即及时卸载 skill”的上下文纪律
 
 > **版本**: v0.91.4

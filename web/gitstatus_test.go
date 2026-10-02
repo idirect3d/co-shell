@@ -157,7 +157,8 @@ func TestTreeStatusFields(t *testing.T) {
 	ts := httptest.NewServer(s.mux)
 	defer ts.Close()
 	var root2 treeNode
-	getJSON(t, ts.URL+"/api/tree", &root2)
+	// FIX-589: this case walks nested directories, so it asks for the full tree.
+	getJSON(t, ts.URL+"/api/tree?depth=full", &root2)
 	if got := findNode(t, &root2, "hello.txt").Status; got != "M" {
 		t.Errorf("hello.txt status = %q, want M", got)
 	}
