@@ -165,3 +165,60 @@ func TestBuildSkillsIndex(t *testing.T) {
 		t.Errorf("empty index should be empty, got %q", got)
 	}
 }
+
+// FIX-584: a description written as a YAML block scalar ("description: >-",
+// ">", "|", "|-") must be folded (or kept verbatim) instead of leaking the
+// indicator itself as the description.
+func TestParseSkillFrontmatterBlockScalar(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantName string
+		wantDesc string
+	}{
+		{
+			name:     "folded block scalar joins lines",
+			content:  "---\nname: s\ndescription: >-\n  第一行\n  第二行\n---\nbody\n",
+			wantName: "s",
+			wantDesc: "第一行 第二行",
+		},
+		{
+			name:     "folded block scalar without chomping modifier",
+			content:  "---\ndescription: >\n  a\n  b\n---\nbody\n",
+			wantDesc: "a b",
+		},
+		{
+			name:     "literal block scalar keeps line breaks",
+			content:  "---\ndescription: |\n  line1\n  line2\n---\nbody\n",
+			wantDesc: "line1\nline2",
+		},
+		{
+			name:     "blank line becomes a paragraph break when folded",
+			content:  "---\ndescription: >-\n  para1\n\n  para2\n---\nbody\n",
+			wantDesc: "para1\npara2",
+		},
+		{
+			name:     "block scalar does not swallow the next key",
+			content:  "---\ndescription: >-\n  multi\n  line\nname: after\n---\nbody\n",
+			wantName: "after",
+			wantDesc: "multi line",
+		},
+		{
+			name:     "empty block scalar",
+			content:  "---\nname: s\ndescription: >-\n---\nbody\n",
+			wantName: "s",
+			wantDesc: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, desc := parseSkillFrontmatter(tt.content)
+			if name != tt.wantName {
+				t.Errorf("name = %q, want %q", name, tt.wantName)
+			}
+			if desc != tt.wantDesc {
+				t.Errorf("desc = %q, want %q", desc, tt.wantDesc)
+			}
+		})
+	}
+}

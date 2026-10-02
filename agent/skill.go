@@ -129,6 +129,11 @@ func ScanSkills(workspacePath, homeDir string) []Skill {
 // returns the name and description fields. The frontmatter is delimited by
 // "---" lines at the start of the file. Returns empty strings when there is no
 // frontmatter or the fields are absent.
+//
+// FIX-584: `description` is often written as a YAML block scalar
+// ("description: >-", ">", "|", "|-"), whose value lives on the following
+// indented lines. Those lines are folded (or kept verbatim for "|") instead of
+// being dropped, so the field no longer degrades to the literal indicator.
 func parseSkillFrontmatter(content string) (name, description string) {
 	trimmed := strings.TrimLeft(content, "\ufeff \t\r\n")
 	if !strings.HasPrefix(trimmed, "---") {
@@ -140,18 +145,113 @@ func parseSkillFrontmatter(content string) (name, description string) {
 	if end < 0 {
 		return "", ""
 	}
-	fm := rest[:end]
-	for _, line := range strings.Split(fm, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "name:") {
-			name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
-			name = strings.Trim(name, `"'`)
-		} else if strings.HasPrefix(line, "description:") {
-			description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
-			description = strings.Trim(description, `"'`)
+	lines := strings.Split(rest[:end], "\n")
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(strings.TrimRight(lines[i], "\r"))
+		switch {
+		case strings.HasPrefix(line, "name:"):
+			name = unquoteScalar(strings.TrimSpace(strings.TrimPrefix(line, "name:")))
+		case strings.HasPrefix(line, "description:"):
+			value := strings.TrimSpace(strings.TrimPrefix(line, "description:"))
+			if isBlockScalarHeader(value) {
+				var last int
+				description, last = readBlockScalar(lines, i+1, value)
+				i = last
+				continue
+			}
+			description = unquoteScalar(value)
 		}
 	}
 	return name, description
+}
+
+// isBlockScalarHeader reports whether a YAML scalar value is a block scalar
+// indicator: ">" (folded) or "|" (literal), optionally followed by a chomping
+// or indentation modifier such as "-", "+" or a digit.
+func isBlockScalarHeader(value string) bool {
+	if value == "" || (value[0] != '>' && value[0] != '|') {
+		return false
+	}
+	for _, r := range value[1:] {
+		if r != '+' && r != '-' && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// readBlockScalar consumes the body of a block scalar: the lines after a
+// "key: >-"-style header, which must be indented deeper than the key. It returns
+// the resulting value and the index of the last consumed line. A folded header
+// (">") joins lines with a space (a blank line becomes a line break), a literal
+// header ("|") keeps the line breaks. The common block indentation is removed
+// and the result trimmed, so the chomping modifier needs no extra handling for
+// a one-line description.
+func readBlockScalar(lines []string, start int, header string) (string, int) {
+	end, indent := start, -1
+	for end < len(lines) {
+		line := strings.TrimRight(lines[end], "\r")
+		if strings.TrimSpace(line) == "" {
+			end++
+			continue
+		}
+		lead := len(line) - len(strings.TrimLeft(line, " \t"))
+		if lead == 0 {
+			break // a new top-level key ends the block
+		}
+		if indent < 0 || lead < indent {
+			indent = lead
+		}
+		end++
+	}
+	if indent < 0 {
+		return "", start - 1
+	}
+	parts := make([]string, 0, end-start)
+	for i := start; i < end; i++ {
+		line := strings.TrimRight(lines[i], "\r")
+		if strings.TrimSpace(line) == "" {
+			parts = append(parts, "")
+			continue
+		}
+		if len(line) >= indent {
+			line = line[indent:]
+		}
+		parts = append(parts, strings.TrimRight(line, " \t"))
+	}
+	var value string
+	if strings.HasPrefix(header, ">") {
+		var b strings.Builder
+		blank := true
+		for _, p := range parts {
+			if p == "" {
+				b.WriteString("\n")
+				blank = true
+				continue
+			}
+			if !blank {
+				b.WriteString(" ")
+			}
+			b.WriteString(p)
+			blank = false
+		}
+		value = b.String()
+	} else {
+		value = strings.Join(parts, "\n")
+	}
+	return strings.TrimSpace(value), end - 1
+}
+
+// unquoteScalar strips a pair of matching surrounding quotes from a plain
+// (single-line) YAML scalar.
+func unquoteScalar(value string) string {
+	if len(value) >= 2 {
+		first, last := value[0], value[len(value)-1]
+		if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+			return value[1 : len(value)-1]
+		}
+	}
+	return value
 }
 
 // filterEnabledSkills drops the skills the user disabled in the settings
