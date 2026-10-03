@@ -118,7 +118,8 @@ final class SettingsViewController: UIViewController {
         content.addArrangedSubview(nameLabel)
 
         let verLabel = UILabel()
-        verLabel.text = "v0.39.0"
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        verLabel.text = "v\(shortVersion)"
         verLabel.font = .systemFont(ofSize: 12)
         verLabel.textColor = .tertiaryLabel
         verLabel.textAlignment = .center

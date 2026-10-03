@@ -4,6 +4,45 @@
 
 ---
 
+## v0.92.0 — iOS 上架准备（隐私清单 / 出口合规 / 版本号同步 / ATS 收窄 / CFBundleName）
+
+> **版本**: v0.92.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 为 co-shell 移动端（原生 iOS）发布 App Store 做工程侧准备：补齐 iOS 17+ 隐私清单（PrivacyInfo.xcprivacy，声明 UserDefaults 使用理由 CA92.1、不追踪、不收集数据）、出口合规声明（ITSAppUsesNonExemptEncryption=false）、App 版本号同步（0.39.0→0.92.0，主程序/hub 同步到 0.92.0/BUILD-1199）、CFBundleName 由 Runner 改为 co-shell、ATS 由全局 NSAllowsArbitraryLoads 收窄为仅 WebView 内容（NSAllowsArbitraryLoadsInWebContent）以降低审核问询，并让设置页版本号从 Bundle 动态读取。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-593 | 0.92.0 | P0 | iOS 上架工程侧准备：隐私清单 + 出口合规 + 版本号/build 同步 + CFBundleName + ATS 收窄 + 设置页版本号动态化；＋ AppIcon 圆角擦除痕迹修复（`remove_bands` 轮廓感知重写） |
+
+> 当前 BUILD: 1200
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-593 iOS 上架工程侧准备**
+  - 需求（用户 2026-10-03）：准备发布移动端到 App Store。用户确认：先走 TestFlight 内测（真机验证通过后再提交审核）、要求补齐全部工程侧缺口、保持 iPhone + iPad 支持（iPad 截图由用户补）、暂不做公开审核。
+  - 范围（用户确认“全部补齐”）：① 新增 `PrivacyInfo.xcprivacy`（iOS 17+ 上传必需，声明 UserDefaults CA92.1、不追踪、不收集数据）；② Info.plist 增加出口合规 `ITSAppUsesNonExemptEncryption=false`；③ App 版本号 0.39.0→0.92.0，主程序/hub 版本与 BUILD 同步（0.92.0 / 1199）；④ `CFBundleName` Runner→co-shell；⑤ ATS 由 `NSAllowsArbitraryLoads` 收窄为 `NSAllowsArbitraryLoadsInWebContent`（App 网络访问全部在 WKWebView 内）；⑥ 设置页版本号改为从 Bundle 动态读取。
+  - 实施：`mobile/ios/Runner/PrivacyInfo.xcprivacy`、`mobile/ios/Runner/Info.plist`、`mobile/ios/Runner.xcodeproj/project.pbxproj`、`mobile/ios/Runner/SettingsViewController.swift`、`main.go`、`cmd/co-shell-hub/main.go`。
+  - 验收标准：见 `use-case/FEATURE-593/`。
+  - 交付物：上述文件 + `use-case/FEATURE-593/`。
+  - 完成情况：✅ 已完成（分支 FEATURE-593，待用户验收）[BUILD-1199]
+    - 实施：① 新增 `mobile/ios/Runner/PrivacyInfo.xcprivacy`（NSPrivacyTracking=false、NSPrivacyCollectedDataTypes=[]、NSPrivacyAccessedAPITypes=[UserDefaults/CA92.1]），并注册进 Xcode 工程（PBXBuildFile / PBXFileReference / group 子项 / Resources 构建阶段 四处引用）；② `Info.plist` 增加 `ITSAppUsesNonExemptEncryption=false`，把全局 `NSAllowsArbitraryLoads` 收窄为 `NSAllowsArbitraryLoadsInWebContent`（保留 `NSAllowsLocalNetworking`），`CFBundleName` 由 `$(PRODUCT_NAME)`（Runner）改为 `co-shell`；③ `MARKETING_VERSION` 0.39.0→0.92.0（Debug/Release 两处），`CURRENT_PROJECT_VERSION` 保持 1（首次上传）；④ 设置页版本号由硬编码 `v0.39.0` 改为从 Bundle 的 `CFBundleShortVersionString` 动态读取；⑤ `main.go` 与 `cmd/co-shell-hub/main.go` 版本/BUILD 同步到 0.92.0 / 1199。
+    - 实测证据：`go build ./... && go vet ./...` 通过，产物 `work/co-shell-0.92.0.darwin.arm64`、`work/co-shell-hub-0.92.0.darwin.arm64`；`plutil -lint` 对 `Info.plist` 与 `PrivacyInfo.xcprivacy` 均为 `OK`；Release 归档（`CODE_SIGNING_ALLOWED=NO`）`exit=0`，产物 `Runner.app/Info.plist` 为 `CFBundleName=co-shell`、`CFBundleShortVersionString=0.92.0`、`CFBundleVersion=1`、`ITSAppUsesNonExemptEncryption=false`、`NSAllowsArbitraryLoadsInWebContent=true`、`NSAllowsLocalNetworking=true`，且 `Runner.app/PrivacyInfo.xcprivacy` 已随资源打包（292 字节）。
+    - 已知遗留：① 未做真机/TestFlight 实测（签名、Cookie 注入、自签名证书放行需真机验证）；② iPad 截图与 App Store Connect 元数据由用户准备；③ 本机当前仅有 Apple Development 证书，分发证书将在首次分发归档时由 Xcode 自动签名创建；④ App Review 的 4.2（网页壳）风险需在提审时提供演示 hub 环境。
+    - 发布进展（2026-10-03，TestFlight 内测路线）：① 实测确认账号为**付费 Apple Developer Program**（导出包签名 `Apple Distribution: Shuang Liang (5BZBX3DL83)` = Cloud Managed Apple Distribution，2027-10-03 到期；描述文件 `iOS Team Store Provisioning Profile: com.coshell.mobile`，`beta-reports-active=true`）；② App Store Connect 创建 App 记录（App ID **6818714760**、名称 co-shell、Bundle `com.coshell.mobile`、SKU `coshell-ios-001`、主语言简体中文、完全访问）；③ 构建 **0.92.0 (1) 上传成功**（`xcodebuild -exportArchive … destination=upload` → `Upload succeeded`），TestFlight 状态“准备提交”（可测试，90 天有效）；④ 建立内部测试组「**co-shell 内测**」（可访问所有构建）并加入测试员 `idirect3d@hotmail.com`（状态：已邀请）；⑤ 因邀请未在设备侧落地（TestFlight 仅显示空状态“兑换”；原因：TestFlight 使用 iPhone 的 App Store 账号而非独立登录），改用 `xcrun devicectl device install app` 将 Debug 版**直装到 iPhone 11 Pro**（UDID `00008030-000179E434FB802E`，开发签名 1 年有效），设备侧已确认安装（`co-shell / com.coshell.mobile / 0.92.0 / 1`）；⑥ 发布操作指导与排查记录见 `docs/mobile-appstore-release.md`（§0.5 账号实测、§1~§5 归档/上传/TestFlight/验证清单、§9 空状态三条排查路径、§10 进展与待办）。
+    - 真机验证待办：手机端 7 项（Cookie 注入 / 自签名证书 / 横竖屏 / iPad / 设置页版本号 v0.92.0 / 冷启动无白闪）——需用户在有 hub 服务端的网络环境下确认；本机当前无 co-shell-hub 进程，手机需填实际 hub 主机地址（如内网 Linux 主机的 `https://<ip>:<port>`）+ 访问 KEY。
+    - AppIcon 圆角擦除痕迹修复（用户 2026-10-03 反馈：带 x3 后缀的图标在左右两边靠近圆角处有擦除痕迹、边缘不平滑不连续）[BUILD-1200]
+      - 根因：`mobile/tools/appicon_regen.py`（FIX-585 引入）的 `remove_bands()` 对被擦除的 CRT 侧带**逐行做水平线性插值**（在 `x0-1` 与 `x1+1` 两列之间）。当圆角弧线正好穿过侧带时，两侧邻居一个是白底画布、一个是深色画稿，插值把一条 26px 宽的白→深绿斜坡写进边沿（并在轮廓外留下灰块）——即用户看到的擦除痕迹。
+      - 实测证据：脚本检测到的侧带为 `[(17,42),(54,57),(966,969),(981,1006)]`；y=100 处由 `pre[16]=255` 插值到 `pre[43]=5`（斜率 −9.26，与实测 −9.238 吻合）；受影响行为 y≈94–143 与 y≈881–929（四处左右上下对称，仅出现在弧线穿越侧带的行段）。
+      - 修复：`remove_bands()` 改为**轮廓感知填充**——新增 `silhouette_edges()`（由 `canvas_contours` 的上下轮廓反推逐行左右边界），逐行区分“带完全在画稿内 / 完全在画布上 / 骑跨轮廓”；骑跨行按深度填充：轮廓外填画布色（取自画布侧 flank）、深度 0 保留轮廓自身抗锯齿像素、深度 ≥1 由最近 4 条干净行按深度取中位色。
+      - 验证：① **沙箱复现**（用 FIX-585 前原始主图跑同一脚本）证明修复前产物与线上图标逐像素一致（diff=0），根因唯一确定；② 修复后与修复前差异严格限于四处圆角（灰阶差 >8 仅 5225px / 0.5%）；③ 边缘软化宽度（白底→实心画稿过渡像素数）：1024 主图均值 2.9→0.6、180px@3x 0.9→0.5、120px@3x 0.7→0.4，`soft_max` 残留仅出现在 y=0/1023 等几何切点行（修复前后完全一致）；④ 放大目视：修复前圆角处有 2–4 源像素发白带，修复后仅剩约 1px 正常抗锯齿；⑤ 脚本自检 `RESULT: OK`（侧带差 64.91→0.86、画稿像素 mean=0.00、输出 RGB 无 alpha）；⑥ 全部 15 个尺寸与 `Contents.json` 一致，`sips` 校验均 `hasAlpha: no`。
+      - 变更文件：`mobile/tools/appicon_regen.py`、`mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png`（主图由 FIX-585 前的原始版本重新生成，其余尺寸重采样）。
+      - 遗留：iOS 侧需重新归档并上传一个新构建（`CURRENT_PROJECT_VERSION` 递增，例如 0.92.0(2)）才能在 TestFlight 与真机看到新图标。
+
+---
+
 ## v0.91.8 — 系统默认值优化（流窗口块数/节点数、温度、看板、检索字节、浏览器无头）
 
 > **版本**: v0.91.8

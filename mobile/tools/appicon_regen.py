@@ -40,6 +40,8 @@ GLOW_CORE = 3  # px: fully saturated part of the highlight
 GLOW_COLOR = (0x7A, 0xF0, 0xA8)  # light green highlight colour
 GLOW_TOP_STRENGTH = 0.30  # blend factor of the highlight core (top edge)
 GLOW_BOTTOM_RATIO = 0.50  # bottom edge is weaker than the top edge
+REF_ROWS = 4  # clean rows blended into the artwork depth profile
+REF_DEPTH = 1  # px inside the silhouette from which artwork is solid
 
 
 def luma(px):
@@ -112,26 +114,107 @@ def detect_bands(profile):
     return [(x0, x1) for x0, x1 in bands]
 
 
-def remove_bands(img, bands):
-    """Inpaint each vertical band by interpolating between its clean neighbours."""
+def silhouette_edges(top, bottom, w, h):
+    """Per-row artwork boundary: leftmost/rightmost column spanning that row."""
+    left = [w] * h
+    right = [-1] * h
+    for x in range(w):
+        if top[x] is None or bottom[x] is None:
+            continue
+        for y in range(top[x], bottom[x] + 1):
+            if x < left[y]:
+                left[y] = x
+            if x > right[y]:
+                right[y] = x
+    return left, right
+
+
+def median_colour(samples):
+    """Per-channel median of a list of RGBA pixels."""
+    out = []
+    for i in range(4):
+        vals = sorted(sample[i] for sample in samples)
+        out.append(vals[len(vals) // 2])
+    return tuple(out)
+
+
+def depth_profile(px, edge, clean_rows, y, right_side, depth_max, alpha_fill):
+    """Artwork colour at every depth inside the silhouette, for one band row.
+
+    Sampled from the nearest clean rows (the ones whose two flanking columns
+    both belong to the artwork) so the rounded corner keeps the rim look of the
+    straight edge instead of a canvas-to-artwork ramp.
+    """
+    refs = sorted(clean_rows, key=lambda row: abs(row - y))[:REF_ROWS]
+    profile = []
+    for d in range(depth_max + 1):
+        samples = []
+        for row in refs:
+            x = edge[row] - d if right_side else edge[row] + d
+            if 0 <= x < len(edge):
+                samples.append(px[x, row])
+        profile.append(median_colour(samples) if samples else alpha_fill)
+    return profile
+
+
+def blend_band_row(px, x0, x1, left, right, y):
+    """Blend a band row between its two clean neighbours (outside the corners)."""
+    lr, lg, lb, la = px[left, y]
+    rr, rg, rb, ra = px[right, y]
+    span = right - left
+    for x in range(x0, x1 + 1):
+        t = (x - left) / span if span else 0.0
+        px[x, y] = (
+            int(round(lr + (rr - lr) * t)),
+            int(round(lg + (rg - lg) * t)),
+            int(round(lb + (rb - lb) * t)),
+            la if la == ra else int(round(la + (ra - la) * t)),
+        )
+
+
+def remove_bands(img, bands, top, bottom):
+    """Inpaint each vertical band, keeping the squircle silhouette intact.
+
+    Both flanking columns are canvas for the rows above a rounded corner and
+    both are artwork below it, so a horizontal blend is invisible there. Where
+    the corner arc passes through the band, a flank lands on (or just outside)
+    the anti-aliased silhouette: blending canvas with artwork smears a grey ramp
+    across the edge. Those rows follow the silhouette geometry instead - canvas
+    outside, artwork at the matching depth inside.
+
+    Depths are measured from the silhouette: depth 0 is the anti-aliased rim
+    pixel itself, so only depth >= REF_DEPTH counts as solid artwork.
+    """
     px = img.load()
     w, h = img.size
+    left_edge, right_edge = silhouette_edges(top, bottom, w, h)
     for x0, x1 in bands:
         left = max(0, x0 - 1)
         right = min(w - 1, x1 + 1)
-        span = right - left
+        right_side = x0 > w // 2
+        edge = right_edge if right_side else left_edge
+        sign = 1 if right_side else -1
+        depths = [((edge[y] - left) * sign, (edge[y] - right) * sign)
+                  for y in range(h)]
+        # near = the flank facing the silhouette, far = the opposite one
+        near = [d[1] if right_side else d[0] for d in depths]
+        far = [d[0] if right_side else d[1] for d in depths]
+        clean = [y for y in range(h) if near[y] >= REF_DEPTH]
+        width = x1 - x0 + 1
         for y in range(h):
-            lr, lg, lb, la = px[left, y]
-            rr, rg, rb, ra = px[right, y]
+            if not clean or near[y] >= REF_DEPTH or far[y] < 0:
+                blend_band_row(px, x0, x1, left, right, y)
+                continue
+            # canvas colour, taken from the flank on the canvas side
+            canvas = px[right, y] if right_side else px[left, y]
+            profile = depth_profile(px, edge, clean, y, right_side, width, canvas)
             for x in range(x0, x1 + 1):
-                t = (x - left) / span if span else 0.0
-                px[x, y] = (
-                    int(round(lr + (rr - lr) * t)),
-                    int(round(lg + (rg - lg) * t)),
-                    int(round(lb + (rb - lb) * t)),
-                    la if la == ra else int(round(la + (ra - la) * t)),
-                )
-    return img
+                d = (edge[y] - x) * sign
+                if d < 0:
+                    px[x, y] = canvas
+                elif d > 0:
+                    px[x, y] = profile[d]
+                # d == 0 is the silhouette's own anti-aliased rim pixel: keep it    return img
 
 
 def flatten_alpha(img):
@@ -321,7 +404,7 @@ def main(argv=None):
     if not bands:
         print("warning: no side bands detected — nothing to remove", file=sys.stderr)
     delta_before = band_delta(master, bands)
-    remove_bands(master, bands)
+    remove_bands(master, bands, top, bottom)
     flat = flatten_alpha(master)
     add_edge_light(flat, top, bottom)
 
