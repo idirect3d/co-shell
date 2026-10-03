@@ -133,6 +133,9 @@ const (
 	KeyLLMErrorFeedbackRef  = "llm_error_feedback_ref"
 	KeyLLMErrorFixRetry     = "llm_error_fix_retry"
 	KeyLLMErrorCheckInput   = "llm_error_check_input"
+	// FIX-598: transient failures retry in place without editing the context.
+	KeyLLMErrRetryKeepContext = "llm_err_retry_keep_context"
+	KeyLLMErrAbortKeepContext = "llm_err_abort_keep_context"
 	KeyXMLParseErrorExit    = "xml_parse_error_exit"
 	KeyXMLParseErrorSummary = "xml_parse_error_summary"
 	KeyContextOverLimit     = "context_over_limit"

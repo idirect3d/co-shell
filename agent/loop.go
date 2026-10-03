@@ -358,6 +358,12 @@ type Agent struct {
 	// limit, the removal paths stop retrying and terminate the turn instead.
 	contextRemoveCount int
 
+	// llmErrRetryCount counts the in-place retries of a transient LLM failure
+	// (network / 5xx / 429) in the current turn (FIX-598). Those retries no
+	// longer touch the history, so they are bounded by their own budget
+	// (llmRetryLimit) instead of the context-remove limit.
+	llmErrRetryCount int
+
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.

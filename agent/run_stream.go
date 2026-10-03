@@ -191,6 +191,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.loopDetectCrit = false
 	// FEATURE-514: reset the per-turn context-removal counter.
 	a.contextRemoveCount = 0
+	// FIX-598: reset the per-turn transient-error retry budget as well.
+	a.llmErrRetryCount = 0
 	if a.cfg != nil && a.cfg.LLM.LoopIntervention != "off" {
 		a.loopDetectOn = true
 		threshold := a.cfg.LLM.LoopDetectThreshold
@@ -365,6 +367,11 @@ iterationLoop:
 		// interrupted attempt's start instead of losing it.
 		a.beginLLMCall(false)
 		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, cb)
+		if streamErr == nil {
+			// FIX-598: the call succeeded — a later, unrelated failure starts with
+			// a fresh transient-retry budget.
+			a.resetLLMErrRetries()
+		}
 
 		// FEATURE-239: Handle user cancel (Ctrl+C) — immediate exit, no confirmation
 		// FIX-264: No need to clean up a.messages — CanceledError is returned before the current
@@ -821,7 +828,8 @@ iterationLoop:
 				}
 			}
 
-			// FIX-146: Determine how to handle the error based on the context.
+			// FIX-146 (restricted to request-shape failures by FIX-598): determine how
+			// to handle the error based on the context.
 			// The error occurs when sending messages to the LLM API. The problematic
 			// message is already in a.messages from a previous iteration.
 			//
@@ -834,6 +842,33 @@ iterationLoop:
 			// If there is no recent assistant message with tool_calls, the error is
 			// likely caused by invalid user input, and we should exit the iteration
 			// and report the error to the user.
+			// FIX-598: classify the failure BEFORE deciding whether the history should
+			// be edited. Only request-shape problems (a tool result whose tool_calls is
+			// missing or malformed, or a message list that no longer fits) are fixed by
+			// dropping the last assistant tool-call message; a network timeout, an auth
+			// failure or a rate limit is not. Deleting history for those made the model
+			// forget the tools it had just run (so it could repeat side effects), and the
+			// pointless retry cycle only ended at the context-remove limit.
+			errKind := ClassifyLLMError(streamErr)
+			if !errKind.AllowsContextRemoval() {
+				log.Warn("Agent.RunStream: stream error at iteration %d classified as %q: %v — context left untouched", iteration, errKind, streamErr)
+				// Transient causes (network / 5xx / 429) are re-issued unchanged with a
+				// bounded, capped backoff — but only while nothing has been streamed
+				// yet, so a retry can never duplicate output.
+				if errKind.Retryable() && ctx.Err() == nil && strings.TrimSpace(finalContent) == "" &&
+					a.noteLLMErrRetryAndCheckLimit() {
+					delay := a.llmErrRetryDelay()
+					cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrRetryKeepContext), errKind, streamErr, delay, a.llmErrRetryAttempt(), llmRetryLimit)))
+					if !sleepCtx(ctx, delay) {
+						return "", ctx.Err()
+					}
+					continue
+				}
+				cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrAbortKeepContext), errKind, streamErr)))
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
+				return "", fmt.Errorf("LLM call failed (%s): %w", errKind, streamErr)
+			}
+
 			a.mu.Lock()
 			removedContent := a.removeLastAssistantWithToolCalls()
 			a.mu.Unlock()

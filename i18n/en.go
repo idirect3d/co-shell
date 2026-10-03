@@ -2102,6 +2102,10 @@ no liability whatsoever.`,
 	KeyLLMErrorFeedbackRef:  "The following problematic message content was removed from context, please use it as reference to correct:\n%s",
 	KeyLLMErrorFixRetry:     "LLM call failed: %v\nProblematic context removed, requesting LLM to correct and retry...",
 	KeyLLMErrorCheckInput:   "LLM call failed: %v\nPlease check your input or try again later.",
+
+	// FIX-598: transient failures retry in place without editing the context.
+	KeyLLMErrRetryKeepContext: "LLM call failed (kind: %s): %v\nContext left unchanged, retrying in %v (attempt %d/%d)...",
+	KeyLLMErrAbortKeepContext: "LLM call failed (kind: %s): %v\nThis is a network/server/auth/rate-limit failure, not a message-format problem: the context was kept intact and the turn stops here.",
 	KeyXMLParseErrorExit:    "Tool call parse error (parse-error-action=exit): %s\n",
 	KeyXMLParseErrorSummary: "XML parse error detected: %s\n",
 	KeyXMLParseErrorRaw:     "Tool call parse error raw message:\n%s\n",

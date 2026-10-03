@@ -2132,6 +2132,10 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLLMErrorFeedbackRef:  "以下是你刚才返回的有问题的消息内容，已被从上下文中移除，请参考修正：\n%s",
 	KeyLLMErrorFixRetry:     "LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...",
 	KeyLLMErrorCheckInput:   "LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。",
+
+	// FIX-598: 瞬时性失败不再改动上下文。
+	KeyLLMErrRetryKeepContext: "LLM 调用失败（类别：%s）: %v\n上下文未修改，%v 后重试（第 %d/%d 次）...",
+	KeyLLMErrAbortKeepContext: "LLM 调用失败（类别：%s）: %v\n本次失败为网络/服务端/认证/限流类问题，与消息格式无关：上下文已保留不改动，本轮终止。",
 	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",
 	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
 	KeyXMLParseErrorRaw:     "解析错误原始报文:\n%s\n",

@@ -63,8 +63,9 @@
 |------|------|------|------|
 | FIX-596 | 0.92.2 | P1 | 流式高 CPU 定位与渲染策略优化：先加临时性能 HUD 在 Safari 采集真实数据定位瓶颈；候选择实施：①**增量渲染**（已闭合块冻结、只重建尾部块，实测单次成本约 1/10）②块边界立即渲染 + 尾部 250ms 兜底。**定位已完成：流式渲染在 Safari 上仅占单核 ~1~2%，非瓶颈；渲染优化暂不实施** |
 | FIX-597 | 0.92.2 | P1 | hub 聚合页 `attachSwipe` 监听器泄漏修复（Safari 高 CPU 真因）：`window` 的 mousemove/mouseup 改为拖拽期间注册、结束/取消时注销，实测重建与轮询零注册 |
+| FIX-598 | 0.92.2 | P1 | LLM 错误按成因分类：仅上下文/格式类错误才移除消息；网络/500/429 类改为不动上下文的有界重试；认证类直接终止 |
 
-> 当前 BUILD: 1204
+> 当前 BUILD: 1205
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -84,6 +85,13 @@
   - 需求（用户 2026-10-03 23:25）：修复 Safari 高 CPU 的真因。
   - 实施：`hub/gateway/webui_static.go` 的 `attachSwipe` 新增 `listen()/unlisten()` 与 `listening` 幂等开关，`window` 的 `mousemove/mouseup` 仅在鼠标拖拽期间存在（按下注册，松手或转为竖向滚动时注销）；卡片构建路径不再注册 `window` 监听器。新增 `hub/gateway/fix597_test.go` 断言。
   - 验收标准：见 `use-case/FIX-597/`。
+
+- [x] **FIX-598 LLM 错误按成因分类（移除上下文治理）** `[BUILD-1205]`
+  - 需求（用户 2026-10-04 03:38）：`dial tcp ... i/o timeout` 等网络错误不应触发“移除有问题的上下文”；仅消息格式不对（tool 结果与 tool_calls 不匹配）时才删消息，网络/LLM 自身问题应准确识别并及时中断。
+  - 根因：`run_stream.go` 流式错误分支在删除动作**之前不区分错误类型**，只看“历史上是否存在带 tool_calls 的 assistant 消息”，因此纯网络超时也会删掉合法的 assistant+tool 结果并反复重试。
+  - 实施：新增 `agent/llm_error_class.go`（`ClassifyLLMError` → network/rate-limit/server/auth/context-format/context-too-long/unknown，`AllowsContextRemoval` 仅前两者为真）；`run_stream.go` 在删除前分类——非格式类不删、恢复性错误（网络/5xx/429）在**未流出内容时**按 1s/2s/4s（上限 8s）退避重试最多 3 次，其后终止；认证/未知类直接终止；`parse-error-action` 自此仅对格式类生效；新增 per-turn 重试预算与两条 i18n 文案。
+  - 验收标准：见 `use-case/FIX-598/`。
+  - 完成情况（2026-10-04）：✅ `agent` 包新增 5 个用例全绿（分类 12 组、仅格式类可删、重试预算有界、退避上限、ctx 取消即停）；`go build ./... && go vet ./...` 通过；主模块 `-short` 失败集与改动前一致（`agent` 两例语言环境相关失败，`i18n` 三例为 `.rules/` 说明文案既有失败，均与本次改动无关）。
   - 完成情况（2026-10-03）：✅ 实测修改后的 hub 页（21 agent）**10 次列表重建注册 0 个 window 监听器**（改前每次重建 +42）；**空闲 25 秒（约 9 轮轮询）零注册**（改前 294 次/22 秒）；拖拽期注册/注销完全成对（4/4）且手势行为不变；`go build ./... && go vet ./...` 与 hub 模块测试全绿，主模块 `-short` 失败集为 `agent` 包两个语言环境相关的既有失败（`LANG=zh_CN.UTF-8` 即通过）。
 
 ---
