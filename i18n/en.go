@@ -2106,6 +2106,8 @@ no liability whatsoever.`,
 	// FIX-598: transient failures retry in place without editing the context.
 	KeyLLMErrRetryKeepContext: "LLM call failed (kind: %s): %v\nContext left unchanged, retrying in %v (attempt %d/%d)...",
 	KeyLLMErrAbortKeepContext: "LLM call failed (kind: %s): %v\nThis is a network/server/auth/rate-limit failure, not a message-format problem: the context was kept intact and the turn stops here.",
+	KeyLLMErrResumePrompt:     "(the previous answer was cut off by a transport failure) Continue from where it stopped and do NOT repeat what you already wrote.",
+	KeyLLMErrRetryResume:      "LLM call failed (kind: %s): %v\nKept the %d characters already streamed, resuming in %v (attempt %d/%d)...",
 	KeyXMLParseErrorExit:    "Tool call parse error (parse-error-action=exit): %s\n",
 	KeyXMLParseErrorSummary: "XML parse error detected: %s\n",
 	KeyXMLParseErrorRaw:     "Tool call parse error raw message:\n%s\n",

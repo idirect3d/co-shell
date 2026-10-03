@@ -2136,6 +2136,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// FIX-598: 瞬时性失败不再改动上下文。
 	KeyLLMErrRetryKeepContext: "LLM 调用失败（类别：%s）: %v\n上下文未修改，%v 后重试（第 %d/%d 次）...",
 	KeyLLMErrAbortKeepContext: "LLM 调用失败（类别：%s）: %v\n本次失败为网络/服务端/认证/限流类问题，与消息格式无关：上下文已保留不改动，本轮终止。",
+	KeyLLMErrResumePrompt:     "（上一次输出在传输中断处被截断）请从中断处继续，不要重复已输出的内容。",
+	KeyLLMErrRetryResume:      "LLM 调用失败（类别：%s）: %v\n已保留已输出的 %d 字符，%v 后从中断处继续（第 %d/%d 次）...",
 	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",
 	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
 	KeyXMLParseErrorRaw:     "解析错误原始报文:\n%s\n",

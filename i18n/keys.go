@@ -136,6 +136,9 @@ const (
 	// FIX-598: transient failures retry in place without editing the context.
 	KeyLLMErrRetryKeepContext = "llm_err_retry_keep_context"
 	KeyLLMErrAbortKeepContext = "llm_err_abort_keep_context"
+	// FIX-599: resume a stream a transient failure cut in half.
+	KeyLLMErrResumePrompt   = "llm_err_resume_prompt"
+	KeyLLMErrRetryResume    = "llm_err_retry_resume"
 	KeyXMLParseErrorExit    = "xml_parse_error_exit"
 	KeyXMLParseErrorSummary = "xml_parse_error_summary"
 	KeyContextOverLimit     = "context_over_limit"

@@ -366,7 +366,10 @@ iterationLoop:
 		// (not inside streamLLMResponse) so a retry below can resume the
 		// interrupted attempt's start instead of losing it.
 		a.beginLLMCall(false)
-		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, cb)
+		// FIX-599: remember what this attempt already streamed, so a transient
+		// failure can resume from there instead of repeating or dropping it.
+		attempt := &streamAttemptTracker{}
+		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, attempt.wrap(cb))
 		if streamErr == nil {
 			// FIX-598: the call succeeded — a later, unrelated failure starts with
 			// a fresh transient-retry budget.
@@ -855,14 +858,36 @@ iterationLoop:
 				// Transient causes (network / 5xx / 429) are re-issued unchanged with a
 				// bounded, capped backoff — but only while nothing has been streamed
 				// yet, so a retry can never duplicate output.
-				if errKind.Retryable() && ctx.Err() == nil && strings.TrimSpace(finalContent) == "" &&
-					a.noteLLMErrRetryAndCheckLimit() {
-					delay := a.llmErrRetryDelay()
-					cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrRetryKeepContext), errKind, streamErr, delay, a.llmErrRetryAttempt(), llmRetryLimit)))
-					if !sleepCtx(ctx, delay) {
-						return "", ctx.Err()
+				if errKind.Retryable() && ctx.Err() == nil {
+					streamed := attempt.contentText()
+					switch {
+					case streamed == "":
+						if a.noteLLMErrRetryAndCheckLimit() {
+							delay := a.llmErrRetryDelay()
+							cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrRetryKeepContext), errKind, streamErr, delay, a.llmErrRetryAttempt(), llmRetryLimit)))
+							if !sleepCtx(ctx, delay) {
+								return "", ctx.Err()
+							}
+							continue
+						}
+					case attempt.resumable(hasToolAttempt):
+						// The user already saw part of the answer: keep it in the
+						// context and ask the model to continue, so the retry appends
+						// instead of repeating what is on screen (FIX-599).
+						if a.noteLLMErrRetryAndCheckLimit() {
+							a.appendPartialAssistantAndContinue(streamed, attempt.reasoningText())
+							delay := a.llmErrRetryDelay()
+							cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrRetryResume), errKind, streamErr, len(streamed), delay, a.llmErrRetryAttempt(), llmRetryLimit)))
+							if !sleepCtx(ctx, delay) {
+								return "", ctx.Err()
+							}
+							continue
+						}
+					default:
+						// A tool call was half-received (or nothing can be resumed):
+						// continuing it would corrupt the call, so stop the turn.
+						log.Warn("Agent.RunStream: %q failure with a partial tool call — not resuming", errKind)
 					}
-					continue
 				}
 				cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrAbortKeepContext), errKind, streamErr)))
 				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
