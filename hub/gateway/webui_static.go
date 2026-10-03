@@ -1471,7 +1471,28 @@ var HUB_LANG = "__HUB_LANG__";
   // attachSwipe wires mouse-drag and touch-swipe so a card can be swiped left
   // to reveal its delete button.
   function attachSwipe(card){
-    var startX = 0, startY = 0, dx = 0, dragging = false;
+    var startX = 0, startY = 0, dx = 0, dragging = false, listening = false;
+    // FIX-597: the window-level drag listeners live only while a mouse drag is
+    // in progress. They used to be registered by every attachSwipe() call —
+    // that is, twice per agent card on every list rebuild — and never undone,
+    // so the window's listener list grew without bound: each later
+    // addEventListener scanned it linearly (WebKit's JSEventListener::
+    // operator==), and every leaked closure kept the discarded card's DOM
+    // alive. A Safari tab sitting on the hub page reached 10-70% CPU and
+    // ~1.7GB (measured: 294 registrations in 22s with 21 agents).
+    function onMove(e){ move(e.clientX, e.clientY); }
+    function listen(){
+      if (listening) return;
+      listening = true;
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', end);
+    }
+    function unlisten(){
+      if (!listening) return;
+      listening = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', end);
+    }
     function begin(x, y){
       startX = x; startY = y; dx = 0; dragging = true; card._moved = false;
       card.style.transition = 'none';
@@ -1482,6 +1503,7 @@ var HUB_LANG = "__HUB_LANG__";
       var mx = x - startX, my = y - startY;
       if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ // vertical scroll
         dragging = false;
+        unlisten();
         setSwipe(card, !!card._open); // restore the resting/open look, no red left over
         return;
       }
@@ -1491,13 +1513,12 @@ var HUB_LANG = "__HUB_LANG__";
       setDelOpacity(card, -dx / DELETE_FADE_PX);
     }
     function end(){
+      unlisten();
       if (!dragging) return;
       dragging = false;
       setSwipe(card, dx < -32);
     }
-    card.addEventListener('mousedown', function(e){ if (e.button === 0) begin(e.clientX, e.clientY); });
-    window.addEventListener('mousemove', function(e){ move(e.clientX, e.clientY); });
-    window.addEventListener('mouseup', end);
+    card.addEventListener('mousedown', function(e){ if (e.button === 0){ begin(e.clientX, e.clientY); listen(); } });
     card.addEventListener('touchstart', function(e){ var t = e.touches[0]; begin(t.clientX, t.clientY); }, {passive:true});
     card.addEventListener('touchmove', function(e){ var t = e.touches[0]; move(t.clientX, t.clientY); }, {passive:true});
     card.addEventListener('touchend', end);
