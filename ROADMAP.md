@@ -4,6 +4,39 @@
 
 ---
 
+## v0.91.8 — 系统默认值优化（流窗口块数/节点数、温度、看板、检索字节、浏览器无头）
+
+> **版本**: v0.91.8
+
+> **状态**: ✅ 已完成并合并 main（v0.91.8 / BUILD-1198，2026-10-03，tag `v0.91.8`）
+> **里程碑**: 用户 2026-10-03 提出：一批系统默认值与实际使用习惯不符，需要一个 patch 版本按新基线调整。本次只改**代码默认值**，不改用户已有 `config.json`。共 6 项：`stream-window-max-blocks` 300→128、`temperature` 0→0.5、`board-enabled` off→on、`search-max-result-bytes` 65536→128000、`stream-window-max-nodes` 30000→12800、`browser-headless` 全平台 true→**按平台**（Linux=false，darwin/windows=true）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-592 | 0.91.8 | P1 | 6 个系统默认值优化（含 browser-headless 平台分支、board-enabled 默认 on 的持久化修复、工作模式 temperature 回落全局默认） |
+
+> 当前 BUILD: 1198
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-592 系统默认值优化（6 项）**
+  - 需求（用户 2026-10-03）：按新基线调整 6 个系统默认值（详见上表），只改代码默认值。
+  - 决议：任务号 FIX-592，版本 v0.91.8（patch+1）。范围（经用户确认）：
+    1. `config.DefaultConfig()` 默认值：`StreamWindowMaxBlocks` 300→128；`StreamWindowMaxNodes` 30000→12800；`SearchMaxResultBytes` 65536→128000；`Temperature` 0→0.5；`BoardEnabled` 未设置（Go 零值 false）→true；`BrowserHeadless` true→按平台（Linux=false，其余=true；抽 `defaultBrowserHeadless(goos string)` 便于单测）。
+    2. temperature 生效链：`DefaultWorkModes()` 中 act/plan/research 的 `Temperature` 由 `Float64Ptr(0)` 改为 **nil**，使其回落到全局默认值（用户显式设过的模式值仍优先——解析顺序见 `agent/agent.go`：全局 → 模型预设 → 工作模式）。只改全局默认（0→0.5）时实际生效温度仍被模式预设的 0 覆盖。
+    3. board-enabled 默认 on 的持久化修复：去掉 `board_enabled` 的 `omitempty`（否则显式 off 存不下、重启回 on；与 `board_must_reply` 先例一致）；`cmd/config.go` 中 ResetValue 由 false 改为 true；SetValue 补 `Save()`。
+    4. 前端同概念兜底值 `web/static/app.js` 的 `streamWindowMaxBlocks` / `streamWindowMaxNodes` 同步为 128 / 12800（设置面板 Default 取自 `DefaultConfig()`，自动跟随）。
+  - 验收标准：见 `use-case/FIX-592/`。
+  - 交付物：`config/config.go`、`config/config_test.go`、`cmd/config.go`、`web/static/app.js`、`use-case/FIX-592/`。
+  - 完成情况：✅ 已完成并合并 main（v0.91.8 / BUILD-1198，2026-10-03，tag `v0.91.8`）[BUILD-1198]
+    - 依据（单测实测）：`config/fix592_test.go`（默认值基线 / 平台分支 / 显式配置优先与 Save-Load 往返 / 模式温度回落）与 `cmd/fix592_test.go`（设置项可改可持久化 / 面板默认值）全绿；`gofmt -l` 无输出；`go build ./... && go vet ./...` 通过；`go test ./... -short` 失败集为 main 基线子集（唯一不在基线的 `TestNetworkLoadingFailed` 属 `browser/` 包 flaky，单独重跑 3/3 通过）。
+    - 产物：`work/co-shell-0.91.8.darwin.arm64`、`work/co-shell-hub-0.91.8.darwin.arm64`。
+    - 未做：未修改用户运行时 `config.json`（仅交付于说明中给出手动更新步骤）。
+
+---
+
 ## v0.91.7 — 流式期间高 CPU：滚动跟随不再每 chunk 触发强制布局
 
 > **版本**: v0.91.7

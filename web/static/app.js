@@ -858,8 +858,8 @@ let historyHasMore = false;
 // top and can be re-loaded on demand via the history_get `before` cursor.
 // Thresholds come from the system settings (stream-window-max-blocks /
 // stream-window-max-nodes) and fall back to the defaults below.
-let streamWindowMaxBlocks = 300;
-let streamWindowMaxNodes = 30000;
+let streamWindowMaxBlocks = 128;
+let streamWindowMaxNodes = 12800;
 // FIX-590: text volume (not the block count) drives the forced-layout cost, so
 // the amount of stream text is capped as well. The value is overridable from
 // the settings (stream-window-max-chars) and feeds streamTextChars below.
