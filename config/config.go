@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
@@ -543,7 +544,8 @@ type LLMConfig struct {
 	BrowserEnabled bool `json:"browser_enabled"`
 	// BrowserPort: Chrome DevTools Protocol debug port.
 	BrowserPort int `json:"browser_port"`
-	// BrowserHeadless: whether to run Chrome in headless mode.
+	// BrowserHeadless: whether to run Chrome in headless mode. The default is
+	// platform dependent (FIX-592): off on Linux, on elsewhere.
 	BrowserHeadless bool `json:"browser_headless"`
 
 	// BrowserMaxHTMLSize: maximum HTML content size (in bytes) before saving to file.
@@ -1066,24 +1068,23 @@ const (
 // DefaultWorkModes returns the list of default work modes. All modes share the
 // same prompt section list (config.DefaultSections); they differ only in the
 // strategy text rendered inside the ResultMode section.
+// FIX-592: the default modes carry no Temperature override, so they inherit the
+// global LLM.Temperature; a mode with an explicit temperature still wins.
 func DefaultWorkModes() []WorkMode {
 	return []WorkMode{
 		{
 			Name:        "act",
 			Description: i18n.T(i18n.KeyWorkModeActDesc),
-			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "plan",
 			Description: i18n.T(i18n.KeyWorkModePlanDesc),
 			// FEATURE-472: no mode-specific ToolModes — plan uses the same global
 			// default tools as act so the system prompt stays static across modes.
-			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "research",
 			Description: i18n.T(i18n.KeyWorkModeResearchDesc),
-			Temperature: Float64Ptr(0),
 		},
 	}
 }
@@ -1147,9 +1148,10 @@ type Config struct {
 	// drained into <environment_details>. 0 means the default 100.
 	DynamicEventQueueSize int `json:"dynamic_event_queue_size,omitempty"`
 	// BoardEnabled enables the hub agent bulletin board collaboration
-	// (FEATURE-490). When false (default), the co-shell ignores board_task
-	// execution messages and does not participate in board collaboration.
-	BoardEnabled bool `json:"board_enabled,omitempty"`
+	// (FEATURE-490). It is ON by default (FIX-592, hence no omitempty: an
+	// explicit false must be persisted); turning it off makes the co-shell
+	// ignore board_task execution messages and skip board collaboration.
+	BoardEnabled bool `json:"board_enabled"`
 	// BoardAckTimeout is how long the board_send tool waits for the hub's
 	// board_sent acknowledgement, in seconds (FEATURE-530, default 5).
 	BoardAckTimeout int `json:"board_ack_timeout,omitempty"`
@@ -1184,11 +1186,18 @@ type Config struct {
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
 
+// defaultBrowserHeadless reports the platform dependent default of
+// browser-headless (FIX-592): Chrome runs headless by default everywhere except
+// Linux. A value written in config.json always wins over this default.
+func defaultBrowserHeadless(goos string) bool {
+	return goos != "linux"
+}
+
 // DefaultConfig returns a Config with sensible defaults (DeepSeek, key empty).
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:       0,
+			Temperature:       0.5,
 			MaxTokens:         -1,
 			MaxIterations:     1000,
 			ShowLlmThinking:   true,
@@ -1224,7 +1233,7 @@ func DefaultConfig() *Config {
 			ShellVTCols:              80,
 			ListMaxItems:             256,
 			SearchMaxLineLength:      8192,
-			SearchMaxResultBytes:     65536,
+			SearchMaxResultBytes:     128000,
 			SearchContextLines:       5,
 			ToolResultMaxSize:        65536, // 64KB (FEATURE-491)
 
@@ -1257,8 +1266,8 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:             5,
 			DocxMaxReadParas:            200,
 			VisualAnalysisMaxImages:     5,
-			StreamWindowMaxBlocks:       300,
-			StreamWindowMaxNodes:        30000,
+			StreamWindowMaxBlocks:       128,
+			StreamWindowMaxNodes:        12800,
 			StreamWindowMaxChars:        2000000,
 			PageBufferSize:              20,
 			VisionContextMode:           "minimal",
@@ -1302,7 +1311,7 @@ func DefaultConfig() *Config {
 			InputMode:                   "enhanced",
 			BrowserEnabled:              true,
 			BrowserPort:                 9222,
-			BrowserHeadless:             true,
+			BrowserHeadless:             defaultBrowserHeadless(runtime.GOOS),
 
 			// FEATURE-556 Phase 2: browser configuration defaults.
 			BrowserWindowSize:     "1280,800",
@@ -1338,6 +1347,9 @@ func DefaultConfig() *Config {
 
 		UIEnabled:      true,
 		UIContextPrune: true,
+		// FIX-592: the bulletin board collaboration is ON by default; an explicit
+		// false is persisted (see the BoardEnabled field tag).
+		BoardEnabled: true,
 		// FEATURE-567: the board reply-duty gate is on by default.
 		BoardMustReply: true,
 

@@ -433,13 +433,19 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				if err := setBoolPtr(&h.cfg.BoardEnabled, v); err != nil {
 					return "", err
 				}
+				if err := h.cfg.Save(); err != nil {
+					return "", err
+				}
 				h.agent.SetConfig(h.cfg)
 				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", v), nil
 			},
 			ResetValue: func() string {
-				h.cfg.BoardEnabled = false
+				h.cfg.BoardEnabled = true
+				if err := h.cfg.Save(); err != nil {
+					log.Warn("reset board-enabled: %v", err)
+				}
 				h.agent.SetConfig(h.cfg)
-				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", "off")
+				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", "on")
 			}},
 		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free"}, CurrentValue: func() string {
 			return config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
