@@ -1008,13 +1008,14 @@ aside {
 .ev.collapsed .ev-body,
 .ev.collapsed .tool-params { display: none; }
 
-/* FIX-590: an off-screen message block skips its own layout and paint, which
-   keeps scrolling - and every forced layout - cheap on long sessions (1 MB of
-   stream text used to cost ~66 ms per layout, 20 MB ~2.2 s). The last block
-   (the one being streamed) stays fully laid out so follow-output scrolling and
-   the scrollHeight reads used by the window eviction stay exact. */
-.ev { content-visibility: auto; contain-intrinsic-size: auto 300px; }
-.ev:last-child { content-visibility: visible; }
+/* FIX-595: REMOVED the `.ev` content-visibility isolation that FIX-590 added.
+   It let off-screen blocks skip layout and paint, but the intrinsic-size
+   estimate (300px) was ~12x smaller than a real block (~3800px measured), so
+   every block entering the viewport expanded from the estimate — shifting every
+   following block and correcting the scroll position. That produced the
+   "content renders from a black block while scrolling" flicker and the layout
+   churn that pinned the CPU. FIX-591/FIX-594 removed the per-frame forced
+   layouts it was compensating for, so the trade-off no longer pays off. */
 
 .ev-body {
   padding: 8px 12px;

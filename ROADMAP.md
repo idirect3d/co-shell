@@ -43,6 +43,59 @@
 
 ---
 
+## v0.92.1 — 前端 CPU 占用优化（hub 聚合页动画/iframe 降载 + 流式渲染每帧成本 + 长历史滚动）
+
+> **版本**: v0.92.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: 用户 2026-10-03 反馈：前端网页浏览器 CPU 占用偏高，要求先定位原因、再修复；并补充“历史内容较多时，即使流式输出已结束，缓慢上下翻页也会导致 CPU 飙升”。诊断（实测 + 代码级证据）：高 CPU 出现在 Safari 打开的 hub 聚合页（`127.0.0.1:12802`）及其中 iframe 内嵌的 co-shell Web UI。成因分三组：
+> ① **hub 聚合页**：`.agent .st.busy { animation: stBreath 1.2s infinite }` 关键帧含 `box-shadow` → 每帧 repaint，busy 实例越多越重（120Hz 下每秒 120 次；实测 `WebKit.GPU` 进程平均 100%、`WindowServer` 51~58%）；`ensureFrame()` 为每个实例建一个 iframe 并**永久缓存不销毁**，非激活 iframe 仍接收 WS 流式事件并执行 DOM 操作；`setInterval(refresh, 3000)` 轮询 + `innerHTML` 全量重建列表。
+> ② **co-shell Web UI 流式渲染**：`web/static/md.js:18` 每次渲染 `container.textContent = ""` → 全量重建整条消息 DOM；`renderMdNow → scrollStream()` 读 `scrollHeight` 强制同步布局整个消息流；`MD_TIERS` 在 ≤4096 字符时 `minIntervalMs=0` → 每帧渲染。
+> ③ **长历史滚动（用户新增现象）**：`app.js` `updateBlockNav` 每次滚动遍历**所有** `.ev` 读 `offsetTop/offsetHeight`（O(块数) 强制布局）；`#streamB` 实测 `contain:none`、`content-visibility:visible`，长会话缺少布局/绘制隔离，滚动时全量布局与重绘。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-594 | 0.92.1 | P1 | 前端 CPU 占用优化：hub（busy 无限动画改合成友好 / 非激活 iframe 降载 / 轮询增量）+ co-shell Web UI 流式渲染每帧成本 + 长历史滚动 O(n) 强制布局与布局隔离 |
+| FIX-595 | 0.92.1 | P1 | 移除 `.ev` 的 `content-visibility:auto` + `contain-intrinsic-size`（FIX-590 引入的退化：滚动黑屏重渲染、滚动条高度仅真实值 1/6、滚动 CPU 飙升），配套限频残留的 `scrollHeight` 强制布局 |
+
+> 当前 BUILD: 1201
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-594 前端 CPU 占用优化**
+  - 需求（用户 2026-10-03）：① 修复前端浏览器（Safari）CPU 占用高；② 修复历史内容多时缓慢翻页导致的 CPU 飙升。
+  - 决议：任务号 FIX-594，版本 v0.92.1（patch+1；用户确认新建版本）。范围（用户确认“全部”）：
+    1. **hub 侧**：busy 无限动画改合成友好属性；非激活 iframe 降载（避免后台继续做渲染重活）；轮询 `refresh` 改增量更新，避免 `innerHTML` 全量重建。
+    2. **co-shell Web UI**：降低流式渲染每帧成本（避免每帧全量重建整条消息 DOM）；减少读 `scrollHeight` 引起的强制同步布局。
+    3. **长历史滚动**：消除滚动时 O(块数) 强制布局（`updateBlockNav`）；为消息块/滚动容器增加布局与绘制隔离。
+  - 相关遗留（单独讨论，不在本次实施）：用户提出浏览器与 co-shell 的通讯机制解耦（流式内容先持久化、前端按需查询分段历史），以保证浏览器离线/移动端不阻塞后端输出——待方案定稿后另立任务。
+  - 验收标准：见 `use-case/FIX-594/`。
+  - 交付物：`hub/gateway/webui_static.go`、`web/static/app.js`、`web/static/md.js`、`web/static/style.css`（按实施而定）、`use-case/FIX-594/`。
+  - 完成情况：⏳ 待用户验收（分支 FIX-594，未合并 main）[BUILD-1201]
+    - 实施：
+      1. `hub/gateway/webui_static.go`：`.agent .st.busy` 的 `@keyframes stBreath` 由「动画 box-shadow（每帧 repaint）」改为「静态光晕 + 仅动画 opacity」（合成友好）；`refresh()` 对 agent 列表加签名比较，签名未变则不再 `renderList()`（原每 3s 无条件 `innerHTML` 全量重建）。
+      2. `web/static/app.js`：`MD_TIERS` 最小档 `minIntervalMs` 0→50ms（120Hz 下短消息不再每帧全量重建 markdown DOM）；新增 `renderPaused()`（`document.hidden`）——后台标签页与 hub 中 `display:none` 的非激活 iframe 内文档均为 hidden，此时 `scheduleMd` 只入队不渲染、`scrollStream` 不执行，`visibilitychange` 恢复可见时 `flushPendingMd()`；`scrollStream` 的 follow-scroll 由「读 `scrollHeight`」改为「赋 `scrollTop` 大值钳制」，去掉每帧一次强制同步布局；`updateBlockNav` 由「每次滚动遍历全部 `.ev` 读 `offsetTop/offsetHeight`」改为「IntersectionObserver 维护的视口候选集 + 100ms 限频」（无 IO 时降级为原全量遍历）。
+    - 实测证据（0.92.1 独立实例，注入 300 块）：`updateBlockNav` 单次耗时 **0.28ms → 0.005ms**（≈56×，且不随会话长度线性增长）；`go build ./... && go vet ./...` 通过；`node --check web/static/app.js web/static/md.js` 通过；改动的 `hub/gateway/webui_static.go` 不在 `gofmt -l` 输出中（列出的均为本次未改动的既有文件）。
+    - 产物：`work/co-shell-0.92.1.darwin.arm64`、`work/co-shell-hub-0.92.1.darwin.arm64`。
+    - 验收用例：`use-case/FIX-594/FIX-594-UC-0001.md`（A~K）。
+    - 未做：Safari 现场复核（`WebKit.GPU`/`WindowServer` 占用对比）需用户在有长会话的环境中确认。
+
+- [x] **FIX-595 移除 content-visibility 隔离（FIX-590 退化回退）**
+  - 需求（用户 2026-10-03）：翻页时内容“从黑屏开始渲染”、刚划过的内容也重新渲染、CPU 轻易 100%；用户判断“这么做没什么好处”，确认采用**方案 1**，沿用 v0.92.1。
+  - 根因（实测）：`web/static/style.css` 的 `.ev { content-visibility:auto; contain-intrinsic-size:auto 300px }`（FIX-590 / v0.91.6 / BUILD-1195 引入）。150 个真实 md 渲染块（51901 节点）实测 `#streamB.scrollHeight`：auto=**95,357px** vs visible=**570,031px**（估算 300px 与真实块高 ~3800px 差 **12 倍**）→ 滚动时每块从估算高度展开、其后所有块偏移被反复重算并修正滚动位置 → 观感即“动态加载/黑屏渲染”，同时造成大范围重排。FIX-590 引入它的前提（每帧昂贵强制布局）已被 FIX-591/FIX-594 消除，收益消失而代价仍在。
+  - 实施：① `web/static/style.css` 移除 `.ev{content-visibility:auto;contain-intrinsic-size:auto 300px}` 与 `.ev:last-child{content-visibility:visible}`；② `web/static/app.js` 给 `updateFollowState` 的 scroll 探针加 **100ms 限频**（移除隔离后 `scrollHeight` 读取重新与会话体量成正比），`jumpToBottom` 改用 `scrollTop=1e9` 钳制不再读 `scrollHeight`。
+  - 验收标准：见 `use-case/FIX-594/FIX-594-UC-0002.md`。
+  - 完成情况：⏳ 待用户验收（分支 FIX-594，未合并 main）[BUILD-1202]
+    - 实施：① `web/static/style.css` 移除 `.ev{content-visibility:auto;contain-intrinsic-size:auto 300px}` 与 `.ev:last-child{content-visibility:visible}`；② `web/static/app.js` 给 `updateFollowState` 的 scroll 探针加 **100ms 限频**，`jumpToBottom` 改用 `scrollTop=1e9` 钳制不再读 `scrollHeight`。
+    - 实测证据（0.92.1 / BUILD-1202 独立实例，注入 150 个真实 md 渲染块 / 51901 节点）：`#streamB.scrollHeight` 由修复前的 **95,357px** 恢复为 **570,031px**，与“全部块 visible”基线完全一致（滚动条高度不再被压到真实值的 1/6）；`.ev` 计算样式中已无 `content-visibility`；`/static/style.css` 与 `/static/app.js` 经 HTTP 抓取确认已内嵌新代码（`followStateLastRun` 出现 3 处）。
+    - 编译：`go build ./... && go vet ./...` 通过；`node --check web/static/app.js` 通过。
+    - 产物：`work/co-shell-0.92.1.darwin.arm64`、`work/co-shell-hub-0.92.1.darwin.arm64`（BUILD-1202）。
+    - 未做：Safari 现场观感与 CPU 复核需用户在长会话环境中确认。
+
+---
+
 ## v0.91.8 — 系统默认值优化（流窗口块数/节点数、温度、看板、检索字节、浏览器无头）
 
 > **版本**: v0.91.8

@@ -234,10 +234,13 @@ const webIndexHTML = `<!DOCTYPE html>
      breathing light (a task is executing). */
   .agent .st { width:8px; height:8px; border-radius:50%; background:#555; flex:none; }
   .agent .st.idle { background:var(--ok); box-shadow:0 0 4px var(--ok); }
-  .agent .st.busy { background:var(--err); animation:stBreath 1.2s ease-in-out infinite; }
+  .agent .st.busy { background:var(--err); box-shadow:0 0 5px var(--err); animation:stBreath 1.2s ease-in-out infinite; }
+  /* FIX-594: animate opacity only (compositor-friendly). The old keyframes
+     animated box-shadow, which repaints on every frame and kept the GPU/
+     WindowServer busy the whole time any agent was executing a task. */
   @keyframes stBreath {
-    0%,100% { box-shadow:0 0 2px var(--err); opacity:.55; }
-    50% { box-shadow:0 0 8px var(--err); opacity:1; }
+    0%,100% { opacity:.5; }
+    50% { opacity:1; }
   }
   /* FEATURE-557: the name is wrapped so the board (chat bubble) marker can sit
      right after the text: the wrapper takes the flexible slot, the name
@@ -933,7 +936,10 @@ var HUB_LANG = "__HUB_LANG__";
       });
       if (!current && agents.length) current = agents[0].id;
       if (current && !agents.some(function(a){ return a.id === current; })) current = agents.length ? agents[0].id : null;
-      renderList();
+      // FIX-594: only rebuild the (innerHTML-based) list when something it
+      // paints actually changed; the 3s poll used to rebuild it every tick.
+      var sig = agentsSignature(agents, current);
+      if (sig !== lastAgentsSig){ lastAgentsSig = sig; renderList(); }
       ensureFrame(current);
       // FEATURE-530: keep the Chat pane in sync while it is expanded.
       if (!chatBody.classList.contains('collapsed')) loadBoard();
@@ -1165,6 +1171,16 @@ var HUB_LANG = "__HUB_LANG__";
     }
     doFocus();
     f.addEventListener('load', doFocus, { once: true });
+  }
+
+  // FIX-594: lastAgentsSig caches the identity of everything renderList paints
+  // (including the active agent), so refresh() can skip the DOM rebuild when a
+  // poll returns an unchanged list.
+  var lastAgentsSig = '';
+  function agentsSignature(list, cur){
+    return (list || []).map(function(a){
+      return [a.id, a.name, a.connected, a.running, a.busy, a.type, a.board_state].join('\u0001');
+    }).join('\u0002') + '\u0003' + (cur || '');
   }
 
   function renderList(){

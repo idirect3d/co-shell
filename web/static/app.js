@@ -946,11 +946,15 @@ let followOutput = true; // whether new output should auto-scroll to the bottom
 let scrollPending = false;
 function scrollStream() {
   if (scrollPending) return;
+  if (renderPaused()) return; // FIX-594: nothing is painted while hidden
   scrollPending = true;
   requestAnimationFrame(() => {
     scrollPending = false;
     if (!followOutput) return;
-    streamB.scrollTop = streamB.scrollHeight;
+    // FIX-594: assign a huge value instead of reading scrollHeight first — the
+    // read forces a synchronous layout of the whole (possibly multi-MB) stream
+    // on every follow-scroll frame; the assignment just clamps to the bottom.
+    streamB.scrollTop = 1e9;
     if (scrollDownBtn) scrollDownBtn.classList.remove("on");
   });
 }
@@ -966,7 +970,10 @@ function updateFollowState() {
 // jumpToBottom scrolls to the bottom and resumes following output.
 function jumpToBottom() {
   followOutput = true;
-  streamB.scrollTop = streamB.scrollHeight;
+  // FIX-595: clamp-assign instead of reading scrollHeight — that read is a
+  // forced layout proportional to the session size now that the .ev
+  // content-visibility isolation is gone.
+  streamB.scrollTop = 1e9;
   if (scrollDownBtn) scrollDownBtn.classList.remove("on");
 }
 
@@ -977,14 +984,49 @@ function jumpToBottom() {
 // visible area inside the viewport.
 let blockNavCurrent = null; // the .ev box the icons currently target
 
+// FIX-594: which blocks currently intersect the stream viewport, maintained by
+// an IntersectionObserver. updateBlockNav used to walk every .ev and read
+// offsetTop/offsetHeight, which forces a synchronous layout of the whole stream
+// (and defeats the .ev content-visibility isolation) — that was the main cost of
+// slowly scrolling through a long session.
+const blockNavVisible = new Set();
+let blockNavObserver = null;
+
+// ensureBlockNavObserver lazily starts the viewport observer.
+function ensureBlockNavObserver() {
+  if (blockNavObserver || typeof IntersectionObserver === "undefined") return;
+  blockNavObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) blockNavVisible.add(e.target);
+      else blockNavVisible.delete(e.target);
+    }
+    updateBlockNav();
+  }, { root: streamB, threshold: 0 });
+  streamB.querySelectorAll(".ev").forEach((box) => blockNavObserver.observe(box));
+}
+
+// observeEv registers a newly created block with the observer (no-op before the
+// observer exists; ensureBlockNavObserver sweeps the existing blocks).
+function observeEv(box) {
+  if (blockNavObserver) blockNavObserver.observe(box);
+}
+
 function updateBlockNav() {
   if (!blockNavTop || !blockNavBottom) return;
   const scroller = streamB;
   const viewTop = scroller.scrollTop;
   const viewBottom = viewTop + scroller.clientHeight;
-  // Find the .ev block with the largest visible area in the viewport.
+  // FIX-594: only the blocks the observer reports as intersecting the viewport
+  // are examined, so the work no longer grows with the length of the session.
+  // Falls back to a full walk when IntersectionObserver is unavailable.
+  const candidates = blockNavObserver ? blockNavVisible : scroller.querySelectorAll(".ev");
   let best = null, bestArea = 0;
-  for (const box of scroller.querySelectorAll(".ev")) {
+  for (const box of candidates) {
+    if (blockNavObserver && !box.isConnected) {
+      blockNavVisible.delete(box);
+      blockNavObserver.unobserve(box);
+      continue;
+    }
     const top = box.offsetTop;
     const bottom = top + box.offsetHeight;
     const interTop = Math.max(top, viewTop);
@@ -1010,6 +1052,8 @@ function updateBlockNav() {
 // Clicking ↑ jumps to the current block's title line; ↓ jumps to its bottom.
 function bindBlockNav() {
   if (!blockNavTop || !blockNavBottom) return;
+  // FIX-594: start the viewport observer that feeds updateBlockNav.
+  ensureBlockNavObserver();
   blockNavTop.addEventListener("click", () => {
     if (!blockNavCurrent) return;
     streamB.scrollTop = blockNavCurrent.offsetTop;
@@ -1021,11 +1065,19 @@ function bindBlockNav() {
   // FIX-591: coalesce the block-navigation scan into one animation frame - it
   // walks every block and reads offsetTop/offsetHeight (a forced layout), and
   // scroll events arrive in bursts.
+  // FIX-594: also rate-limit it. That walk force-layouts every .ev, which also
+  // defeats the .ev content-visibility isolation; on long sessions it was the
+  // main cost of slowly scrolling through history. The floating navigation
+  // icons do not need frame accuracy, so 100ms is plenty.
   let blockNavRaf = 0;
+  let blockNavLastRun = 0;
   streamB.addEventListener("scroll", () => {
     if (blockNavRaf) return;
     blockNavRaf = requestAnimationFrame(() => {
       blockNavRaf = 0;
+      const now = performance.now();
+      if (now - blockNavLastRun < 100) return;
+      blockNavLastRun = now;
       updateBlockNav();
     });
   });
@@ -1258,8 +1310,12 @@ function renderDiff(body, diffLines) {
 //   2. rendering is skipped entirely while the user types or an IME composition
 //      is active, and the accumulated text is painted once the burst is over
 //      (noteInputActivity / inputQuiet / flushPendingMd).
+// FIX-594: the smallest tier used to repaint on EVERY animation frame
+// (minIntervalMs 0). On a 120Hz display that is up to 120 full markdown
+// rebuilds per second while a short message streams. 50ms (~20fps) still reads
+// as a typewriter but cuts the work by up to 6x.
 const MD_TIERS = [
-  { maxChars: 4096, minIntervalMs: 0 },
+  { maxChars: 4096, minIntervalMs: 50 },
   { maxChars: 32768, minIntervalMs: 100 },
   { maxChars: Infinity, minIntervalMs: 330 },
 ];
@@ -1283,6 +1339,15 @@ function inputQuiet() {
   return performance.now() < inputActiveUntil || window.__composing === true;
 }
 
+// renderPaused reports whether the document is currently not being painted: a
+// background tab, or a non-active iframe inside the hub (display:none makes the
+// child document report hidden). Rendering then is pure waste — the browser
+// skips the paint anyway, but the JS (whole-message markdown rebuilds, forced
+// layouts) still runs. Pausing keeps hidden instances nearly free (FIX-594).
+function renderPaused() {
+  return document.hidden === true;
+}
+
 // mdTier returns the render cadence for a block of the given text length.
 function mdTier(len) {
   for (const t of MD_TIERS) if (len <= t.maxChars) return t;
@@ -1299,6 +1364,15 @@ function flushPendingMd() {
   pendingMdBlocks.clear();
   for (const b of blocks) if (b.mdDirty) renderMdNow(b);
 }
+
+// FIX-594: paint what was deferred while the document was hidden as soon as it
+// becomes visible again (background tab, or switching back to a hub agent
+// whose iframe was display:none).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  flushPendingMd();
+  scrollStream();
+});
 
 // renderMdNow paints a streaming block once, keeping the FEATURE-515 pinned
 // THINK body at its bottom and following the output as before.
@@ -1326,7 +1400,7 @@ function clearStreamingMarks() {
 // (FIX-590).
 function scheduleMd(b) {
   b.mdDirty = true;
-  if (inputQuiet()) {
+  if (inputQuiet() || renderPaused()) {
     pendingMdBlocks.add(b);
     return;
   }
@@ -1410,6 +1484,8 @@ function makeBlock(cls, label, msgIndex) {
   // FEATURE-508: keep the top sentinel as the first child so the observer can
   // still detect scrolling to the very top after new blocks are appended.
   ensureTopSentinel();
+  // FIX-594: let the viewport observer track this block (block navigation).
+  observeEv(box);
   // FEATURE-482: queue this block for the message-visualization chart. Its
   // context-usage value is backfilled when the iteration's token_iter arrives.
   if (msgVizPending) msgVizPending.push({ cls: cls, box: box });
@@ -5038,11 +5114,19 @@ if (yoloSwitch) {
 // FIX-591: the follow-state probe reads scrollTop/clientHeight/scrollHeight on
 // every scroll event; coalescing it keeps a scroll burst to one measurement per
 // frame.
+// FIX-595: also rate-limit it. With the .ev content-visibility isolation gone,
+// the scrollHeight read is proportional to the session size again, so probing on
+// every frame of a scroll would force repeated full-stream layouts. The "am I at
+// the bottom" answer does not need frame accuracy.
 let followStateRaf = 0;
+let followStateLastRun = 0;
 streamB.addEventListener("scroll", () => {
   if (followStateRaf) return;
   followStateRaf = requestAnimationFrame(() => {
     followStateRaf = 0;
+    const now = performance.now();
+    if (now - followStateLastRun < 100) return;
+    followStateLastRun = now;
     updateFollowState();
   });
 });
