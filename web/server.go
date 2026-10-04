@@ -826,8 +826,8 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		// falls back to "co-shell"), so an edit made elsewhere shows up on reload.
 		"agent_name":      agent.ResolveAgentName(s.root),
 		"branch":          gitBranch(s.root),
-		"remote":          s.isRemote(),
-		"downloadEnabled": s.downloadEnabled(),
+		"remote":          s.isRemoteRequest(r),
+		"downloadEnabled": s.downloadEnabled(r),
 	}
 	// FEATURE-378: expose the active text/vision model context info for the
 	// status bar's context-usage display.
@@ -1395,7 +1395,7 @@ type pathRequest struct {
 func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	// FEATURE-455: opening a file with the server's OS default app is
 	// meaningless (and a security concern) when the UI is served remotely.
-	if s.isRemote() {
+	if s.isRemoteRequest(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "open disabled on remote access"})
 		return
 	}
@@ -1405,7 +1405,7 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
 	// FEATURE-455: revealing a file in the server's OS file manager is
 	// meaningless (and a security concern) when the UI is served remotely.
-	if s.isRemote() {
+	if s.isRemoteRequest(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "reveal disabled on remote access"})
 		return
 	}
@@ -1473,19 +1473,50 @@ func (s *Server) isRemote() bool {
 	return true
 }
 
-// downloadEnabled reports whether remote file download is both allowed by the
-// operator (--download-enabled) and meaningful (served to a remote address).
-func (s *Server) downloadEnabled() bool {
-	return s.opts.DownloadEnabled && s.isRemote()
+// isRemoteClient reports whether the request carries an X-Client-IP header
+// (FEATURE-607) whose address is not loopback. The hub reverse proxy injects
+// the real client address there, so co-shell can tell a remote client apart
+// from a browser running on the same machine: both reach a loopback-bound
+// server from 127.0.0.1 when the hub proxies the request.
+func (s *Server) isRemoteClient(r *http.Request) bool {
+	raw := strings.TrimSpace(r.Header.Get("X-Client-IP"))
+	if raw == "" {
+		return false
+	}
+	host := raw
+	if h, _, err := net.SplitHostPort(raw); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(strings.Trim(strings.TrimSpace(host), "[]"))
+	if ip == nil {
+		return false
+	}
+	return !ip.IsLoopback()
+}
+
+// isRemoteRequest reports whether the current request comes from a remote
+// client: the server itself is bound to a non-loopback address (direct remote
+// access), or the hub proxy forwarded a non-loopback client address
+// (FEATURE-607). It drives the OS-local action guards and file download.
+func (s *Server) isRemoteRequest(r *http.Request) bool {
+	return s.isRemote() || s.isRemoteClient(r)
+}
+
+// downloadEnabled reports whether file download is allowed for this request:
+// the operator enabled it (--download-enabled) and the request comes from a
+// remote client (see isRemoteRequest).
+func (s *Server) downloadEnabled(r *http.Request) bool {
+	return s.opts.DownloadEnabled && s.isRemoteRequest(r)
 }
 
 // handleDownload serves a workspace file to the browser as a download
-// (FEATURE-455). It is only available when the operator enabled download and
-// the UI is served to a remote address; otherwise it returns 403 so the
-// feature is never exposed unintentionally. The path is validated to stay
-// inside the workspace (no traversal) and must be a regular file.
+// (FEATURE-455/FEATURE-607). It is only available when the operator enabled
+// download and the request comes from a remote client (non-loopback bind, or a
+// non-loopback X-Client-IP injected by the hub proxy); otherwise it returns
+// 403 so the feature is never exposed unintentionally. The path is validated
+// to stay inside the workspace (no traversal) and must be a regular file.
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
-	if !s.downloadEnabled() {
+	if !s.downloadEnabled(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "download disabled"})
 		return
 	}

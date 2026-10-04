@@ -73,7 +73,7 @@ func TestManagerUpdateUnknownAgent(t *testing.T) {
 func TestManagerUpdateManagedFields(t *testing.T) {
 	m := newTestManager(t)
 	wsOld := filepath.Join(t.TempDir(), "old")
-	spec, err := m.CreateManaged("a1", wsOld, "", "", false, true, 0, "--accept-license", false)
+	spec, err := m.CreateManaged("a1", wsOld, "", "", false, true, 0, "--accept-license", false, false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 // fields it carries.
 func TestManagerUpdatePartialPatchLeavesOtherFields(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license", false, false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestManagerUpdatePartialPatchLeavesOtherFields(t *testing.T) {
 // applied and everything else stays untouched.
 func TestManagerUpdateWithoutNamePatch(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
+	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false, false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
 	updated, err := m.Update("a1", AgentPatch{ExtraArgs: strPtr("--note")})
@@ -155,7 +155,7 @@ func TestManagerUpdateWithoutNamePatch(t *testing.T) {
 // this very agent must succeed (it is used by the running agent itself).
 func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false, false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 
 func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false, false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 
 func TestManagerUpdateRejectsInvalidInput(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
+	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false, false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
 	if _, err := m.AddExternal("e1", "ws://127.0.0.1:29001/ws"); err != nil {
@@ -313,7 +313,7 @@ func TestBuildArgsYOLODefaultExtraArgs(t *testing.T) {
 // that omits the field, and an explicit disable (FEATURE-528, UC-05/UC-06/UC-09).
 func TestManagerYOLOPersisted(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "--accept-license", true)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "--accept-license", true, false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}

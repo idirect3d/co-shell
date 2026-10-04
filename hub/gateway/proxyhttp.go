@@ -50,6 +50,12 @@ func (p *httpReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.NotFound(rw, r)
 		return
 	}
+	// FEATURE-607: forward the real client address so the agent can tell a
+	// remote client (mobile / LAN, possibly proxied by this hub) apart from a
+	// browser running on the same machine. Header.Set replaces any value the
+	// client supplied, so the header is only trustworthy when this proxy sets
+	// it. The raw "IP:port" is forwarded as-is.
+	r.Header.Set("X-Client-IP", r.RemoteAddr)
 	// Rewrite the request path to the agent's root (strip the /agent/{id}
 	// prefix). The tail keeps its leading slash, e.g. "/static/app.js".
 	r.URL.Path = "/" + tail

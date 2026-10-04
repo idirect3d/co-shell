@@ -3183,10 +3183,12 @@ let modelInfo = null;
 // (FEATURE-546). Null means no model reported one.
 let activeMTP = null;
 
-// FEATURE-455: remote access + download flags from bootstrap. When the UI is
-// served to a remote address (remote=true) and the operator enabled download
-// (downloadEnabled=true), the workspace file list's "reveal in folder" icon
-// becomes a download icon (and the folder reveal action disappears).
+// FEATURE-455/FEATURE-607: remote access + download flags from bootstrap.
+// "remote" is true when the current request comes from a non-local client
+// (non-loopback bind, or the hub proxy forwarded a non-loopback X-Client-IP).
+// When remote=true and the operator enabled download (downloadEnabled=true),
+// the workspace file list's "reveal in folder" icon becomes a download icon
+// (and the folder reveal action disappears).
 let remoteAccess = false;
 let downloadEnabled = false;
 
@@ -5488,11 +5490,12 @@ function treeNode(node) {
     badge.title = node.changes + " changed";
     actions.appendChild(badge);
   }
-  // FEATURE-455: when the UI is served to a remote address, the "reveal in
-  // folder" action is meaningless (it would open the server's local file
-  // manager on the remote host) and is a security concern, so it is always
-  // disabled. When download is also enabled, files show a download icon
-  // instead; directories show no action at all. Locally the reveal icon stays.
+  // FEATURE-455/FEATURE-607: when the request comes from a non-local client
+  // (remoteAccess, see bootstrap) the "reveal in folder" action is meaningless
+  // (it would open the server's local file manager on the remote host) and is a
+  // security concern, so it is always disabled. When download is also enabled,
+  // files show a download icon instead; directories show no action at all.
+  // Locally the reveal icon stays.
   if (remoteAccess) {
     if (downloadEnabled && !node.dir) {
       const dl = document.createElement("button");

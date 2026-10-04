@@ -4,6 +4,38 @@
 
 ---
 
+## v0.96.0 — 下载功能：X-Client-IP 判定 + hub 配置开关
+
+> **版本**: v0.96.0
+
+> **状态**: ✅ 已完成（待合并 main，分支 `FEATURE-607`）
+> **里程碑**: co-shell 的 `--download-enabled` 原先只对「bind 非 loopback」生效——经 hub 反向代理访问的移动端/远程客户端（co-shell 绑 127.0.0.1）无法下载。本次由 hub 反向代理注入客户端真实地址（请求头 `X-Client-IP`），co-shell 把「远程访问」判定扩展为「bind 非 loopback 或 客户端非 loopback」，使移动端/远程可下载、本机直接访问仍不提供下载；并让 hub 的 agent 配置界面可开关下载功能（启动时注入 `--download-enabled`）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-607 | 0.96.0 | P1 | 下载判定扩展（`X-Client-IP` 非 loopback 也允许下载）；hub 反代注入 `X-Client-IP`（覆盖客户端自带头，防伪造）；hub agent 配置界面新增「启用下载功能」开关（启动注入 `--download-enabled`） |
+
+> 当前 BUILD: 1219
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-607 下载功能：X-Client-IP 判定 + hub 配置开关**
+  - 需求（用户 2026-10-05 00:48 / 01:09 / 01:12）：① 让移动端（经 hub 访问）也能下载工作区文件；② 方案由最初的「channel 请求头」改为——hub 反向代理注入客户端真实地址（请求头 `X-Client-IP`，保留 `IP:port` 原样，并覆盖/清除客户端自带的同名头以防伪造），co-shell 据此判断是否为远程客户端；③ 判定规则：`allowDownload = 启用 --download-enabled 且 ( bind 非 loopback 或 X-Client-IP 为非 loopback IP )`；④ hub 的 agent 配置界面新增「启用下载功能」开关，打开则启动该 agent 时注入 `--download-enabled`；⑤ iOS 客户端零改动。
+  - 版本/编号（用户确认）：v0.96.0（minor 递增）、任务号 FEATURE-607。
+  - 现状：`main.go:401` 定义 `--download-enabled`（默认 false）；`web/server.go:1478` `downloadEnabled() = opts.DownloadEnabled && s.isRemote()`（`isRemote()` 只看 bind，`web/server.go:1468`）；`hub/gateway/proxyhttp.go:99` 用 `httputil.NewSingleHostReverseProxy`（透传请求头，未注入客户端地址）；hub 启动 agent 的参数组装在 `hub/gateway/manager.go:447 buildArgs`（可参照 `YOLO` 字段模式）。
+  - 方案（待实施）：① hub `proxyhttp.go` 反代 `/agent/{id}/` 时先删除客户端自带的 `X-Client-IP`，再写入 `r.RemoteAddr`（保留 `IP:port`）；② co-shell `web/server.go` 新增 `isRemoteClient(r)`（解析 `X-Client-IP` 的 host，非 loopback 即为真），`downloadEnabled()` 改为 `opts.DownloadEnabled && (isRemote() || isRemoteClient(r))`，bootstrap 下发的 `remote` 同步扩展为「bind 非 loopback 或 客户端非 loopback」，`handleOpen`/`handleReveal` 的远程禁用保持一致；③ 前端 `web/static/app.js` 可下载时把文件树「在文件夹中显示」图标替换为下载图标，本机直接访问保持 reveal；④ i18n（zh/en）更新 `--download-enabled` 帮助文案（去掉「仅对非本机监听地址生效」）；⑤ hub `AgentSpec` 新增 `DownloadEnabled bool` + `buildArgs` 注入 + Web UI 表单开关 + API 读写；⑥ 单元测试：co-shell `web/server_test.go`（本机/远程/带 `X-Client-IP` 各组合）、hub `gateway` 的 `buildArgs` 注入。
+  - 验收标准：见 `use-case/FEATURE-607/`。
+  - 完成情况：✅ 已完成（待合并 main）[BUILD-1219]
+    - 实施：① co-shell `web/server.go`——新增 `isRemoteClient(r)`（解析 `X-Client-IP`，非 loopback 即为远程客户端）与 `isRemoteRequest(r) = isRemote() || isRemoteClient(r)`；`downloadEnabled(r)` 改为 `opts.DownloadEnabled && isRemoteRequest(r)`；bootstrap 的 `remote`、`handleOpen`/`handleReveal` 的远程禁用同步改用 `isRemoteRequest(r)`；② `i18n/zh.go`、`i18n/en.go` 的 `--download-enabled` 帮助文案改为「仅对非本机客户端生效」/「only for non-local clients」；③ `web/static/app.js` 注释更新以反映 remote 的新语义（判定与图标逻辑本就由后端 `remote`/`downloadEnabled` 驱动，行为无需改动）；④ hub `gateway/proxyhttp.go` 反代 `/agent/{id}/` 时 `Header.Set("X-Client-IP", r.RemoteAddr)`（覆盖客户端自带的同名头，防伪造）；⑤ hub `gateway/manager.go`——`AgentSpec` 新增 `DownloadEnabled`（`download_enabled`）、`CreateManaged` 增参、`AgentPatch.DownloadEnabled`、`Update` 应用、`buildArgs` 注入 `--download-enabled`（参照 YOLO 模式）；⑥ hub `gateway/webui.go`（agentView / createAgentRequest / updateAgentRequest / handlers）与 `webui_static.go`（新建与详情表单开关 + JS 填充/提交/重置 + EN 文案）贯通该开关。
+    - 单元测试：新增 `web/feature607_test.go`（`TestIsRemoteClientXHeader` 8 例、`TestDownloadXClientIP` 5 例 + 开关关闭/远程 bind/穿越/目录、`TestBootstrapXClientIP` 4 例、`TestOpenRevealXClientIP`）与 `hub/gateway/feature607_test.go`（`TestBuildArgsDownloadEnabled`、`TestManagerDownloadEnabledPersisted`、`TestProxyInjectsClientIP`）——全部通过。
+    - 静态/回归：`go build ./... && go vet ./...` 通过；hub 独立模块 `go build/vet/test` 通过；`go test ./hub/gateway/... -short` ok；`go test ./web/ -short -run 'TestDownload|TestIsRemote|TestBootstrap|TestOpenReveal|TestWebReveal|TestUpload|TestTree|TestFile|TestWhitelist'` ok。`go test ./web/... -short` 的失败集与改动前基线**完全一致**（基线 17 项既有失败，集中于 `session_test.go`/`render_test.go`，与本次改动无关）。
+    - 产物：`work/co-shell-0.96.0.darwin.arm64`、`work/co-shell-hub-0.96.0.darwin.arm64`（`--version` 自检 `v0.96.0 [BUILD-1219]`）。
+    - 待办：真实链路验收（UC-30，需真实 hub + 移动端环境）待人工确认；UC-01~UC-29 已由上述单元测试覆盖。
+
+---
+
 ## v0.95.2 — Web 系统设置「智能体」页可配置子代理池上限
 
 > **版本**: v0.95.2
