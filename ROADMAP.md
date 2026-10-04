@@ -4,6 +4,23 @@
 
 ---
 
+## v0.96.1 — co-shell-hub 新增 `--no-api-key` 显式免密开关
+
+> **版本**: v0.96.1
+
+> **状态**: ✅ 已完成（已合并 main，标签 `v0.96.1`）
+> **里程碑**: co-shell-hub 的 `--api-key` 只在非空时覆盖配置（空串等同“未指定”），因此 `hub-gateway.json` 一旦配置了 api_key，就无法临时免密启动。本次新增显式开关 `--no-api-key`，作为“临时免密访问”入口：关闭 TCP 网关鉴权，并让 Web 侧在本进程内忽略 `require_key`（不改写 hub-settings.json）。版本随 main 序列提升为 v0.96.1（在 FEATURE-607 的 v0.96.0 之后 patch 递增）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-606 | 0.96.1 | P1 | co-shell-hub 新增 `--no-api-key`：临时免密（关闭 TCP 鉴权 + 本进程忽略 Web require_key） |
+
+> 当前 BUILD: 1220
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+---
+
 ## v0.96.0 — 下载功能：X-Client-IP 判定 + hub 配置开关
 
 > **版本**: v0.96.0
@@ -33,6 +50,20 @@
     - 静态/回归：`go build ./... && go vet ./...` 通过；hub 独立模块 `go build/vet/test` 通过；`go test ./hub/gateway/... -short` ok；`go test ./web/ -short -run 'TestDownload|TestIsRemote|TestBootstrap|TestOpenReveal|TestWebReveal|TestUpload|TestTree|TestFile|TestWhitelist'` ok。`go test ./web/... -short` 的失败集与改动前基线**完全一致**（基线 17 项既有失败，集中于 `session_test.go`/`render_test.go`，与本次改动无关）。
     - 产物：`work/co-shell-0.96.0.darwin.arm64`、`work/co-shell-hub-0.96.0.darwin.arm64`（`--version` 自检 `v0.96.0 [BUILD-1219]`）。
     - 待办：真实链路验收（UC-30，需真实 hub + 移动端环境）待人工确认；UC-01~UC-29 已由上述单元测试覆盖。
+- [ ] **FIX-606 co-shell-hub 新增 `--no-api-key` 显式免密开关**
+  - 需求（用户 2026-10-04 21:51）：核对 hub 的 `--api-key` 是否允许设空，以便即便启用了 api-key 也能临时不用 key 访问——调查结论为“不允许”（`if *apiKey != ""` 把空串视作未指定）；用户选择方案 B：新增显式开关 `--no-api-key`。
+  - 用户确认（2026-10-04 22:01~22:04）：① 版本 v0.95.3（patch 递增）、任务号 FIX-606；② `--no-api-key` 优先级最高，与 `--api-key` 同时出现时按命令行顺序「后出现者生效」；③ 同时把 Web 设置页的 `require_key`（强制校验）开关在本进程内视作关闭，仅内存生效、不写回 hub-settings.json，白名单与 access_key 不变；④ 启动时额外打印一行警告 `WARNING: TCP auth disabled (--no-api-key)`。
+  - 现状：`cmd/co-shell-hub/main.go:83` 定义 `--api-key`（默认 ""）、`:108-110` 仅在非空时覆盖 `cfg.APIKey`；`hub/gateway/auth.go:24-26` 空 key 即放行一切（免密语义网关已具备）；Web 侧 `hub/gateway/webui.go:591-616` 的 `needKey := s.RequireKey || (!allowed && s.AccessKey != "")`（白名单内主机默认免 KEY，仅 `require_key` 会强制）。
+  - 方案：① `cmd/co-shell-hub/main.go` 新增 bool flag `--no-api-key`；② 新增 `lastAuthFlag(args)` 与 `authDisabledByCLI(noAPIKey, args)`——扫描命令行判定「后出现者生效」，生效时把 `cfg.APIKey` 置空（覆盖配置文件的非空 key，即落到 `hub/gateway/auth.go` 的空 key 放行语义）；③ 启动时打印 `WARNING: TCP auth disabled (--no-api-key)`；④ Web 侧在 `gateway.LoadSettings` 之后把 `settings.RequireKey` 置 false（仅内存、不 `Save`；白名单与 access_key 保持原样），再交给 `NewWebUI`；⑤ `printUsage()`/文件头 flag 文档补该开关与示例；⑥ 新增 `cmd/co-shell-hub/main_test.go` 覆盖顺序判定与免密决策。
+  - 验收标准：见 `use-case/FIX-606/`。
+  - 完成情况：✅ 已完成（已合并 main，标签 `v0.96.1`）[BUILD-1220]
+    - 实施：`cmd/co-shell-hub/main.go`——新增 `--no-api-key`（`flag.Bool`）；新增 `lastAuthFlag(args)` / `authDisabledByCLI(noAPIKey, args)`（`--api-key` 与 `--no-api-key` 同时出现时后出现者生效）；生效时 `cfg.APIKey = ""` + 警告日志；`settings.RequireKey = false`（仅内存，无 `Save`）；`printUsage()` 与文件头 flag 文档补该开关。新增 `cmd/co-shell-hub/main_test.go`（`TestLastAuthFlag` 8 组、`TestAuthDisabledByCLI` 7 组）。
+    - 静态/回归：`go build ./... && go vet ./...` 通过；`go test ./cmd/co-shell-hub/... -short` ok；`hub` 独立模块 `go build/vet/test` 通过。
+    - 运行时验证（隔离实例：显式 `--config` + `/tmp/fix606/*` 下的 registry/board-db/settings，端口 12831-12844，`--serve`，逐例即起即停；脚本与日志留存于 `work/fix606-verify/`）：**25/25 全通过**——① 配置 `api_key:"secret"` + `--no-api-key` → keyless 握手 `auth_ack`、日志 `api-key=false` + WARNING；② 基线（不带开关）→ keyless 被拒 `invalid api key`、`secret` 通过、无 WARNING；③ `--api-key K --no-api-key` → 免密；④ `--no-api-key --api-key K` → 需要 K（后出现者生效）；⑤ 配置无 key 时不带开关 → 免密且无 WARNING（既有行为不变）；⑥ `require_key=true` + `--no-api-key` → 无 `X-Access-Key` 访问 Web UI 返回 200（本进程忽略 require_key），基线不带开关为 401、带 KEY 为 200；⑦ 白名单外主机 + `access_key` 场景仍为 401/200（策略未被改动）；⑧ 6 个配置文件 shasum 前后一致（未写回任何文件）。
+    - 过程备注：首轮隔离实例未显式指定 `--registry`，配置回退到 `~/.co-shell/hub-agents.json`，board DB 指向 `~/.co-shell/hub-board.db`（被占用）导致启动超时；后续全部改为显式 `--config` + 显式 registry/board-db/settings 路径。第二轮 `start()` 用 `nohup ... &` 捕获到的是子 shell 的 PID，残留实例占用端口造成串扰；改为 `exec` 启动（`$!` 即 hub 自身 PID）+ 端口就绪等待 + 开工前 `pkill -f .../tmp/fix606/` 自清理后全绿。
+    - 用例：`use-case/FIX-606/FIX-606-UC-0001.md`（UC-01~UC-12，全部通过）。
+    - 产物：`work/co-shell-0.95.3.darwin.arm64`、`work/co-shell-hub-0.95.3.darwin.arm64`；验证证据：`work/fix606-verify/`（verify.sh、probe.go、verify-report.txt、uc01~uc08.log）。
+    - 发布编译（用户指令「编译 3」，2026-10-04 22:30）：co-shell 与 co-shell-hub 各出 darwin.arm64 / windows.amd64.exe / linux.arm64 三平台产物（`work/co-shell-0.95.3.*`、`work/co-shell-hub-0.95.3.*`）；非本平台原始文件已压为同名 `.zip` 并删除，保留 darwin.arm64 原始文件。**Linux arm64 已部署到内网 `liangshuang@192.168.3.39:~/bin/{co-shell,co-shell-hub}`**（先传 `.new` 再远端 `mv`；仅复制不重启远端服务，远端生效需自行重启）。部署一致性核验：本地 zip 解出与远端文件 sha256 完全一致（co-shell `d64af272…832a`、co-shell-hub `6ffc1561…538e`），远端 `co-shell-hub --help` 已列出 `--no-api-key`。
 
 ---
 
