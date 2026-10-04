@@ -1704,6 +1704,31 @@ iterationLoop:
 					if a.cfg != nil && a.cfg.LLM.ParseErrorAction != "" {
 						parseAction = a.cfg.LLM.ParseErrorAction
 					}
+					// FEATURE-602: a tool call whose `arguments` is not valid JSON must
+					// never stay in the context, whatever the parse-error action or the
+					// tool-call mode is. Strict OpenAI-compatible servers (e.g. vLLM)
+					// re-parse the parameters of every assistant tool_call on each
+					// request and reject the whole body with 400 once any one of them is
+					// malformed, so a single bad call poisons the conversation for the
+					// rest of the session (FEATURE-602 postmortem). Discard the
+					// offending assistant message together with its result, then
+					// re-issue the request so the model can self-correct the JSON.
+					if strings.Contains(errStr, "cannot parse tool arguments") {
+						a.mu.Lock()
+						a.truncateHistoryLocked(assistantMsgIdx)
+						a.mu.Unlock()
+						log.Error("Agent.RunStream: tool %s failed, discarding assistant+tool result (malformed arguments): %v", tc.Name, execErr)
+						uiText := fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), tc.Name, execErr)
+						cb(WarnEvent(ChannelTool, uiText))
+						log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
+						// FEATURE-336: show the raw offending content when the switch is on.
+						a.emitParseErrorRaw(cb, tc.Arguments)
+						if parseAction == "exit" {
+							cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
+							return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
+						}
+						continue iterationLoop
+					}
 					if parseAction == "exit" {
 						// Exit the loop and report error
 						// FEATURE-554: also record the failure in the optional error log.
@@ -1714,31 +1739,6 @@ iterationLoop:
 						a.emitParseErrorRaw(cb, tc.Arguments)
 						cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
-					}
-					if parseAction == "retry" && !isXMLMode && strings.Contains(errStr, "cannot parse tool arguments") {
-						// FIX-314 / FIX-317: OpenAI mode — a JSON parse error
-						// means the tool call itself is malformed and cannot be
-						// corrected from feedback alone. Remove the assistant
-						// message (with tool_calls) so the erroneous call and its
-						// error result do NOT enter the context; resend cleanly
-						// on the next iteration so the LLM can self-correct the
-						// JSON format.
-						// Memory keeps the assistant text (finalContent) which is
-						// a legitimate reply without tool results.
-						a.mu.Lock()
-						a.truncateHistoryLocked(assistantMsgIdx)
-						a.mu.Unlock()
-						log.Error("Agent.RunStream: tool %s failed, OpenAI retry discarding assistant+tool result: %v", tc.Name, execErr)
-						// Show the user a concise error notice (UI only — does NOT
-						// enter the LLM context). The invalid call is discarded and
-						// the next iteration resends cleanly.
-						// FEATURE-554: also record the parse failure in the optional error log.
-						uiText := fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), tc.Name, execErr)
-						cb(WarnEvent(ChannelTool, uiText))
-						log.WriteToolCallError(tc.Name, tc.Arguments, uiText)
-						// FEATURE-336: show the raw offending content when the switch is on.
-						a.emitParseErrorRaw(cb, tc.Arguments)
-						continue iterationLoop
 					}
 					if parseAction == "retry" && !isXMLMode {
 						// FIX-317: OpenAI mode, non-JSON error (bad path, unmatched

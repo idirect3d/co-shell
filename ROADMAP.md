@@ -44,6 +44,7 @@
     b. **修复“开了自动选择却不降级也不改上下文”**：新增分类 needle `expecting value` / `invalid control character at` → `context-format`（删上下文重试）。根因：14:06:42 / 14:07:29 的 `POST http://192.168.3.39:8899/v1/chat/completions → 400 {"message":"Expecting value: line 1 column 286 (char 285)"}` 被归为 `unknown`，而 `unknown` 既不允许删上下文也不属于降级集合（按用户 12:39 确认的触发集），因此直接报错。
     c. 诊断结论（中高置信度）：该 400 是**服务端无法解析我们发出的请求体**（Python json 报错），属请求体内容/尺寸问题，**不是**模型可用性、连接或能力问题——能力测试发的是小请求，而失败请求为 ~1.05MB / 244 消息 / 71 工具（整段对话）。最可能携带了格式非法的 JSON（半截工具调用，与 12:44 报错同源）。处理：归类为 `context-format` 后自动删出错消息并重试；若复现，说明坏消息在更早历史中，可用 `:context-limit` / `reorganize_context` / 新会话缩小请求体，并核查该网关的请求体大小限制。
     d. 验证：`go build ./... && go vet ./...`、`node --check web/static/app.js` 通过；`go test ./agent/ ./cmd/ -short -run 'Feature602|Fix602'` PASS（含新增的 400 解析错误分类断言）。产物：`work/co-shell-0.94.0.darwin.arm64`、`work/co-shell-hub-0.94.0.darwin.arm64`。
+    e. **非法 arguments 的工具调用一律从上下文删除**（用户 2026-10-04 15:09 要求）[BUILD-1213]：原逻辑仅在 `parse_error_action=retry` 且 OpenAI 模式下才删（`run_stream.go` 的 FIX-314/317 分支），而默认值是 `prompt`，因此坏调用会留在上下文成为“毒消息”（本事故 msg#104 就是这么留下的）。现改为：只要工具执行报 `cannot parse tool arguments`，**无论 parse-error-action / tool-call 模式**，都 `truncateHistoryLocked(assistantMsgIdx)` 删掉该 assistant 消息及其后的 tool 结果并重发；`parse_action=exit` 时清理后仍按原语义报错退出。新增测试 `agent/fix602_args_test.go`（prompt 策略下删除生效）。验证：`go build ./... && go vet ./...` 通过；`go test ./agent/ -short -run Feature602` 10/10 PASS。产物：`work/co-shell-0.94.0.darwin.arm64`、`work/co-shell-hub-0.94.0.darwin.arm64`。
 
 ---
 
