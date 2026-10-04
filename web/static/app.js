@@ -5256,7 +5256,9 @@ input.addEventListener("click", () => {
 
 // Paths of directories the user has expanded. Kept across loadTree() calls
 // so a refresh (manual, after upload, or on done) preserves each folder's
-// open/collapsed state instead of collapsing everything.
+// open/collapsed state instead of collapsing everything. FEATURE-603: a
+// tool-call highlight prunes it down to the affected objects' path chain so
+// open folders no longer pile up one per tool call.
 const expandedDirs = new Set();
 // FIX-589: relative path -> { ul, node } of every directory row currently in
 // the DOM. loadTree() rebuilds the sidebar from the root level only and then
@@ -5276,11 +5278,25 @@ let affectedFiles = [];
 // loadTree() rebuilds the DOM and would otherwise drop the demoted highlight.
 let prevAffectedFiles = [];
 
+// normTreePath normalizes a path reported by the agent so it matches the keys
+// the file tree uses: backslashes and trailing slashes are dropped, a leading
+// "./" is stripped and the workspace root ("." or "") becomes "" (FEATURE-603).
+function normTreePath(p) {
+  let s = (p || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  while (s.startsWith("./")) s = s.slice(2);
+  return s === "." ? "" : s;
+}
+
 // highlightAffectedFiles records the files affected by the current tool call,
 // demotes the previous tool call's highlight to font-only (keeping the blue
 // text but clearing the background), expands the affected files' ancestor
 // folders (including the workspace root), rebuilds the tree and scrolls the
 // first affected file into view (FEATURE-447/449).
+//
+// FEATURE-603: only the folders on the affected objects' own path chain stay
+// open — every other expanded folder is collapsed here (dropped from
+// expandedDirs), so the rebuild below releases its rows instead of piling up
+// one open folder per tool call.
 function highlightAffectedFiles(files) {
   // FEATURE-449: remember the current affected files as the previous ones so
   // they can be re-applied as font-only after the tree rebuild (loadTree()
@@ -5288,21 +5304,28 @@ function highlightAffectedFiles(files) {
   prevAffectedFiles = affectedFiles;
   affectedFiles = files || [];
   if (!affectedFiles.length) return;
-  // Expand every affected file's ancestor folders (including the workspace
-  // root "") so the highlighted row is visible even when its directory chain
-  // was collapsed. The root must be expanded too, otherwise the affected
-  // file's top-level folder sits inside a collapsed root and stays hidden.
+  // The folders to keep open: the workspace root plus the full path chain of
+  // every affected object, so the highlighted row is visible even when its
+  // directory chain was collapsed. A file's own name is a harmless extra key
+  // (no directory row carries it); a directory target keeps itself expanded.
+  const keep = new Set([""]);
   affectedFiles.forEach((f) => {
-    const parts = f.path.split("/");
+    const p = normTreePath(f.path);
+    if (!p) return; // the workspace root itself
+    const parts = p.split("/");
     let acc = "";
-    for (let i = 0; i < parts.length - 1; i++) {
+    for (let i = 0; i < parts.length; i++) {
       acc = acc ? acc + "/" + parts[i] : parts[i];
-      expandedDirs.add(acc);
+      keep.add(acc);
     }
-    // The workspace root ("") is the first directory in the file list; expand
-    // it so the affected file's top-level folder is reachable (FEATURE-449).
-    expandedDirs.add("");
   });
+  // Collapse every expanded folder that is not on a target path chain. The
+  // rebuild drops its rows and level data (FIX-589), which is what frees the
+  // DOM; the kept folders are then re-expanded so the highlight stays visible.
+  for (const p of Array.from(expandedDirs)) {
+    if (!keep.has(p)) expandedDirs.delete(p);
+  }
+  keep.forEach((p) => expandedDirs.add(p));
   // Rebuild the tree to apply the expansion, then highlight and scroll.
   loadTree().then(() => {
     applyAffectedHighlight();

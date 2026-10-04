@@ -4,6 +4,43 @@
 
 ---
 
+## v0.95.0 — 工作区文件树标注时收起其他文件夹
+
+> **版本**: v0.95.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 `v0.95.0`）
+> **里程碑**: Web UI 工作区文件树在 LLM 动态输出过程中，会根据工具调用影响到的文件动态定位并标注（FEATURE-447/449）。但 `highlightAffectedFiles()` 只把受影响文件的祖先目录不断加入 `expandedDirs`（只增不减），导致已展开文件夹越积越多、DOM 膨胀、工作区窗口杂乱。本次改进：标注一个文件/文件夹时，除目标文件/文件夹路径上的文件夹外，其他已打开的文件夹全部收起，从而删除对应 DOM、释放内容，让工作区窗口保持简洁。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-603 | 0.95.0 | P1 | 工作区文件树标注时收起其他已打开的文件夹（仅保留目标路径链） |
+
+> 当前 BUILD: 1215
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-603 工作区文件树标注时收起其他文件夹**
+  - 需求（用户 2026-10-04 18:23）：工作区会在 LLM 动态输出过程中，根据工具调用影响到的文件动态定位文件并标注，以便用户看到正在受影响文件所在的位置。但这可能造成系统打开过多的文件夹。改进：当标注一个文件/文件夹时，除目标文件/文件夹路径上的文件夹，将其他已打开的文件夹都收起，进而删除对应的 DOM，从而释放内容，也让工作区窗口变得更简洁。
+  - 用户确认（2026-10-04 18:39）：① 收起**所有**其他已打开的文件夹（包括用户手动展开的），只保留目标路径链；② 版本 0.95.0（minor+1）、任务号 FEATURE-603。
+  - 根因：`web/static/app.js` 的 `highlightAffectedFiles()`（~5284 行）只向 `expandedDirs`（~5260 行，一个只增不减的 `Set`）追加受影响文件的祖先目录；`loadTree()` → `restoreExpandedDirs()`（~5601 行）随后按它逐层补拉展开，从不清理。
+  - 方案（仅前端）：`highlightAffectedFiles()` 内构造保留集合 `keep = {""} ∪ 每个受影响对象路径的完整目录链`（规范化：去尾部 `/`、`.` → `""`）；删除 `expandedDirs` 中不在 `keep` 的目录（收起），再把 `keep` 加入 `expandedDirs`（保持“展开目标链使其可见”语义）；照旧 `loadTree().then(applyAffectedHighlight + scrollToAffected)`，由 `loadTree()` 清空重建 DOM、`restoreExpandedDirs()` 只恢复保留目录，其余目录的行与层级数据随之释放。不改 `revealInTree()`，不改后端 `/api/tree`。
+  - 验收标准：见 `use-case/FEATURE-603/`。
+  - 完成情况：✅ 已完成（分支 FEATURE-603，待用户验收）[BUILD-1215]
+    - 实施：`web/static/app.js`——① 新增 `normTreePath(p)`（去反斜杠/尾部 `/`、剥离前导 `./`、`.` → `""`）；② `highlightAffectedFiles()` 先构造保留集合 `keep = {""} ∪ 每个受影响对象的完整路径链`，再从 `expandedDirs` 删除不在 `keep` 的目录（收起），并把 `keep` 加入（保证目标链展开可见）；③ 随后照旧 `loadTree() → applyAffectedHighlight() + scrollToAffected()`——`loadTree()` 清空重建 DOM、`restoreExpandedDirs()` 只恢复保留目录，被收起目录的行与层级数据随之释放。未改 `revealInTree()` 与后端 `/api/tree`。
+    - 实测证据（隔离实例 `work/co-shell-0.95.0.darwin.arm64`，v0.95.0 / BUILD-1215，独立 workspace + 端口 28899 + 调试浏览器）：
+      ① 已展开 `""`/`agent`/`docs`/`web`/`web/static`（li=21）后标注 `web/static/app.js` → `agent`/`docs` CLOSED（kids=0、`dataset.filled` 清除）、`web`/`web/static` 保持 OPEN、`app.js` 行 `aff-pred`、li 21→19；
+      ② 标注 `[web/static/app.js, agent/loop.go]` → `docs` CLOSED，`agent`/`web`/`web/static` OPEN，`agent/loop.go` 为 `aff-pred`，li 21→20；
+      ③ 标注 `["."]` → 仅根 OPEN（kids=15），其余全 CLOSED，li 20→16；
+      ④ 目标链原本收起时（`web`/`web/static` CLOSED）标注后二者被展开且目标行可见；
+      ⑤ `highlightAffectedFiles([])` 不改变展开状态（li 保持 16）。
+    - 测试：`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 通过；`go test ./web/ -short` 失败集为 session/WebSocket 消息类既有失败（不引用 `app.js`，与本次纯前端改动无关）。
+    - 用例：`use-case/FEATURE-603/`（UC-0001~UC-0008 全部通过）。
+    - 产物：`work/co-shell-0.95.0.darwin.arm64`、`work/co-shell-hub-0.95.0.darwin.arm64`。
+
+---
+
 ## v0.94.0 — 模型自动降级与「自动选择」开关
 
 > **版本**: v0.94.0
