@@ -4,6 +4,46 @@
 
 ---
 
+## v0.95.2 — Web 系统设置「智能体」页可配置子代理池上限
+
+> **版本**: v0.95.2
+
+> **状态**: ✅ 已完成（已合并 main，标签 `v0.95.2`）
+> **里程碑**: `max_sub_agents`（每会话子代理池上限 A1..An，合法 0..10，默认 5，0 表示禁用）此前只能改 `config.json` 或启动参数 `--max-sub-agents`；Web 系统设置的「智能体设置」页只有 `subagent-enabled` 开关，没有池上限项。本次让用户可直接在设置页配置池上限（TUI `.set max-sub-agents` 同步可用）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-605 | 0.95.2 | P1 | Web 系统设置「智能体设置」页可配置子代理池上限（max_sub_agents，0..10，0 禁用） |
+
+> 当前 BUILD: 1217
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-605 Web 系统设置「智能体」页可配置子代理池上限**
+  - 需求（用户 2026-10-04 20:34）：`max_sub_agents` 需要在系统设置的智能体页面进行配置。
+  - 用户确认（2026-10-04 20:35）：① 版本 v0.95.2（patch 递增）、任务号 FEATURE-605；② 范围沿用现状 0..10、默认 5、0 表示禁用。
+  - 现状：`cmd/settings_web.go` 的 `agentGroup`（Web「智能体设置」分组）已有 `subagent-enabled` 布尔项但无池上限项；`cmd/settings_agent.go` 的 `.set` 分支只实现了 `subagent-enabled`；Web 端 `settings_set` 复用 `SettingsHandler` 的 `.set` 链路（`web/session.go:287`）。
+  - 方案：(a) `settings_web.go` 的 `agentGroup` 增加 `{Key:"max-sub-agents", Type:"number", Default: strconv.Itoa(def.MaxSubAgents)}`；(b) `settings_agent.go` 增加 `.set max-sub-agents N` 分支——用 `subagent.ValidateMaxSubAgents` 校验 0..10、写 `cfg.LLM.MaxSubAgents`、`cfg.Save()` 持久化、`h.agent.SetMaxSubAgents(n)` 热应用；无参数时回显当前值；(c) `i18n/zh.go`/`i18n/en.go` 新增该设置项描述文案。不改 `subagent.MaxPoolSize`/`DefaultMaxSubAgents`。
+  - 验收标准：见 `use-case/FEATURE-605/`。
+  - 完成情况：✅ 已完成（已合并 main，标签 `v0.95.2`）[BUILD-1217]
+    - 实施：① `cmd/settings_web.go`——`agentGroup` 新增 `max-sub-agents` number 项（紧随 `subagent-enabled`，Default 取 `def.MaxSubAgents`）；② `cmd/settings_agent.go`——新增 `.set max-sub-agents` 分支（`strconv.Atoi` + `subagent.ValidateMaxSubAgents` 校验 0..10 → 写 `cfg.LLM.MaxSubAgents` → `cfg.Save()` → `h.agent.SetMaxSubAgents(n)` 热应用；无参数回显 `subAgentPoolDisplay`，值为 0 显示「已禁用」），并新增本地化辅助 `subAgentPoolDisplay`；③ `cmd/settings.go`——注册子命令 + `:set` 帮助列表补 `max-sub-agents` 行；④ `i18n/keys.go|zh.go|en.go`——新增 `KeyCol3MaxSubAgents` 与 `KeySettingCmd_785~788`。
+    - 单测：`cmd/feature605_test.go`（合法值生效并持久化、0/10 边界接受、11/-1/abc/空串/3.5 拒绝且不写入、无参数回显、设置项渲染 type/value/default/desc）、`agent/feature605_test.go`（热应用：`SetMaxSubAgents` 后 `<sub_agents max="N">` 立即变化；0 合法、11 拒绝且保持 10）——全部通过。
+    - 运行时验证（隔离实例 `work/co-shell-0.95.2.darwin.arm64`，独立 workspace + 显式 `--config /tmp/fe605-ws/config.json` + 端口 28896/28897 + 调试浏览器）：
+      ① 设置面板「智能体设置」组渲染出 `max-sub-agents`（type=number、value/default=5、desc「子代理池上限(0..10, 0禁用)」，位置紧随 `subagent-enabled`）；
+      ② 经 UI 改为 3 → 后端回读 3、隔离 `config.json` 落盘 `max_sub_agents: 3`；
+      ③ 输入 11 → 探针确认前端发出 `settings_set{max-sub-agents:11}`，后端拒绝（值仍 3、配置文件未变），页面出现非法提示；
+      ④ 值≠默认时渲染 `<span class="set-diff">*</span>`（title「与默认值不一致 (默认值: 5)」）；
+      ⑤ 改为 4 后重启实例 → 面板回读 4（持久化）；
+      ⑥ `max_sub_agents=0` 与 `sub_agent_enabled=false` 可独立保存（隔离配置证实）。
+    - 静态/回归：`go build ./... && go vet ./...` 通过；`go test ./cmd/... ./i18n/... -short` 的失败集（cmd 2 项：`TestSkillHandlerListEmpty` 依赖本机全局 skills、`TestSettingsJSONFillsDefaults` 的 `logo` 项无 Default；i18n rules 相关 3 项）经 main 基线 worktree 对照完全一致，均为既有失败。
+    - 用例：`use-case/FEATURE-605/FEATURE-605-UC-0001.md`（UC-01~UC-16；UC-12 为未改动逻辑的静态确认）。
+    - 产物：`work/co-shell-0.95.2.darwin.arm64`、`work/co-shell-hub-0.95.2.darwin.arm64`。
+    - 过程备注：首次隔离实例未显式指定 `--config`，配置优先级回退到 cwd，导致仓库 `config.json` 的 `max_sub_agents` 被写成 3；已恢复为 5，后续改用显式 `--config` 后隔离性正常。
+
+---
+
 ## v0.95.0 — 工作区文件树标注时收起其他文件夹
 
 > **版本**: v0.95.0

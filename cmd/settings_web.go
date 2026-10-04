@@ -78,6 +78,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "intent-exposure-enabled", Value: boolStr(llm.IntentExposureEnabled), Desc: i18n.T(i18n.KeyCol3IntentExposureEnabled), Type: "bool", Default: boolStr(def.IntentExposureEnabled)},
 		{Key: "meta-capability-enabled", Value: boolStr(llm.MetaCapabilityEnabled), Desc: i18n.T(i18n.KeyCol3MetaCapabilityEnabled), Type: "bool", Default: boolStr(def.MetaCapabilityEnabled)},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
+		// FEATURE-605: per-session sub-agent pool size (0..10, 0 disables).
+		{Key: "max-sub-agents", Value: strconv.Itoa(llm.MaxSubAgents), Desc: i18n.T(i18n.KeyCol3MaxSubAgents), Type: "number", Default: strconv.Itoa(def.MaxSubAgents)},
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
 		{Key: "board-ack-timeout", Value: strconv.Itoa(boardAckTimeoutValue(cfg)), Desc: i18n.T(i18n.KeyCol3BoardAckTimeout), Type: "number", Default: strconv.Itoa(5)},
 		{Key: "board-must-reply", Value: boolStr(cfg.BoardMustReply), Desc: i18n.T(i18n.KeyCol3BoardMustReply), Type: "bool", Default: boolStr(defCfg.BoardMustReply)},

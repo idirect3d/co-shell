@@ -649,8 +649,13 @@ var zhMessages = map[string]string{
 	KeySettingCmd_779:         "Qwen3.8 系列，支持思考与推理深度（xhigh/medium/low）",
 	KeySettingCmd_780:         "模型联通性检测: %s（可选值: off, on_submit, on_send）",
 	KeySettingCmd_781:         "✅ 模型联通性检测已设置为: %s",
-	KeySettingCmd_615:         "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
-	KeySettingCmd_616:         "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
+	// FEATURE-605: per-session sub-agent pool size (max_sub_agents)
+	KeySettingCmd_785: "子代理池上限: %s（0 表示禁用）",
+	KeySettingCmd_786: "✅ 子代理池上限已设置为: %s",
+	KeySettingCmd_787: "子代理池上限 %q 非法：合法范围 0..%d（0 表示禁用）",
+	KeySettingCmd_788: "已禁用",
+	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
+	KeySettingCmd_616: "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 
 	// FEATURE-305 第 3 批: agent/vault.go
 	KeySettingCmd_617: "  请输入标签值对（格式: tag=value），每行一个，空行结束",
@@ -1161,7 +1166,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpPlanDisabled:       "      --plan-disabled   禁用任务计划功能（覆盖配置文件）",
 
 	// SubAgent enabled
-	KeyCol3SubAgentEnabled:     "子代理(on|off)",
+	KeyCol3SubAgentEnabled: "子代理(on|off)",
+	// FEATURE-605: per-session sub-agent pool size (0..10, 0 disables)
+	KeyCol3MaxSubAgents:        "子代理池上限(0..10, 0禁用)",
 	KeySettingsDescSubAgent:    "子代理功能开关",
 	KeySubAgentEnabledUpdated:  "✅ 子代理功能已设置为: %s",
 	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    启用子代理功能（覆盖配置文件）",
@@ -2142,18 +2149,18 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyModelFallbackExhausted: "模型调用失败（类别：%s）: %v\n已按优先级尝试所有可用模型均失败，本轮终止。",
 	KeyLLMErrResumePrompt:     "（上一次输出在传输中断处被截断）请从中断处继续，不要重复已输出的内容。",
 	KeyLLMErrRetryResume:      "LLM 调用失败（类别：%s）: %v\n已保留已输出的 %d 字符，%v 后从中断处继续（第 %d/%d 次）...",
-	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",
-	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
-	KeyXMLParseErrorRaw:     "解析错误原始报文:\n%s\n",
-	KeyContextOverLimit:     "上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行",
-	KeyToolExecFailed:       "工具 %s 执行失败（parse-error-action=exit）: %v\n",
-	KeyToolExecRetry:        "工具 %s 调用无效（parse-error-action=retry）: %v\n已丢弃无效调用并重新发送。",
-	KeyToolNoOutput:         "（工具调用无输出）",
-	KeyToolAskUserNoAnswer:  "未收到答案",
-	KeyToolResultLabel:      "[返回结果]",
-	KeyToolIntentLabel:      "[意图]",
-	KeyReorganizeUrgent:     "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。",
-	KeyXMLFormatError:       `XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。`,
+	KeyXMLParseErrorExit:      "方法调用解析错误（parse-error-action=exit）: %s\n",
+	KeyXMLParseErrorSummary:   "检测到XML解析错误: %s\n",
+	KeyXMLParseErrorRaw:       "解析错误原始报文:\n%s\n",
+	KeyContextOverLimit:       "上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行",
+	KeyToolExecFailed:         "工具 %s 执行失败（parse-error-action=exit）: %v\n",
+	KeyToolExecRetry:          "工具 %s 调用无效（parse-error-action=retry）: %v\n已丢弃无效调用并重新发送。",
+	KeyToolNoOutput:           "（工具调用无输出）",
+	KeyToolAskUserNoAnswer:    "未收到答案",
+	KeyToolResultLabel:        "[返回结果]",
+	KeyToolIntentLabel:        "[意图]",
+	KeyReorganizeUrgent:       "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。",
+	KeyXMLFormatError:         `XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。`,
 
 	// FEATURE-304: OutputCategories category switch (:set output-categories)
 	KeyOutputCategoriesTitle:   "输出分类开关（wizard/system/db/bridge/subagent 等）:",

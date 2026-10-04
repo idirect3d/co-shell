@@ -1183,6 +1183,12 @@ const (
 	// FIX-581: attempt_completion demo command timeout notice
 	KeySettingCmd_784 = "setting_cmd_784"
 
+	// FEATURE-605: per-session sub-agent pool size (max_sub_agents)
+	KeySettingCmd_785 = "setting_cmd_785"
+	KeySettingCmd_786 = "setting_cmd_786"
+	KeySettingCmd_787 = "setting_cmd_787"
+	KeySettingCmd_788 = "setting_cmd_788"
+
 	// FEATURE-582: tool-call interrupt notices
 	KeyInterruptToolNotice    = "interrupt_tool_notice"
 	KeyInterruptToolKilled    = "interrupt_tool_killed"
@@ -1510,6 +1516,8 @@ const (
 
 	// SubAgent enabled
 	KeyCol3SubAgentEnabled = "col3_sub_agent_enabled"
+	// FEATURE-605: per-session sub-agent pool size (0..10, 0 disables)
+	KeyCol3MaxSubAgents    = "col3_max_sub_agents"
 	KeyCol3BoardEnabled    = "col3_board_enabled"
 	KeyCol3BoardAckTimeout = "col3_board_ack_timeout"
 	// FEATURE-567: board reply-duty gate switch description.

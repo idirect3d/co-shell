@@ -33,6 +33,7 @@ import (
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
+	"github.com/idirect3d/co-shell/subagent"
 )
 
 // handleAgentSetting handles agent identity and behavior settings: name, description,
@@ -426,6 +427,28 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		}
 		log.Info("SubAgent enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_128), status), nil
+
+	case "max-sub-agents":
+		// FEATURE-605: per-session sub-agent pool size (0..10, 0 disables).
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_785), subAgentPoolDisplay(h.cfg.LLM.MaxSubAgents)), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_787), args[1], subagent.MaxPoolSize)
+		}
+		if err := subagent.ValidateMaxSubAgents(n); err != nil {
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_787), args[1], subagent.MaxPoolSize)
+		}
+		h.cfg.LLM.MaxSubAgents = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		if err := h.agent.SetMaxSubAgents(n); err != nil {
+			return "", err
+		}
+		log.Info("Max sub-agents set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_786), subAgentPoolDisplay(n)), nil
 
 	case "board-must-reply":
 		// FEATURE-567: a board message that expects a reply becomes a duty of
@@ -980,4 +1003,14 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 	default:
 		return "", fmt.Errorf("unknown agent setting: %s", subcommand)
 	}
+}
+
+// subAgentPoolDisplay renders the per-session sub-agent pool for display: the
+// id range (A1..An) or the localized "disabled" when the pool is switched off
+// (0) (FEATURE-605).
+func subAgentPoolDisplay(n int) string {
+	if n <= 0 {
+		return i18n.T(i18n.KeySettingCmd_788)
+	}
+	return subagent.PoolRange(n)
 }
