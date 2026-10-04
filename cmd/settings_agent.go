@@ -508,6 +508,35 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Board collaboration set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_783), status), nil
 
+	case "auto-model-select":
+		// FEATURE-602: automatic degradation to the next lower-priority model
+		// when an LLM call fails. Off by default. The switch is read on every
+		// failure, so saving the config is enough.
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.AutoSelectEnabled() {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("auto-model-select = %s (default off)", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.AutoModelSelect = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.AutoModelSelect = false
+		default:
+			return "", fmt.Errorf("usage: .set auto-model-select on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.AutoSelectEnabled() {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Auto model select set to %s", status)
+		return fmt.Sprintf("auto-model-select = %s", status), nil
+
 	case "ui-enabled":
 		// FEATURE-524: master switch of the structured UI rendering pipeline
 		// (render_ui + ui_window). Both tools are registered only while it is

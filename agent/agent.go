@@ -1527,6 +1527,14 @@ func (a *Agent) getModelIDForCall() string {
 	if a.cfg == nil {
 		return ""
 	}
+	// FEATURE-602: once the turn has degraded to another model, keep using it —
+	// the work-mode binding and the global priority order no longer apply.
+	a.mu.Lock()
+	fallbackID := a.fallbackModelID
+	a.mu.Unlock()
+	if fallbackID != "" {
+		return fallbackID
+	}
 	workModeName := a.cfg.LLM.WorkMode
 	if workModeName == "" {
 		workModeName = "act"

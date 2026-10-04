@@ -110,6 +110,11 @@ func (c *Config) OutputCategoryShown(channel string) bool {
 	return shown
 }
 
+// DefaultLLMErrRetryLimit is the default number of in-place retries of a
+// transient LLM failure (network / 5xx / 429) before the turn degrades to the
+// next lower-priority model or aborts (FEATURE-602).
+const DefaultLLMErrRetryLimit = 3
+
 // LLMConfig holds all LLM-related configuration.
 // In the multi-model architecture, the actual model connection parameters
 // (endpoint, api_key, model name) are stored in ModelConfig entries.
@@ -291,6 +296,13 @@ type LLMConfig struct {
 	// Default: 100
 	ErrorMaxTypeCount int `json:"error_max_type_count"`
 
+	// LLMErrRetryLimit: how many times a transient LLM failure (network / 5xx /
+	// 429) is re-issued unchanged before the turn either degrades to the next
+	// lower-priority model (FEATURE-602) or aborts (FIX-598). A non-positive
+	// value falls back to DefaultLLMErrRetryLimit, following the
+	// error_max_single_count convention. Default: 3
+	LLMErrRetryLimit int `json:"llm_err_retry_limit,omitempty"`
+
 	// ExcelMaxCells: maximum number of cells to return in a single excel_read call.
 	// Default: 500.
 	ExcelMaxCells int `json:"excel_max_cells"`
@@ -466,6 +478,13 @@ type LLMConfig struct {
 	// This value is automatically detected from the API when listing models.
 	// A value of 0 means unknown or not yet detected.
 	MaxModelLen int `json:"max_model_len"`
+
+	// AutoModelSelect enables automatic degradation to the next lower-priority
+	// model when an LLM call fails with a connection/service/model-internal
+	// cause (FEATURE-602). Off by default: the zero value means an old config
+	// without the key keeps the strategy disabled until the user turns it on.
+	// Read it through AutoSelectEnabled().
+	AutoModelSelect bool `json:"auto_model_select,omitempty"`
 
 	// TokenUsage: controls token usage display and stream_options.include_usage.
 	// "on" = display token usage and send include_usage=true
@@ -1026,6 +1045,22 @@ func DefaultSections() []string {
 // Float64Ptr returns a pointer to a float64 value.
 func Float64Ptr(v float64) *float64 { return &v }
 
+// AutoSelectEnabled reports whether automatic model degradation on an LLM
+// failure is on (FEATURE-602). The zero value means off (see AutoModelSelect).
+func (c *LLMConfig) AutoSelectEnabled() bool {
+	return c != nil && c.AutoModelSelect
+}
+
+// LLMErrRetryLimitOrDefault returns the in-place retry budget for a transient
+// LLM failure (FEATURE-602). A non-positive value falls back to the default,
+// following the error_max_single_count convention.
+func (c *LLMConfig) LLMErrRetryLimitOrDefault() int {
+	if c == nil || c.LLMErrRetryLimit <= 0 {
+		return DefaultLLMErrRetryLimit
+	}
+	return c.LLMErrRetryLimit
+}
+
 // SkillEnabled reports whether a skill is enabled (FEATURE-583).
 // An explicit entry in skills_enabled wins; otherwise skills_default_enabled
 // applies. A nil receiver keeps every skill enabled.
@@ -1260,6 +1295,7 @@ func DefaultConfig() *Config {
 			MemorySearchMaxResults:      100,
 			ErrorMaxSingleCount:         10,
 			ErrorMaxTypeCount:           100,
+			LLMErrRetryLimit:            DefaultLLMErrRetryLimit,
 			ExcelMaxCells:               1000,
 			ExcelSessionTTL:             600,
 			ExcelMaxSessions:            5,

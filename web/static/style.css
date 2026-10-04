@@ -3058,7 +3058,10 @@ button.qs-kbd:active { transform: translateY(1px); }
 .models-box { min-width: 560px; max-width: 720px; }
 /* FEATURE-449: toolbar buttons (pin / add / delete) are right-aligned. */
 .models-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 10px; }
-.models-body { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+/* FEATURE-602: the automatic-selection switch sits above the model list, on the
+   left. It toggles the degrade-on-failure strategy (off by default). */
+.models-auto-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.models-auto-label { font-size: 12.5px; color: var(--fg); }.models-body { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .models-empty { color: var(--fg-dim); padding: 16px; text-align: center; }
 .model-row {
   display: flex;

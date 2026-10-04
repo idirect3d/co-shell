@@ -4,6 +4,44 @@
 
 ---
 
+## v0.94.0 — 模型自动降级与「自动选择」开关
+
+> **版本**: v0.94.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 模型应用策略优化。① 模型管理页在模型列表上方左侧新增「自动选择」滑动开关（默认打开）；② LLM 发送失败且成因属于连接类（network）或模型内部类（auth 找不到模型/限额不足/需充值/无权限、context-too-long 最大长度超限）以及服务类（server 5xx、rate-limit 429）时，按模型列表优先级自动降级尝试排在后面的模型，直到最后一个可用模型仍失败才报错；③ 现有原地重试次数由写死常量改为可配置系统参数（默认 3）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-602 | 0.94.0 | P1 | 模型自动降级 + 模型管理页「自动选择」开关（默认开）+ 原地重试次数可配置 |
+
+> 当前 BUILD: 1210
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-602 模型自动降级与「自动选择」开关**
+  - 需求（用户 2026-10-04 12:36）：
+    1. 模型管理页面，模型列表上方左侧增加「自动选择」滑动开关（**默认关闭**，用户 2026-10-04 12:41 由“默认打开”改为“默认关闭”）。
+    2. 发送 LLM 失败后，若为连接类问题（参考 FIX-598 的 LLM 错误分类）或模型内部问题（找不到模型、模型最大长度超限、模型限额不够、需充值、没有权限等），自动按模型列表中的优先级降级使用排在后面的模型，直到最后一个可用模型尝试仍失败再报告错误。
+  - 用户确认（2026-10-04 12:39）：① 版本 0.94.0 / 任务号 FEATURE-602；② 触发降级 = network + server(5xx) + rate-limit(429) + auth + context-too-long（排除 context-format / unknown）；③ 先原地重试耗尽再降级，且原地重试次数改为可配置系统参数；④ 进入降级模型后本回合保持，不回退到已失败的上级模型；⑤ 用例确认：按用例开始编码；⑥ 开关也要出现在系统设置页（:set / Web 设置页）。
+  - 验收标准：见 `use-case/FEATURE-602/`。
+  - 完成情况：✅ 已完成（分支 FEATURE-602，待用户验收）[BUILD-1211]
+    - 实施：
+      1. `config/config.go`：`LLMConfig` + `AutoModelSelect bool`（json `auto_model_select,omitempty`，零值=默认关闭，开启写入 true）+ `LLMErrRetryLimit int`（json `llm_err_retry_limit,omitempty`，≤0 回落默认）+ `DefaultLLMErrRetryLimit=3` + 访问器 `AutoSelectEnabled()` / `LLMErrRetryLimitOrDefault()`；`DefaultConfig` 设 3。
+      2. `agent/llm_error_class.go`：新增 `LLMErrKind.Fallbackable()`（network/server/rate-limit/auth/context-too-long = true，context-format/unknown = false）；重试上限由常量改为 `effectiveLLMRetryLimit()`（读 cfg）；**追加**把工具调用流解析错误（`tool call stream parse error` / `unbalanced closing brace` / `unknown tool tag`）归入 `context-format`（用户 2026-10-04 12:44 报告：该错误属“调用发送格式不对”，应删上下文）。
+      3. `agent/model_fallback.go`（新增）：`resetModelFallback()` / `autoSelectEnabled()` / `nextFallbackModel()`（按优先级降序、只取排在当前模型之后的启用模型、vision 回合仅取视觉模型、跳过已试模型）/ `applyFallbackModel()`。
+      4. `agent/loop.go` 新增字段 `fallbackModelID` / `fallbackTried`；`agent/agent.go` 的 `getModelIDForCall()` 优先返回降级模型（客户端重建随之生效）；`agent/run_stream.go` 回合开始重置降级状态，并在原地重试耗尽后在非上下文格式错误分支尝试降级（成功则 `continue` 重发，全部耗尽才报错）。
+      5. Web UI：`web/static/index.html` 模型列表上方左侧新增「自动选择」开关；`web/static/app.js` 接线 + 中英词条 + 接受 `models` 消息的 `auto_select`；`web/static/style.css` 新增 `.models-auto-row`；`web/server.go` 新增 `clientMessage.AutoSelect` / `serverMessage.AutoSelect`；`web/session.go` 新增 `model_auto_select` 消息与 `handleModelAutoSelect`，`handleModelGet` 回传开关状态；`cmd/model_web.go` 新增 `ModelAutoSelect()` / `ModelSetAutoSelect()`。
+      6. 系统设置页：`cmd/settings.go` 分发与 help、`cmd/settings_agent.go`（auto-model-select）、`cmd/settings_safety.go`（llm-err-retry-limit）、`cmd/settings_web.go` 设置页两项；i18n 新增 `KeyCol3AutoModelSelect` / `KeyCol3LLMErrRetryLimit` 与降级提示 `KeyModelFallbackSwitch` / `KeyModelFallbackExhausted`（中英）。
+  - 测试：`agent/fix602_test.go`（触发矩阵、分类端到端、工具调用解析错误归类、降级顺序/不回升/跳过禁用与非视觉/回合内保持与重置、重试上限可配、开关默认关与持久化）、`cmd/fix602_test.go`（`:set` 两参数生效+持久化+非法值拒绝）。
+  - 实测证据：`go build ./... && go vet ./...` 通过；`go test ./agent/ ./config/ ./cmd/ -short -run 'Feature602|Fix602'` 全部 PASS；`node --check web/static/app.js` 通过。
+  - 产物：`work/co-shell-0.94.0.darwin.arm64`、`work/co-shell-hub-0.94.0.darwin.arm64`。
+  - 范围说明：本次仅接入 `:set` 与 Web 设置页（两者共用同一 `SettingsHandler`）；未加入 `:config` 交互向导与 agent 设置工具（LLM 侧），如需可后续补充。
+
+---
+
 ## v0.93.0 — 模型配置向导「能力」步骤支持手动检测
 
 > **版本**: v0.93.0

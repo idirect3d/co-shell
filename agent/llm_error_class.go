@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -47,10 +48,12 @@ const (
 	LLMErrUnknown LLMErrKind = "unknown"
 )
 
-// llmRetryLimit is how many times a transient failure (network / 5xx / 429) is
-// re-issued unchanged before the turn is aborted. Editing the history cannot
-// fix those, so the retries are bounded and the context is left alone.
-const llmRetryLimit = 3
+// llmRetryLimit is the default number of in-place retries of a transient
+// failure (network / 5xx / 429) before the turn degrades to the next model or
+// aborts. Editing the history cannot fix those, so the retries are bounded and
+// the context is left alone. It is overridable through
+// cfg.LLM.LLMErrRetryLimit (FEATURE-602).
+const llmRetryLimit = config.DefaultLLMErrRetryLimit
 
 // llmRetryMaxDelay caps the exponential backoff (1s, 2s, 4s … 8s).
 const llmRetryMaxDelay = 8 * time.Second
@@ -67,6 +70,21 @@ func (k LLMErrKind) AllowsContextRemoval() bool {
 func (k LLMErrKind) Retryable() bool {
 	switch k {
 	case LLMErrNetwork, LLMErrRateLimit, LLMErrServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Fallbackable reports whether trying another model may succeed where the
+// current one failed (FEATURE-602). Connection/service failures and
+// model-internal failures qualify — another endpoint, credential set or a model
+// with a bigger context window can serve the request. A request-shape error is
+// not fixed by changing models, and an unclassifiable failure is handled
+// conservatively, so both stay on the current model.
+func (k LLMErrKind) Fallbackable() bool {
+	switch k {
+	case LLMErrNetwork, LLMErrRateLimit, LLMErrServer, LLMErrAuth, LLMErrContextTooLong:
 		return true
 	default:
 		return false
@@ -91,6 +109,13 @@ var (
 		"tool_call_id", "tool_calls", "messages with role", "must be a response to",
 		"function_call", "invalid_request_error", "invalid type for",
 		"invalid value for", "unexpected role",
+		// FEATURE-602 (user report 2026-10-04 12:44): the streaming tool-call
+		// parser's own failures — a malformed tool call the model produced
+		// ("unbalanced closing brace/square bracket", "unknown tool tag <…>").
+		// That is exactly the request-shape problem FIX-146 fixes by dropping the
+		// last assistant-with-tool_calls message; classified "unknown" it left the
+		// context untouched and aborted the turn instead.
+		"tool call stream parse error", "unbalanced closing brace", "unknown tool tag",
 	}
 	contextTooLongNeedles = []string{
 		"maximum context length", "context length", "too many tokens",
@@ -179,7 +204,16 @@ func (a *Agent) noteLLMErrRetryAndCheckLimit() bool {
 	a.llmErrRetryCount++
 	n := a.llmErrRetryCount
 	a.mu.Unlock()
-	return n <= llmRetryLimit
+	return n <= a.effectiveLLMRetryLimit()
+}
+
+// effectiveLLMRetryLimit returns the in-place retry budget for this turn
+// (FEATURE-602): cfg.LLM.LLMErrRetryLimit when set, otherwise the default.
+func (a *Agent) effectiveLLMRetryLimit() int {
+	if a.cfg == nil {
+		return llmRetryLimit
+	}
+	return a.cfg.LLM.LLMErrRetryLimitOrDefault()
 }
 
 // llmErrRetryAttempt returns how many in-place retries have been recorded.

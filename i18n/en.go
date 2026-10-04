@@ -1285,6 +1285,8 @@ no liability whatsoever.`,
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "Max single error count",
 	KeyCol3ErrorMaxTypeCount:   "Max error type count",
+	KeyCol3AutoModelSelect:     "Auto select (degrade to the next model on LLM failure)",
+	KeyCol3LLMErrRetryLimit:    "LLM error in-place retry limit",
 
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell will modify system parameters",
@@ -2106,6 +2108,8 @@ no liability whatsoever.`,
 	// FIX-598: transient failures retry in place without editing the context.
 	KeyLLMErrRetryKeepContext: "LLM call failed (kind: %s): %v\nContext left unchanged, retrying in %v (attempt %d/%d)...",
 	KeyLLMErrAbortKeepContext: "LLM call failed (kind: %s): %v\nThis is a network/server/auth/rate-limit failure, not a message-format problem: the context was kept intact and the turn stops here.",
+	KeyModelFallbackSwitch:    "LLM call failed (kind: %s): %v\nDegrading to the next model %s and retrying...",
+	KeyModelFallbackExhausted: "LLM call failed (kind: %s): %v\nEvery eligible model failed; the turn stops here.",
 	KeyLLMErrResumePrompt:     "(the previous answer was cut off by a transport failure) Continue from where it stopped and do NOT repeat what you already wrote.",
 	KeyLLMErrRetryResume:      "LLM call failed (kind: %s): %v\nKept the %d characters already streamed, resuming in %v (attempt %d/%d)...",
 	KeyXMLParseErrorExit:    "Tool call parse error (parse-error-action=exit): %s\n",

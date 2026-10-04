@@ -316,6 +316,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModelAction("remove", msg.Value)
 	case "model_set_priority":
 		s.handleModelSetPriority(msg.Value, msg.Priority)
+	case "model_auto_select":
+		s.handleModelAutoSelect(msg.AutoSelect)
 	case "model_unbind":
 		s.handleModelUnbind(msg.Value)
 	case "model_bind":
@@ -520,7 +522,7 @@ func (s *WebSession) handleModelGet() {
 	if err != nil {
 		return
 	}
-	s.srv.sendJSON(serverMessage{Kind: "models", Models: mRaw, Templates: tRaw})
+	s.srv.sendJSON(serverMessage{Kind: "models", Models: mRaw, Templates: tRaw, AutoSelect: s.model.ModelAutoSelect()})
 }
 
 // handleModelAction applies a non-interactive model operation (switch / enable
@@ -549,6 +551,22 @@ func (s *WebSession) handleModelAction(action, id string) {
 	}
 	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
 	// Refresh the model list so the frontend reflects the change.
+	s.handleModelGet()
+}
+
+// handleModelAutoSelect persists the automatic-selection (degrade-on-failure)
+// switch and refreshes the model list so the browser shows the new state
+// (FEATURE-602).
+func (s *WebSession) handleModelAutoSelect(on bool) {
+	if s.model == nil {
+		return
+	}
+	result, err := s.model.ModelSetAutoSelect(on)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
 	s.handleModelGet()
 }
 

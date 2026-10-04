@@ -181,6 +181,27 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Error max type count set to %d", n)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_195), n), nil
 
+	case "llm-err-retry-limit":
+		// FEATURE-602: how many times a transient LLM failure (network / 5xx /
+		// 429) is re-issued in place before the turn degrades to the next model
+		// or aborts. A non-positive value falls back to the default (3).
+		if len(args) < 2 {
+			return fmt.Sprintf("llm-err-retry-limit = %d", h.cfg.LLM.LLMErrRetryLimitOrDefault()), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
+		}
+		if n < 1 {
+			return "", errors.New("llm-err-retry-limit must be >= 1")
+		}
+		h.cfg.LLM.LLMErrRetryLimit = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("LLM error retry limit set to %d", n)
+		return fmt.Sprintf("llm-err-retry-limit = %d", n), nil
+
 	case "loop-intervention":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_196), h.cfg.LLM.LoopIntervention), nil

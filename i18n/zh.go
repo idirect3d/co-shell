@@ -1298,6 +1298,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
 	KeyCol3ErrorMaxTypeCount:   "最大错误类型数",
+	KeyCol3AutoModelSelect:     "自动选择（LLM 调用失败时按优先级降级到后续模型）",
+	KeyCol3LLMErrRetryLimit:    "LLM 错误原地重试次数",
 
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell 将自主修改系统参数",
@@ -2136,6 +2138,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// FIX-598: 瞬时性失败不再改动上下文。
 	KeyLLMErrRetryKeepContext: "LLM 调用失败（类别：%s）: %v\n上下文未修改，%v 后重试（第 %d/%d 次）...",
 	KeyLLMErrAbortKeepContext: "LLM 调用失败（类别：%s）: %v\n本次失败为网络/服务端/认证/限流类问题，与消息格式无关：上下文已保留不改动，本轮终止。",
+	KeyModelFallbackSwitch:    "模型调用失败（类别：%s）: %v\n已按优先级自动降级到模型 %s 重试...",
+	KeyModelFallbackExhausted: "模型调用失败（类别：%s）: %v\n已按优先级尝试所有可用模型均失败，本轮终止。",
 	KeyLLMErrResumePrompt:     "（上一次输出在传输中断处被截断）请从中断处继续，不要重复已输出的内容。",
 	KeyLLMErrRetryResume:      "LLM 调用失败（类别：%s）: %v\n已保留已输出的 %d 字符，%v 后从中断处继续（第 %d/%d 次）...",
 	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",

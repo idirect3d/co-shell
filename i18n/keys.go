@@ -136,6 +136,8 @@ const (
 	// FIX-598: transient failures retry in place without editing the context.
 	KeyLLMErrRetryKeepContext = "llm_err_retry_keep_context"
 	KeyLLMErrAbortKeepContext = "llm_err_abort_keep_context"
+	KeyModelFallbackSwitch    = "model_fallback_switch"
+	KeyModelFallbackExhausted = "model_fallback_exhausted"
 	// FIX-599: resume a stream a transient failure cut in half.
 	KeyLLMErrResumePrompt   = "llm_err_resume_prompt"
 	KeyLLMErrRetryResume    = "llm_err_retry_resume"
@@ -1615,6 +1617,8 @@ const (
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount = "col3_error_max_single_count"
 	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
+	KeyCol3AutoModelSelect     = "col3_auto_model_select"
+	KeyCol3LLMErrRetryLimit    = "col3_llm_err_retry_limit"
 
 	// Loop judgment settings (FEATURE-241)
 	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"

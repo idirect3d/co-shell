@@ -88,6 +88,9 @@ type clientMessage struct {
 	Value       string          `json:"value,omitempty"`       // answer: the reply; session_switch/delete: the session id; settings_set: the new value
 	Key         string          `json:"key,omitempty"`         // settings_set: the setting key
 	Priority    int             `json:"priority,omitempty"`    // model_set_priority: the new priority
+	// FEATURE-602: model_auto_select — the new state of the automatic model
+	// selection (degrade-on-failure) switch.
+	AutoSelect bool `json:"auto_select,omitempty"`
 	Result      json.RawMessage `json:"result,omitempty"`      // interaction_answer: the structured result (agent.InteractionResult, FIX-513)
 	Step        string          `json:"step,omitempty"`        // model_wizard_next/prev: the current wizard step
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
@@ -202,6 +205,9 @@ type serverMessage struct {
 	Modes      []modeInfo      `json:"modes,omitempty"`       // kind=mode: the work mode list
 	Models     json.RawMessage `json:"models,omitempty"`      // kind=models: the model list JSON
 	Templates  json.RawMessage `json:"templates,omitempty"`   // kind=models: the template list JSON
+	// FEATURE-602: kind=models also carries the automatic-selection switch so
+	// the model manager can render its current state.
+	AutoSelect bool `json:"auto_select,omitempty"`
 	WizardStep json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
 	WizardData json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
 	// FEATURE-601 follow-up: per-capability detection progress streamed to the

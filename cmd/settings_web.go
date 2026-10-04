@@ -81,6 +81,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
 		{Key: "board-ack-timeout", Value: strconv.Itoa(boardAckTimeoutValue(cfg)), Desc: i18n.T(i18n.KeyCol3BoardAckTimeout), Type: "number", Default: strconv.Itoa(5)},
 		{Key: "board-must-reply", Value: boolStr(cfg.BoardMustReply), Desc: i18n.T(i18n.KeyCol3BoardMustReply), Type: "bool", Default: boolStr(defCfg.BoardMustReply)},
+		// FEATURE-602: degrade-on-failure switch (off by default).
+		{Key: "auto-model-select", Value: boolStr(cfg.LLM.AutoSelectEnabled()), Desc: i18n.T(i18n.KeyCol3AutoModelSelect), Type: "bool", Default: boolStr(def.AutoSelectEnabled())},
 		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
 		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
@@ -165,6 +167,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "llm-timeout", Value: strconv.Itoa(llm.LLMTimeout), Desc: i18n.T(i18n.KeyCol3LLMTimeout), Type: "number", Default: strconv.Itoa(def.LLMTimeout)},
 		{Key: "error-max-single-count", Value: strconv.Itoa(llm.ErrorMaxSingleCount), Desc: i18n.T(i18n.KeyCol3ErrorMaxSingleCount), Type: "number", Default: strconv.Itoa(def.ErrorMaxSingleCount)},
 		{Key: "error-max-type-count", Value: strconv.Itoa(llm.ErrorMaxTypeCount), Desc: i18n.T(i18n.KeyCol3ErrorMaxTypeCount), Type: "number", Default: strconv.Itoa(def.ErrorMaxTypeCount)},
+		// FEATURE-602: in-place retries before degradation / abort.
+		{Key: "llm-err-retry-limit", Value: strconv.Itoa(llm.LLMErrRetryLimitOrDefault()), Desc: i18n.T(i18n.KeyCol3LLMErrRetryLimit), Type: "number", Default: strconv.Itoa(def.LLMErrRetryLimitOrDefault())},
 		{Key: "loop-intervention", Value: loopInterventionValue(llm.LoopIntervention), Desc: i18n.T(i18n.KeySettingCmd_315), Type: "enum", Options: []string{"off", "retry", "prompt", "reorganize", "temperature", "random", "auto"}, Default: loopInterventionValue(def.LoopIntervention)},
 		{Key: "loop-auto-reorganize-threshold", Value: strconv.Itoa(llm.LoopAutoReorganizeThreshold), Desc: i18n.T(i18n.KeyCol3LoopAutoReorgThresh), Type: "number", Default: strconv.Itoa(def.LoopAutoReorganizeThreshold)},
 		{Key: "loop-detect-threshold", Value: strconv.Itoa(llm.LoopDetectThreshold), Desc: i18n.T(i18n.KeyCol3LoopDetectThreshold), Type: "number", Default: strconv.Itoa(def.LoopDetectThreshold)},
