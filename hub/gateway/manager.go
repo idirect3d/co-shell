@@ -51,6 +51,14 @@ type AgentSpec struct {
 	// entries keep their behaviour).
 	YOLO bool `json:"yolo,omitempty"`
 
+	// DownloadEnabled (FEATURE-607): when true the managed subprocess is
+	// started with the --download-enabled flag, which lets remote clients
+	// (including mobile clients reaching the agent through this hub) download
+	// workspace files from the Web UI. Opt-in only: the flag is never passed
+	// while this is false (the zero value, so existing registry entries keep
+	// their behaviour).
+	DownloadEnabled bool `json:"download_enabled,omitempty"`
+
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
 }
@@ -237,7 +245,7 @@ func (m *Manager) RecommendedPort() int {
 // configPath are optional per-agent overrides (empty = use the manager's
 // defaults). port > 0 uses the caller-specified port (which must be free);
 // port == 0 auto-allocates.
-func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool) (AgentSpec, error) {
+func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool, downloadEnabled bool) (AgentSpec, error) {
 	id, err := validateAgentID(id)
 	if err != nil {
 		return AgentSpec{}, err
@@ -266,6 +274,7 @@ func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, creat
 		UseSharedConfig: useSharedConfig,
 		ExtraArgs:       extraArgs,
 		YOLO:            yolo,
+		DownloadEnabled: downloadEnabled,
 	}
 	// Per-agent config: ensure {workspace}/config.json exists (never overwrite
 	// an existing one). When absent, first try to copy ~/.co-shell/config.json
@@ -324,6 +333,7 @@ type AgentPatch struct {
 	UseSharedConfig *bool
 	ExtraArgs       *string
 	YOLO            *bool
+	DownloadEnabled *bool
 	WSURL           *string
 }
 
@@ -380,6 +390,9 @@ func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
 		}
 		if patch.YOLO != nil {
 			spec.YOLO = *patch.YOLO
+		}
+		if patch.DownloadEnabled != nil {
+			spec.DownloadEnabled = *patch.DownloadEnabled
 		}
 		if patch.UseSharedConfig != nil {
 			spec.UseSharedConfig = *patch.UseSharedConfig
@@ -441,9 +454,9 @@ func (m *Manager) Remove(id string) error {
 }
 
 // buildArgs assembles the co-shell command line for a managed agent spec. The
-// YOLO flag (FEATURE-528) is a pure boolean switch: it is appended only when
-// the agent explicitly opted in, and it sits between the system-supplied
-// arguments and the user's extra arguments.
+// YOLO (FEATURE-528) and download (FEATURE-607) flags are pure boolean
+// switches: each is appended only when the agent explicitly opted in, and they
+// sit between the system-supplied arguments and the user's extra arguments.
 func buildArgs(spec *AgentSpec) []string {
 	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}
 	// Config source: shared (~/.co-shell/config.json) or per-agent
@@ -459,6 +472,9 @@ func buildArgs(spec *AgentSpec) []string {
 	}
 	if spec.YOLO {
 		args = append(args, "--yolo")
+	}
+	if spec.DownloadEnabled {
+		args = append(args, "--download-enabled")
 	}
 	// Append user-supplied extra arguments (whitespace-separated). The default
 	// --accept-license is added when the user left the field empty; --serve is

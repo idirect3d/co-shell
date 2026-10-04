@@ -55,7 +55,7 @@ func TestValidateAgentID(t *testing.T) {
 func TestManagerRejectsDuplicateAndInvalidID(t *testing.T) {
 	m := newTestManager(t)
 	ws := filepath.Join(t.TempDir(), "ws")
-	if _, err := m.CreateManaged("agent-1", ws, "", "", false, true, 0, "", false); err != nil {
+	if _, err := m.CreateManaged("agent-1", ws, "", "", false, true, 0, "", false, false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
 	if _, err := m.AddExternal("remote-1", "ws://127.0.0.1:29001/ws"); err != nil {
@@ -77,7 +77,7 @@ func TestManagerRejectsDuplicateAndInvalidID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := m.CreateManaged(tc.in, ws, "", "", false, true, 0, "", false)
+			_, err := m.CreateManaged(tc.in, ws, "", "", false, true, 0, "", false, false)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("CreateManaged(%q) error = %v; want %v", tc.in, err, tc.want)
 			}

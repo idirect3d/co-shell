@@ -466,6 +466,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label data-i18n="lblCoShellBin">co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblSharedConfig">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint" data-i18n="hintSharedConfig">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
         <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblYolo">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
+        <div class="field"><div class="switch-row"><span class="switch-label" data-i18n="lblDownloadEnabled">启用下载功能</span><label class="switch"><input type="checkbox" id="m-download"><span class="slider"></span></label></div><div class="hint" data-i18n="hintDownloadEnabled">开启后该 agent 启动时带上 --download-enabled，允许远程/移动端客户端下载工作区文件（默认关闭）。需重启 agent 后生效。</div></div>
         <div class="field"><label data-i18n="lblExtraArgs">补充运行参数</label><input id="m-extra" data-i18n-ph="phExtraArgs" placeholder="如 --accept-license --serve" value="--accept-license"></div>
         <div class="hint" id="m-ver"></div>
       </div>
@@ -496,6 +497,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-coshell"><label data-i18n="lblCoShellBin">co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
       <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label" data-i18n="lblSharedConfig">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint" data-i18n="hintSharedConfig">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
       <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label" data-i18n="lblYolo">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
+      <div class="field" id="f-download"><div class="switch-row"><span class="switch-label" data-i18n="lblDownloadEnabled">启用下载功能</span><label class="switch"><input type="checkbox" id="d-download"><span class="slider"></span></label></div><div class="hint" data-i18n="hintDownloadEnabled">开启后该 agent 启动时带上 --download-enabled，允许远程/移动端客户端下载工作区文件（默认关闭）。需重启 agent 后生效。</div></div>
       <div class="field" id="f-extra"><label data-i18n="lblExtraArgs">补充运行参数</label><input id="d-extra" data-i18n-ph="phExtraArgsDetail" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
       <!-- FIX-558: the Agent描述 is the last item and read-only: it shows what the
@@ -586,6 +588,8 @@ var HUB_LANG = "__HUB_LANG__";
     lblSharedConfig: 'Shared config',
     hintSharedConfig: 'On: use ~/.co-shell/config.json (shared); Off: use {workspace}/config.json (copied from ~/.co-shell/config.json when absent; an empty file is created when neither exists). Takes effect after the agent restarts.',
     lblYolo: 'YOLO mode',
+    lblDownloadEnabled: 'Enable file download',
+    hintDownloadEnabled: 'When on, this agent starts with --download-enabled, letting remote/mobile clients download workspace files (off by default). Takes effect after the agent restarts.',
     lblExtraArgs: 'Extra run arguments',
     phExtraArgs: 'e.g. --accept-license --serve',
     lblHost: 'Host address',
@@ -1372,6 +1376,7 @@ var HUB_LANG = "__HUB_LANG__";
     var yoloInput = document.getElementById('d-yolo');
     yoloInput.checked = !!a.yolo;
     syncYoloHint(yoloInput, document.getElementById('d-yolo-hint'));
+    document.getElementById('d-download').checked = !!a.download_enabled;
     document.getElementById('d-state').textContent = (a.running || a.connected) ? t('stateRunning', '运行中（修改需重启后生效）') : t('stateStopped', '已停止');
     document.getElementById('d-msg').textContent = '';
     // Local-only fields are greyed out for a remote agent, and vice versa.
@@ -1382,6 +1387,7 @@ var HUB_LANG = "__HUB_LANG__";
     setFieldEnabled('d-shared', !external);
     setFieldEnabled('d-extra', !external);
     setFieldEnabled('d-yolo', !external);
+    setFieldEnabled('d-download', !external);
     document.getElementById('d-port-label').textContent = external ? t('lblPortWs', '端口号（与主机地址组成 WS 地址）') : t('lblPortRestart', '端口号（可修改，需重启后生效）');
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
@@ -1428,6 +1434,7 @@ var HUB_LANG = "__HUB_LANG__";
       body.use_shared_config = document.getElementById('d-shared').checked;
       body.extra_args = document.getElementById('d-extra').value.trim();
       body.yolo = document.getElementById('d-yolo').checked;
+      body.download_enabled = document.getElementById('d-download').checked;
       // Only send co_shell once the executable list has loaded: a slow
       // /api/agent-defaults response must never silently reset the value.
       var editShellSel = document.getElementById('d-coshell');
@@ -1823,6 +1830,7 @@ var HUB_LANG = "__HUB_LANG__";
       use_shared_config: document.getElementById('m-shared').checked,
       extra_args: document.getElementById('m-extra').value.trim(),
       yolo: document.getElementById('m-yolo').checked,
+      download_enabled: document.getElementById('m-download').checked,
       port: port
     }, function(st, j){
       if (st >= 400){
@@ -1839,6 +1847,7 @@ var HUB_LANG = "__HUB_LANG__";
       var newYolo = document.getElementById('m-yolo');
       newYolo.checked = false;
       syncYoloHint(newYolo, document.getElementById('m-yolo-hint'));
+      document.getElementById('m-download').checked = false;
       var nid = (j && j.id) || id;
       api('POST', '/api/agents/' + encodeURIComponent(nid) + '/start', null, function(st2, j2){
         if (st2 >= 400) alert(t('alertCreateStartedFailed', '创建成功，但自动启动失败: %s').replace('%s', (j2 && j2.error) || st2));

@@ -224,6 +224,9 @@ type agentView struct {
 	ExtraArgs       string `json:"extra_args,omitempty"`
 	// YOLO reports whether the agent is started with --yolo (FEATURE-528).
 	YOLO bool `json:"yolo"`
+	// DownloadEnabled reports whether the agent is started with
+	// --download-enabled (FEATURE-607).
+	DownloadEnabled bool `json:"download_enabled"`
 	// BoardEnabled reports whether the agent is registered on the hub message
 	// board (FEATURE-557). Registration only happens while the agent's
 	// board-enabled switch is on, so a roster entry marks a board-enabled
@@ -347,6 +350,9 @@ type createAgentRequest struct {
 	ExtraArgs       string `json:"extra_args,omitempty"`
 	// YOLO starts the agent with --yolo (auto-approve every tool call).
 	YOLO bool `json:"yolo"`
+	// DownloadEnabled starts the agent with --download-enabled (FEATURE-607),
+	// allowing remote/mobile clients to download workspace files.
+	DownloadEnabled bool `json:"download_enabled"`
 }
 
 // handleCreateAgent creates a managed agent (workspace + optional config.json).
@@ -360,7 +366,7 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "id and workspace are required"})
 		return
 	}
-	spec, err := w.manager.CreateManaged(req.ID, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs, req.YOLO)
+	spec, err := w.manager.CreateManaged(req.ID, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs, req.YOLO, req.DownloadEnabled)
 	if err != nil {
 		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
 		return
@@ -416,6 +422,7 @@ type updateAgentRequest struct {
 	UseSharedConfig *bool   `json:"use_shared_config"`
 	ExtraArgs       *string `json:"extra_args"`
 	YOLO            *bool   `json:"yolo"`
+	DownloadEnabled *bool   `json:"download_enabled"`
 	WSURL           *string `json:"ws_url"`
 }
 
@@ -437,6 +444,7 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		UseSharedConfig: req.UseSharedConfig,
 		ExtraArgs:       req.ExtraArgs,
 		YOLO:            req.YOLO,
+		DownloadEnabled: req.DownloadEnabled,
 		WSURL:           req.WSURL,
 	})
 	if err != nil {
