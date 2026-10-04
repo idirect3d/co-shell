@@ -98,7 +98,7 @@ const I18N = {
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "chat（默认）",
     wizardDetect: "手动检测", wizardDetecting: "检测中...", wizardCapSupported: "支持", wizardCapUnsupported: "不支持",
-    modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
+    modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认", modelAutoSelect: "自动选择", modelAutoSelectHint: "LLM 调用失败时按优先级自动降级到后续模型",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
@@ -208,7 +208,7 @@ const I18N = {
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "chat (default)",
     wizardDetect: "Run detection", wizardDetecting: "Detecting...", wizardCapSupported: "supported", wizardCapUnsupported: "not supported",
-    modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
+    modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default", modelAutoSelect: "Auto select", modelAutoSelectHint: "Degrade to the next lower-priority model when an LLM call fails",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
@@ -654,7 +654,7 @@ function wsConnect() {
     else if (msg.kind === "identity_result") showIdentityResult(msg);
     else if (msg.kind === "mode") renderModeSeg(msg.modes || []);
     else if (msg.kind === "mode_result") showModeResult(msg);
-    else if (msg.kind === "models") renderModels(msg.models || [], msg.templates || []);
+    else if (msg.kind === "models") { setModelAutoSelect(!!msg.auto_select); renderModels(msg.models || [], msg.templates || []); }
     else if (msg.kind === "model_result") showModelResult(msg);
     else if (msg.kind === "model_wizard") showModelWizardStep(msg);
     else if (msg.kind === "model_wizard_detect_progress") setCapDetectStatus(msg);
@@ -7360,6 +7360,20 @@ modelDelBtn.onclick = () => {
   const m = modelList.find((x) => x.id === selectedModelID);
   if (m) confirmDeleteModel(m);
 };
+
+// FEATURE-602: the automatic-selection switch above the model list. When on, a
+// failed LLM call degrades to the next lower-priority model before the turn
+// aborts. Its state arrives with every "models" message (auto_select).
+const modelAutoSelectChk = document.getElementById("modelAutoSelect");
+if (modelAutoSelectChk) {
+  modelAutoSelectChk.onchange = () =>
+    wsSend({ type: "model_auto_select", auto_select: modelAutoSelectChk.checked });
+}
+
+// setModelAutoSelect mirrors the backend switch state onto the checkbox.
+function setModelAutoSelect(on) {
+  if (modelAutoSelectChk) modelAutoSelectChk.checked = !!on;
+}
 
 
 

@@ -195,7 +195,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
 		subcommand == "intent-exposure-enabled",
-		subcommand == "subagent-enabled", subcommand == "board-enabled", subcommand == "context-limit",
+		subcommand == "subagent-enabled", subcommand == "board-enabled",
+		subcommand == "auto-model-select", subcommand == "context-limit",
 		subcommand == "context-start", subcommand == "context-policy",
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "no-tool-action",
@@ -732,6 +733,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
 		makeLine("board-enabled", boolStr(cfg.BoardEnabled), i18n.T(i18n.KeyCol3BoardEnabled)),
 		makeLine("board-must-reply", boolStr(cfg.BoardMustReply), i18n.T(i18n.KeyCol3BoardMustReply)),
+		makeLine("auto-model-select", boolStr(cfg.LLM.AutoSelectEnabled()), i18n.T(i18n.KeyCol3AutoModelSelect)),
 		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
 		makeLine("ui-enabled", boolStr(cfg.UIEnabled), i18n.T(i18n.KeyCol3UIEnabled)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
@@ -862,6 +864,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
+		makeLine("llm-err-retry-limit", fmt.Sprintf("%d", cfg.LLM.LLMErrRetryLimitOrDefault()), i18n.T(i18n.KeyCol3LLMErrRetryLimit)),
 		// Loop detection (FEATURE-227)
 		makeLine("loop-intervention", loopIntervention, i18n.T(i18n.KeySettingCmd_315)),
 		makeLine("loop-auto-reorganize-threshold", fmt.Sprintf("%d", cfg.LLM.LoopAutoReorganizeThreshold), i18n.T(i18n.KeyCol3LoopAutoReorgThresh)),

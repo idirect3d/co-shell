@@ -662,6 +662,13 @@
     </div>
     <div class="modal-body">
       <div class="models-toolbar">
+        <!-- FEATURE-602: automatic-selection switch (off by default). When on, a
+           failed LLM call degrades to the next lower-priority model. -->
+        <span class="models-auto-label" data-i18n="modelAutoSelect">自动选择</span>
+        <label class="model-toggle" data-i18n-title="modelAutoSelectHint" title="自动选择：LLM 调用失败时按优先级自动降级到后续模型">
+          <input type="checkbox" id="modelAutoSelect">
+          <span class="model-toggle-slider"></span>
+        </label>
         <button class="btn" id="modelPinBtn" title="置顶选中的模型"><svg class="ico" aria-hidden="true"><use href="#i-tri-up"/></svg>置顶</button>
         <button class="btn" id="modelAddBtn" data-i18n="modelAdd"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>新增模型</button>
         <button class="btn danger" id="modelDelBtn" title="删除选中的模型"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>删除</button>

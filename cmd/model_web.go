@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -156,6 +157,22 @@ func (h *ModelHandler) ModelRemove(id string) (string, error) {
 // setPriorityForModel).
 func (h *ModelHandler) ModelSetPriority(id string, priority int) (string, error) {
 	return h.setPriorityForModel(id, priority)
+}
+
+// ModelAutoSelect reports whether the automatic selection (degrade-on-failure)
+// switch is on (FEATURE-602).
+func (h *ModelHandler) ModelAutoSelect() bool {
+	return h.cfg.LLM.AutoSelectEnabled()
+}
+
+// ModelSetAutoSelect persists the automatic selection switch (FEATURE-602) and
+// returns the localized confirmation.
+func (h *ModelHandler) ModelSetAutoSelect(on bool) (string, error) {
+	h.cfg.LLM.AutoModelSelect = on
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	return i18n.TF(i18n.KeySettingsUpdated, "auto-model-select", boolStr(on)), nil
 }
 
 // StartAddWizard launches the interactive add-model wizard. In a web session

@@ -364,6 +364,13 @@ type Agent struct {
 	// (llmRetryLimit) instead of the context-remove limit.
 	llmErrRetryCount int
 
+	// FEATURE-602: automatic degradation state. fallbackModelID is the model the
+	// current turn degraded to (empty = the normal mode/priority selection);
+	// fallbackTried records the model ids already attempted in this turn so a
+	// model that just failed is never re-tried. Both are reset at the start of
+	// every RunStream and guarded by mu.
+	fallbackModelID string
+	fallbackTried   map[string]bool
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.
