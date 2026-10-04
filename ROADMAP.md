@@ -4,6 +4,44 @@
 
 ---
 
+## v0.93.0 — 模型配置向导「能力」步骤支持手动检测
+
+> **版本**: v0.93.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 模型配置向导的「能力」步骤（步骤标题“检测模型能力”）目前只在首次进入时自动检测一次（且仅在能力值全空时），用户无法在向导内重新检测。本次在该步骤增加“手动检测”按钮，点击即复用现有 `detectModelCapabilities` 重新检测 vision / tool_call / thinking 三项能力并回填开关。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-601 | 0.93.0 | P1 | 向导「能力」步骤增加“手动检测”按钮，复用 detectModelCapabilities 重测三项能力并回填 |
+
+> 当前 BUILD: 1210
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-601 向导「能力」步骤手动检测按钮**
+  - 需求（用户 2026-10-04 11:29）：在模型管理功能的检测模型能力页面增加手动检测按钮，触发对 3 个能力的检测，测试功能复用新建模型配置时的自动检测方法。
+  - 方案：① `cmd/model_web_wizard.go`：`WebWizardData` 增加 `Detect` 触发标志，capabilities 分支在 `Detect` 为真时强制调用 `detectModelCapabilities`（检测后重置标志并回填 data）；新增 `WebWizardDetect` 方法；② `web/session.go` 新增 `model_wizard_detect` 消息处理；③ `web/static/app.js` 在 capabilities 步骤渲染“手动检测”按钮（复用现有 wizard-test-btn 风格）；④ 前端词条支持中英。
+  - 验收标准：见 `use-case/FEATURE-601/`。
+  - 完成情况：✅ 已完成（分支 FEATURE-601）[BUILD-1208]
+    - 实施：① `cmd/model_web_wizard.go`：`WebWizardData` 增加 `Detect` 触发标志，capabilities 分支在 `Detect` 为真时强制调用 `detectModelCapabilities` 并回填 `data.Vision/ToolCall/Thinking` 后重置标志；新增 `WebWizardDetect` 方法；② `web/session.go` 新增 `model_wizard_detect` 消息（`handleModelWizardDetect`）；③ `web/static/app.js` 能力步骤渲染“手动检测”按钮（`setupWizardCapabilitiesExtras`）并新增中英词条；④ `cmd/model_web_wizard_test.go` 新增 2 个测试。
+    - 实测证据：浏览器等价部署验证 —— capabilities 步骤 `capButtons=["手动检测"]`、3 个开关正常，priority 步骤无按钮（`otherButtons=[]`）；`go build ./... && go vet ./...`、`node --check web/static/app.js` 通过；`go test ./cmd/ -short -run TestWebWizard` 通过（网络用例按既有约定 -short 跳过）。
+    - 产物：`work/co-shell-0.93.0.darwin.arm64`、`work/co-shell-hub-0.93.0.darwin.arm64`。
+    - 追加优化（检测状态/结果动态显示）[BUILD-1209]：模型能力检测时逐能力实时上报状态与结果——`ModelHandler` 新增 `SetDetectProgress` 回调（`detectMu` 保护），`detectModelCapabilities` 每项能力上报 `running`/`done`；`web/session.go` 通过 `model_wizard_detect_progress` 消息推送；前端在能力名称后显示“检测中… → 支持/不支持”；`web/static/style.css` 新增 `.wizard-cap-status` 样式；`cmd/model_web_wizard_test.go` 新增回调机制单测。
+- [x] **FEATURE-601（追加需求）向导步骤自由切换 + 左侧导航错位修复**
+  - 需求（用户 2026-10-04 12:26）：修改模型配置时希望可在不同步骤之间自由切换（同一个 FEATURE-601 任务内完成，含修掉导航切换的两个毛病）。
+  - 现状问题：① `web/static/app.js:7830` 仅给 `i < curIdx` 的导航项绑定点击，未访问的后续步骤不可点击，无法自由切换；② 导航点击发送 `model_wizard_prev` + 被点击步骤，而后端 `WebWizardPrev`（`cmd/model_web_wizard.go:172`）语义是“返回所传步骤的前一步”，导致点第 k 步实际渲染第 k-1 步（错位）；③ 点第 1 步返回 `already at first step` → 前端 `ok:false` 分支 `closeModelWizard()` + alert，整个向导弹窗被关闭。
+  - 方案（拟）：前端导航项全部可点，点击时先 `collectWizardFields()` 再发“渲染指定步骤”的消息（复用现有 `model_wizard_refresh`，后端 `WebWizardRefresh` 已是“按传入 step 渲染该步骤”）；「上一步」按钮继续用 `model_wizard_prev`（step=当前步）。
+  - 验收标准：见 `use-case/FEATURE-601/FEATURE-601-UC-0002.md`。
+  - 完成情况：✅ 已完成（分支 FEATURE-601）[BUILD-1210]
+    - 实施：`web/static/app.js` 的 `renderWizardStep` 导航项全部绑定点击（`i === curIdx` 时忽略），点击时先 `collectWizardFields()` 再发 `{type:"model_wizard_refresh", step:<被点击步骤>}`（不再用 `model_wizard_prev`，从根上消除“点第 k 步到第 k-1 步”与首步 `already at first step` → `ok:false` → `closeModelWizard()` 关单）；`cmd/model_web_wizard_test.go` 新增 `TestWebWizardRefreshRendersRequestedStep`（9 步骤 table-driven、-short 门控）。后端无改动（`WebWizardRefresh` 本就是“按传入 step 渲染该步骤”）。
+    - 实测证据（静态等价页面 + 调试浏览器）：导航 9/9 项可点击（改动前仅 4 项）；点「3. API Key」发送 `{type:"model_wizard_refresh", step:"api_key"}`；注入后端回包后渲染步骤 = `api_key`、标题「API Key」、弹窗保持打开；点「1. 模板」渲染 `template`（标题「模板」）且弹窗不被关闭；在能力步骤打开 thinking 后跳「7. 优先级」，payload 携带 `thinking:true`（未丢值）；`go build ./... && go vet ./...`、`node --check web/static/app.js` 通过；`go test ./cmd/ -short -run 'TestWebWizard|TestReportDetectProgress'` PASS。
+    - 产物：`work/co-shell-0.93.0.darwin.arm64`、`work/co-shell-hub-0.93.0.darwin.arm64`。
+
+---
+
 ## v0.92.0 — iOS 上架准备（隐私清单 / 出口合规 / 版本号同步 / ATS 收窄 / CFBundleName）
 
 > **版本**: v0.92.0

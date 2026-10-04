@@ -115,6 +115,11 @@ type WebWizardData struct {
 	// pre-fill / hint the max_model_len step (FEATURE-429).
 	ModelMaxLen int  `json:"model_max_len,omitempty"`
 	Enabled     bool `json:"enabled"`
+	// Detect, when true, forces the capabilities step to re-run
+	// detectModelCapabilities (FEATURE-601: the manual "detect" button in the
+	// wizard). The backend resets it to false after detection so it does not
+	// keep forcing detection on later renders.
+	Detect bool `json:"detect,omitempty"`
 }
 
 // WebWizardStart begins a new add/edit wizard and returns the first step's
@@ -178,6 +183,16 @@ func (h *ModelHandler) WebWizardPrev(data *WebWizardData, step WebWizardStep) (*
 // suggestions without advancing to the next step (FEATURE-429).
 func (h *ModelHandler) WebWizardRefresh(data *WebWizardData, step WebWizardStep) (*WebWizardStepData, error) {
 	return h.webWizardStepData(data, step)
+}
+
+// WebWizardDetect forces a capability re-detection on the capabilities step
+// (FEATURE-601: the wizard's manual "detect" button). It sets the Detect trigger
+// and re-renders the capabilities step, whose handler runs
+// detectModelCapabilities and writes the result back into data plus resets the
+// trigger.
+func (h *ModelHandler) WebWizardDetect(data *WebWizardData) (*WebWizardStepData, error) {
+	data.Detect = true
+	return h.webWizardStepData(data, WebWizardCapabilities)
 }
 
 // WebWizardSubmit builds a ModelConfig from the accumulated data and saves it.
@@ -382,9 +397,19 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 	case WebWizardCapabilities:
 		sd.Title = i18n.T(i18n.KeyCmdMig_183)
 		caps := config.ModelCapability{Vision: data.Vision, ToolCall: data.ToolCall, Thinking: data.Thinking}
-		if caps == (config.ModelCapability{}) {
+		// FEATURE-601: Detect is set by the manual "detect" button to force a
+		// fresh detection even when capability values are already set; the
+		// automatic path below still fires only when nothing is set yet. Either
+		// way the result is written back into data (so the persisted values and
+		// the rendered switches agree) and Detect is reset so it does not keep
+		// forcing detection on later renders.
+		if data.Detect || caps == (config.ModelCapability{}) {
 			caps = h.detectModelCapabilities(data.Endpoint, data.APIKey, data.ModelName)
+			data.Vision = caps.Vision
+			data.ToolCall = caps.ToolCall
+			data.Thinking = caps.Thinking
 		}
+		data.Detect = false
 		sd.Fields = []WebWizardField{
 			{Key: "vision", Type: "checkbox", Label: i18n.T(i18n.KeyCmdMig_376), Value: webWizardBoolStr(caps.Vision)},
 			{Key: "tool_call", Type: "checkbox", Label: i18n.T(i18n.KeyCmdMig_380), Value: webWizardBoolStr(caps.ToolCall)},

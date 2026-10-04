@@ -97,6 +97,7 @@ const I18N = {
     retryFromFailed: "回退失败：%s",
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "chat（默认）",
+    wizardDetect: "手动检测", wizardDetecting: "检测中...", wizardCapSupported: "支持", wizardCapUnsupported: "不支持",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
@@ -206,6 +207,7 @@ const I18N = {
     retryFromFailed: "Retry-from failed: %s",
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "chat (default)",
+    wizardDetect: "Run detection", wizardDetecting: "Detecting...", wizardCapSupported: "supported", wizardCapUnsupported: "not supported",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
@@ -655,6 +657,7 @@ function wsConnect() {
     else if (msg.kind === "models") renderModels(msg.models || [], msg.templates || []);
     else if (msg.kind === "model_result") showModelResult(msg);
     else if (msg.kind === "model_wizard") showModelWizardStep(msg);
+    else if (msg.kind === "model_wizard_detect_progress") setCapDetectStatus(msg);
     else if (msg.kind === "pop_result") {
       // FIX-506: retry-from popped the session back. Instead of reloading the
       // whole page (which was unnecessary and disruptive), truncate the event
@@ -7824,9 +7827,17 @@ function renderWizardStep(step) {
     const item = document.createElement("div");
     item.className = "wizard-nav-item" + (i === curIdx ? " current" : "") + (i < curIdx ? " done" : "");
     item.textContent = (i + 1) + ". " + (wizardStepTitles[order[i]] || order[i]);
-    if (i < curIdx) {
-      item.onclick = () => { wizardStep = order[i]; wsSend({ type: "model_wizard_prev", step: order[i], wizard_data: wizardData }); };
-    }
+    // FEATURE-601 (follow-up): every step is reachable from the left nav, forward
+    // steps included, so the user can switch freely. Clicking the current step is
+    // a no-op. Jumping anywhere else first collects the values typed so far —
+    // model_wizard_refresh re-renders the requested step, so clicking step k lands
+    // on step k (model_wizard_prev used to return the step BEFORE the one sent).
+    item.onclick = () => {
+      if (i === curIdx) return;
+      collectWizardFields();
+      wizardStep = order[i];
+      wsSend({ type: "model_wizard_refresh", step: order[i], wizard_data: wizardData });
+    };
     modelWizardNav.appendChild(item);
   }
   // Right form.
@@ -7848,6 +7859,8 @@ function renderWizardStep(step) {
   // FEATURE-467: on the template step, wire up the thinking switch to show/hide
   // the reasoning_effort select, and render the collapsible template-JSON viewer.
   if (step.step === "template") setupWizardTemplateExtras(step);
+  // FEATURE-601: the capabilities step gets a manual "detect" button.
+  if (step.step === "capabilities") setupWizardCapabilitiesExtras(step);
   // Bottom buttons.
   modelWizardPrev.style.display = step.is_first ? "none" : "";
   modelWizardNext.style.display = step.is_last ? "none" : "";
@@ -7922,6 +7935,58 @@ function setupWizardTemplateExtras(step) {
   }
 }
 
+// setupWizardCapabilitiesExtras renders the manual "detect" button on the
+// capabilities step (FEATURE-601). Clicking it asks the backend to re-run
+// detectModelCapabilities — the same detection used when adding a model — and
+// re-renders this step with the freshly detected values.
+function setupWizardCapabilitiesExtras(step) {
+  const row = document.createElement("div");
+  row.className = "wizard-endpoint-test";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "wizard-test-btn";
+  btn.textContent = T.wizardDetect || "手动检测";
+  const res = document.createElement("span");
+  res.className = "wizard-test-result";
+  btn.onclick = () => {
+    // Persist the current form state first so the backend has the endpoint /
+    // api key / model name to test against.
+    collectWizardFields();
+    btn.disabled = true;
+    res.textContent = T.wizardDetecting || "检测中...";
+    res.className = "wizard-test-result";
+    // FEATURE-601 follow-up: mark every capability as detecting; the backend
+    // then streams per-capability progress that updates each one.
+    modelWizardBody.querySelectorAll(".wizard-cap-status").forEach((el) => {
+      el.textContent = T.wizardDetecting || "检测中...";
+      el.className = "wizard-cap-status running";
+    });
+    wsSend({ type: "model_wizard_detect", wizard_data: wizardData });
+    // The re-render replaces this button; re-enable defensively.
+    setTimeout(() => { btn.disabled = false; }, 1500);
+  };
+  row.appendChild(btn);
+  row.appendChild(res);
+  modelWizardBody.appendChild(row);
+}
+
+// setCapDetectStatus updates the inline status shown after a capability name in
+// the capabilities step (FEATURE-601 follow-up): "detecting…" while the backend
+// runs that capability's test, then the result.
+function setCapDetectStatus(msg) {
+  const el = modelWizardBody.querySelector('[data-cap-status="' + msg.cap + '"]');
+  if (!el) return;
+  if (msg.phase === "running") {
+    el.textContent = T.wizardDetecting || "检测中...";
+    el.className = "wizard-cap-status running";
+    return;
+  }
+  el.innerHTML = msg.ok
+    ? iconHTML("i-check", "ico-inline") + " " + (T.wizardCapSupported || "支持")
+    : iconHTML("i-xmark", "ico-inline") + " " + (T.wizardCapUnsupported || "不支持");
+  el.className = "wizard-cap-status " + (msg.ok ? "ok" : "err");
+}
+
 // renderWizardField builds a form control for one field.
 function renderWizardField(f) {
   const wrap = document.createElement("div");
@@ -7931,6 +7996,14 @@ function renderWizardField(f) {
   const label = document.createElement("label");
   label.className = "wizard-field-label";
   label.textContent = f.label || f.key;
+  // FEATURE-601 follow-up: the three capability fields carry an inline status
+  // slot filled by the per-capability detection progress messages.
+  if (f.key === "vision" || f.key === "tool_call" || f.key === "thinking") {
+    const st = document.createElement("span");
+    st.className = "wizard-cap-status";
+    st.dataset.capStatus = f.key;
+    label.appendChild(st);
+  }
   wrap.appendChild(label);
   let ctl;
   if (f.type === "select") {

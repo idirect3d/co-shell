@@ -3273,6 +3273,12 @@ button.qs-kbd:active { transform: translateY(1px); }
 .wizard-test-result { font-size: 12px; color: var(--fg-dim); }
 .wizard-test-result.ok { color: var(--ok); }
 .wizard-test-result.err { color: var(--err); }
+
+/* FEATURE-601 follow-up: inline per-capability detection status shown after the
+   capability name in the wizard's capabilities step (detecting… -> result). */
+.wizard-cap-status { margin-left: 6px; font-size: 12px; color: var(--fg-dim); }
+.wizard-cap-status.ok { color: var(--ok); }
+.wizard-cap-status.err { color: var(--err); }
 .wizard-field-label {
   display: block;
   font-size: 12px;

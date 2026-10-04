@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -59,6 +60,12 @@ type ModelHandler struct {
 	// stdinIsTTY reports whether stdin is an interactive terminal; nil uses
 	// the real os.Stdin check. Overridable in tests (FIX-358).
 	stdinIsTTY func() bool
+
+	// detectMu guards detectProgress (FEATURE-601 follow-up): the Web session
+	// installs a progress callback around a detection run to stream
+	// per-capability status to the browser.
+	detectMu       sync.Mutex
+	detectProgress func(cap, phase string, ok bool)
 }
 
 // NewModelHandler creates a new ModelHandler.
@@ -94,6 +101,26 @@ func (h *ModelHandler) interactiveStdin() bool {
 // io returns the UserIO from the agent, falling back to DefaultUserIO.
 func (h *ModelHandler) io() agent.UserIO {
 	return agent.GetIO(h.agent)
+}
+
+// SetDetectProgress installs a callback invoked while detecting model
+// capabilities (FEATURE-601 follow-up). cap is the capability key
+// ("vision"/"tool_call"/"thinking"), phase is "running" or "done", and ok
+// carries the result on "done". Pass nil to clear it.
+func (h *ModelHandler) SetDetectProgress(fn func(cap, phase string, ok bool)) {
+	h.detectMu.Lock()
+	h.detectProgress = fn
+	h.detectMu.Unlock()
+}
+
+// reportDetectProgress invokes the installed progress callback, if any.
+func (h *ModelHandler) reportDetectProgress(cap, phase string, ok bool) {
+	h.detectMu.Lock()
+	fn := h.detectProgress
+	h.detectMu.Unlock()
+	if fn != nil {
+		fn(cap, phase, ok)
+	}
 }
 
 // syncModelsToManager synchronizes all models from h.cfg.Models to the singleton ModelManager.
@@ -1386,10 +1413,12 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	}
 
 	// Test vision support
+	h.reportDetectProgress("vision", "running", false)
 	io.Print(i18n.T(i18n.KeyCmdMig_154))
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	vision := client.TestVisionSupport(ctx)
 	cancel()
+	h.reportDetectProgress("vision", "done", vision)
 	if vision {
 		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.Vision = true
@@ -1398,10 +1427,12 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	}
 
 	// Test tool call support
+	h.reportDetectProgress("tool_call", "running", false)
 	io.Print(i18n.T(i18n.KeyCmdMig_162))
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	toolCall := client.TestToolCallSupport(ctx)
 	cancel()
+	h.reportDetectProgress("tool_call", "done", toolCall)
 	if toolCall {
 		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.ToolCall = true
@@ -1410,6 +1441,7 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	}
 
 	// Test thinking support: switch to thinking-enabled params
+	h.reportDetectProgress("thinking", "running", false)
 	io.Print(i18n.T(i18n.KeyCmdMig_155))
 	enableAdditions := testAdapter.BuildAdditions(llm.ThinkingConfig{
 		Mode:            llm.ThinkingModeEnabled,
@@ -1421,6 +1453,7 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	thinking := client.TestThinkingSupport(ctx)
 	cancel()
+	h.reportDetectProgress("thinking", "done", thinking)
 	if thinking {
 		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.Thinking = true

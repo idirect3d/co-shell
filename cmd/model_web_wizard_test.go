@@ -256,6 +256,34 @@ func TestWebWizardRefresh(t *testing.T) {
 	}
 }
 
+// TestWebWizardRefreshRendersRequestedStep verifies the wizard renders exactly
+// the step it is given for every step of the wizard. The left nav relies on this
+// to jump straight to the clicked step (FEATURE-601 follow-up: free switching —
+// the nav used to call WebWizardPrev and therefore landed on the step BEFORE the
+// one clicked, and the first step returned "already at first step"). The
+// model_name step fetches model suggestions from the endpoint, so the test is
+// gated by -short; data.Thinking is preset so the capabilities step does not
+// trigger an automatic detection round-trip.
+func TestWebWizardRefreshRendersRequestedStep(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in -short mode")
+	}
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat", Thinking: true,
+	}
+	for _, want := range webWizardSteps {
+		step, err := h.WebWizardRefresh(data, want)
+		if err != nil {
+			t.Fatalf("refresh %q: %v", want, err)
+		}
+		if step.Step != want {
+			t.Errorf("refresh %q rendered step %q, want %q", want, step.Step, want)
+		}
+	}
+}
+
 // TestWebWizardMaxModelLenHint verifies the max_model_len step shows a hint with
 // the selected model's max context length when it was recorded on the
 // model_name step.
@@ -544,5 +572,70 @@ func TestWebWizardSubmitApiType(t *testing.T) {
 				t.Errorf("APIType for chat selection = %q, want empty (chat)", m.APIType)
 			}
 		}
+	}
+}
+
+// TestWebWizardDetect verifies the manual detection path (FEATURE-601): it
+// returns the capabilities step with three fields and resets the Detect trigger.
+// Network detection may fail in CI, so it is gated by -short.
+func TestWebWizardDetect(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in -short mode")
+	}
+	h := newWebWizardHandler(t)
+	// Pre-set a capability value so a plain render would NOT auto-detect; the
+	// manual path must still detect (Detect flag) and reset the flag.
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat", Vision: true,
+	}
+	step, err := h.WebWizardDetect(data)
+	if err != nil {
+		t.Fatalf("WebWizardDetect: %v", err)
+	}
+	if step.Step != WebWizardCapabilities {
+		t.Fatalf("step = %q, want capabilities", step.Step)
+	}
+	if len(step.Fields) != 3 {
+		t.Fatalf("capabilities fields = %d, want 3", len(step.Fields))
+	}
+	if data.Detect {
+		t.Error("Detect must be reset to false after detection")
+	}
+}
+
+// TestWebWizardDetectFlagSurvivesOtherSteps verifies a Detect flag is only
+// consumed by the capabilities step and not cleared by other steps
+// (FEATURE-601). No network access is involved.
+func TestWebWizardDetectFlagSurvivesOtherSteps(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "deepseek", Detect: true}
+	if _, err := h.webWizardStepData(data, WebWizardTemplate); err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	if !data.Detect {
+		t.Error("Detect flag must not be cleared by the template step")
+	}
+}
+
+// TestReportDetectProgress verifies the per-capability progress callback
+// mechanism (FEATURE-601 follow-up): no callback is safe, an installed callback
+// receives running/done reports, and clearing it stops delivery.
+func TestReportDetectProgress(t *testing.T) {
+	h := newWebWizardHandler(t)
+	// No callback installed: must not panic.
+	h.reportDetectProgress("vision", "running", false)
+
+	var got []string
+	h.SetDetectProgress(func(cap, phase string, ok bool) {
+		got = append(got, cap+"/"+phase)
+	})
+	h.reportDetectProgress("vision", "running", false)
+	h.reportDetectProgress("vision", "done", true)
+	h.SetDetectProgress(nil)
+	h.reportDetectProgress("tool_call", "done", false) // cleared: not delivered
+
+	if len(got) != 2 || got[0] != "vision/running" || got[1] != "vision/done" {
+		t.Errorf("progress calls = %v, want [vision/running vision/done]", got)
 	}
 }

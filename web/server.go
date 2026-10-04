@@ -204,6 +204,10 @@ type serverMessage struct {
 	Templates  json.RawMessage `json:"templates,omitempty"`   // kind=models: the template list JSON
 	WizardStep json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
 	WizardData json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
+	// FEATURE-601 follow-up: per-capability detection progress streamed to the
+	// browser while the wizard's capabilities step runs a detection.
+	Cap   string `json:"cap,omitempty"`   // kind=model_wizard_detect_progress: vision|tool_call|thinking
+	Phase string `json:"phase,omitempty"` // kind=model_wizard_detect_progress: "running" | "done"
 	YOLO       bool            `json:"yolo,omitempty"`        // kind=yolo: the current YOLO mode state
 	MCPServers json.RawMessage `json:"mcp_servers,omitempty"` // kind=mcp: the MCP server list JSON
 

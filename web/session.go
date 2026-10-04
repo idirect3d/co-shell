@@ -334,6 +334,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModelWizardPrev(msg.Step, msg.WizardData)
 	case "model_wizard_refresh":
 		s.handleModelWizardRefresh(msg.Step, msg.WizardData)
+	case "model_wizard_detect":
+		s.handleModelWizardDetect(msg.WizardData)
 	case "model_wizard_submit":
 		s.handleModelWizardSubmit(msg.WizardData)
 	case "yolo_set":
@@ -660,6 +662,33 @@ func (s *WebSession) handleModelWizardRefresh(step string, raw json.RawMessage) 
 		return
 	}
 	stepData, err := s.model.WebWizardRefresh(data, cmd.WebWizardStep(step))
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.sendWizardStep(stepData, data)
+}
+
+// handleModelWizardDetect forces a capability re-detection on the capabilities
+// step of the structured wizard (FEATURE-601: the manual "detect" button). The
+// backend reuses the same detectModelCapabilities path as the automatic
+// detection when adding a model, then re-renders the step with the result.
+func (s *WebSession) handleModelWizardDetect(raw json.RawMessage) {
+	if s.model == nil {
+		return
+	}
+	data, err := decodeWizardData(raw)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	// Stream per-capability progress to the browser while the detection runs
+	// (FEATURE-601 follow-up), then clear the callback.
+	s.model.SetDetectProgress(func(cap, phase string, ok bool) {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard_detect_progress", Cap: cap, Phase: phase, OK: ok})
+	})
+	defer s.model.SetDetectProgress(nil)
+	stepData, err := s.model.WebWizardDetect(data)
 	if err != nil {
 		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
 		return
