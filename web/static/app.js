@@ -2596,12 +2596,6 @@ function renderEvent(ev) {
 
   curLLM = curThinking = curSup = null;
   const label = eventBlockLabel(ev);
-  // While the model wizard is active, route its ui_text output to the wizard
-  // modal instead of the main event stream (FEATURE-422).
-  if (ev.type === "ui_text" && ev.chan === "repl" && wizardActive) {
-    appendWizardText(ev.text || "");
-    return;
-  }
   // ui_text from the repl channel renders as a REPL block (parallel to
   // TOOL/LLM); consecutive lines merge into one block. Other ui_text stays SYS.
   if (ev.type === "ui_text" && ev.chan === "repl") {
@@ -3632,12 +3626,6 @@ let pendingAsk = null;
 
 function showAsk(msg) {
   pendingAsk = msg.id;
-  // While the model wizard is active, render the input request inside the
-  // wizard modal instead of the bottom ask area (FEATURE-422).
-  if (wizardActive) {
-    showWizardAsk(msg);
-    return;
-  }
   askArea.classList.remove("hidden");
   askKeys.textContent = "";
   if (msg.mode === "key") {
@@ -3665,13 +3653,6 @@ function showAsk(msg) {
 function answerAsk(value) {
   if (!pendingAsk) return;
   wsSend({ type: "answer", id: pendingAsk, value });
-  // While the model wizard is active, echo the answer into the wizard modal
-  // instead of the main event stream (FEATURE-422).
-  if (wizardActive) {
-    if (value) appendWizardText("→ " + value);
-    hideAsk();
-    return;
-  }
   // Echo the user's answer (confirmation choice, selected option, or typed
   // content) as a YOU block so it appears in the output stream — these inputs
   // are part of the conversation context and should be visible.
@@ -3777,12 +3758,6 @@ function splitReportSections(body) {
 function showInteraction(msg) {
   pendingInteraction = msg.id;
   const it = msg.interaction || {};
-  // While the model wizard is active, route structured interactions to the
-  // wizard modal as a simple line input (FEATURE-422).
-  if (wizardActive) {
-    showWizardAsk({ id: msg.id, mode: "line" });
-    return;
-  }
   askArea.classList.remove("hidden");
   askKeys.textContent = "";
   askLineWrap.classList.add("hidden");
@@ -8219,34 +8194,6 @@ modelWizardSubmit.onclick = () => {
   collectWizardFields();
   wsSend({ type: "model_wizard_submit", wizard_data: wizardData });
 };
-
-// Compatibility stubs for the legacy text-flow wizard routing (FEATURE-422).
-// The structured wizard (FEATURE-429) no longer emits ui_text/ask/interaction,
-// but these keep the wizardActive routing branches safe if they ever fire.
-function appendWizardText(text) {
-  const line = document.createElement("div");
-  line.className = "wizard-line";
-  line.textContent = text;
-  modelWizardBody.appendChild(line);
-  modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
-}
-function showWizardAsk(msg) {
-  const wrap = document.createElement("div");
-  wrap.className = "wizard-ask";
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.autocomplete = "off";
-  const send = document.createElement("button");
-  send.className = "btn";
-  send.textContent = T.send || "发送";
-  const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
-  send.onclick = submit;
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter" && !imeComposing(e)) { e.preventDefault(); submit(); } });
-  wrap.appendChild(inp);
-  wrap.appendChild(send);
-  modelWizardBody.appendChild(wrap);
-  modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
-}
 
 /* ---------- identity & personality (FEATURE-393) ---------- */
 

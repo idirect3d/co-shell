@@ -1346,6 +1346,11 @@ aside {
 }
 
 .ask-area {
+  /* FIX-600: sit above the full-screen .modal overlay (z-index:70) so agent
+     interactions (ask_user / tool confirmation) stay visible and answerable
+     while a modal - e.g. the model configuration wizard - is open. */
+  position: relative;
+  z-index: 90;
   border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 8px 12px;

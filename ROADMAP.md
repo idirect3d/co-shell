@@ -43,6 +43,36 @@
 
 ---
 
+## v0.92.4 — 修复 Web UI 向导交互串扰（ask_user 不弹出问题框）
+
+> **版本**: v0.92.4
+
+> **状态**: 🚧 开发中
+> **里程碑**: 修复「模型配置向导打开期间，agent 主流程的 `ask_user`（及一切 interaction）被前端降级进向导弹窗、不弹出问题框，并在向导关闭后随弹窗一起消失」的交互串扰 bug。根因是 FEATURE-422 遗留的 `wizardActive` 兼容路由（`web/static/app.js` 的 `showAsk`/`showInteraction`）误伤 FEATURE-429 结构化向导之外的真实交互。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-600 | 0.92.4 | P1 | 修复向导弹窗打开时 ask_user 等 interaction 被降级路由、不弹出问题框 |
+
+> 当前 BUILD: 1207
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-600 修复 Web UI 向导交互串扰（ask_user 不弹出问题框）**
+  - 需求（用户 2026-10-04 11:31）：模型配置向导打开期间，agent 的 ask_user 调用未弹出问题框，用户看不到提问。
+  - 根因：`web/static/app.js` 的 `showAsk()`（3633 行）与 `showInteraction()`（3777 行）开头均有 `if (wizardActive) { showWizardAsk(...); return; }`，把向导打开期间的所有 interaction 降级为向导弹窗内的单行输入。该分支是 FEATURE-422 旧文本流向导的兼容桩（代码注释 8223-8225 自述 FEATURE-429 结构化向导已不再发出此类消息），却误伤 agent 主流程的真实交互。
+  - 证据：日志 `11:29:59.398` 执行 ask_user → `11:30:02.208` 用户在模型向导中提交模型（wizardActive=true）→ `11:31:22.743` web-interrupt 中断并丢弃该轮 assistant 消息。
+  - 方案：移除向导对 agent 交互的降级路由，并保证交互可见。
+  - 实施：① `web/static/app.js` 删除 4 处 FEATURE-422 遗留的 `wizardActive` 降级分支（`showAsk` / `showInteraction` / `answerAsk` / `renderEvent` 的 ui_text repl 分支），并删除已无引用的 `showWizardAsk` / `appendWizardText` 兼容桩（`wizardActive` 变量仍被 `showModelResult` 使用而保留）；② `web/static/style.css` 的 `.ask-area` 增加 `position: relative; z-index: 90`，浮于 `.modal`（z-index:70）之上，避免交互表单被全屏弹窗遮住。
+  - 验收标准：见 `use-case/FIX-600/`。
+  - 完成情况：✅ 已完成（分支 FIX-600）[BUILD-1207]
+    - 实测证据：静态等价环境 + 调试浏览器，置 `wizardActive=true` 并打开 `#modelWizard` 后调用 `showInteraction({kind:"questions", …2 问})` → `askVisible=true, qsCards=2, askOnTop=true, z-index="90/relative"`（截图确认表单清晰可见）；`go build ./... && go vet ./...`、`node --check web/static/app.js` 通过；`go test ./... -short` 的 `web` 包失败集与 `main` 基线（git worktree 对比）一致（既有失败，与本次改动无关）。
+    - 产物：`work/co-shell-0.92.4.darwin.arm64`、`work/co-shell-hub-0.92.4.darwin.arm64`。
+
+---
+
 ## v0.92.3 — LLM 流式中断后的断点续传（FIX-599）
 
 > **版本**: v0.92.3
