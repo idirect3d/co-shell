@@ -840,6 +840,11 @@ let toolBlockByName = {};
 // one by one; when the "⚙️" header is missed (so toolBlockByName has no entry)
 // the next unmatched block in this list is used instead of the last one.
 let iterToolBlocks = [];
+// FIX-604: set when a token_iter arrives. FIX-555 moved token_iter to BEFORE
+// the same iteration's tool calls, so the lookup tables must survive it (they
+// hold exactly the blocks the incoming tool_call(input) events target). The
+// reset is deferred to the next iteration's first new block (beginIterationReset).
+let iterResetPending = false;
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 // FIX-506 (续修): the YOU block created by renderUserEcho whose retry-from index
@@ -1711,6 +1716,7 @@ function truncateStreamFrom(targetIndex) {
   iterBlocks = [];
   iterToolBlocks = [];
   toolBlockByName = {};
+  iterResetPending = false;
   lastBlock = null;
   // FIX-506 (续修): the pending YOU block may have been removed by the
   // truncation; drop the reference so a later event cannot backfill a detached
@@ -1859,6 +1865,7 @@ function resetStreamView() {
   iterToolBlocks = [];
   iterCount = 0;
   toolBlockByName = {};
+  iterResetPending = false;
   // Message-index bookkeeping used by retry-from / pop.
   lastMsgIndex = "";
   pendingUserBlock = null;
@@ -2041,6 +2048,18 @@ function isToolStreamBlock(ev) {
   return !phase;
 }
 
+// beginIterationReset clears the previous iteration's tool-block lookup tables
+// once, at the start of a new LLM iteration (a new LLM/THINK block or a new
+// streamed TOOL block). FIX-474's cross-iteration orphan protection is kept,
+// while FIX-555's earlier token_iter no longer wipes the tables before the
+// same iteration's tool_call(input) events arrive (FIX-604).
+function beginIterationReset() {
+  if (!iterResetPending) return;
+  iterResetPending = false;
+  toolBlockByName = {};
+  iterToolBlocks = [];
+}
+
 // openToolStreamBlock recreates the TOOL block that the live path opens on the
 // "⚙️ <tool>" header of the first tool_call_stream fragment (see the
 // tool_call_stream branch above). Both paths must produce the SAME block
@@ -2053,6 +2072,9 @@ function isToolStreamBlock(ev) {
 // curTool.hasResult happened to be in the "wrong" state. That is what made tool
 // cards disappear at random after a page refresh or a co-shell restart.
 function openToolStreamBlock(ev, msgIndex) {
+  // FIX-604: a replayed block may start a new iteration — clear the previous
+  // iteration's lookup tables first (no-op unless a token_iter is pending).
+  beginIterationReset();
   // FIX-549: a concrete tool block ends the LLM text block before it, so live
   // and replay agree on [LLM][TOOL][LLM] in strict emission order.
   unmarkStreaming(curLLM && curLLM.body);
@@ -2212,8 +2234,12 @@ function renderEvent(ev) {
     // already held the streamed params. Keeping the reference lets the input
     // event reuse the existing block; the lookup tables are still reset so
     // FIX-474's intent-misplacement fix keeps working.
-    toolBlockByName = {};
-    iterToolBlocks = [];
+    // FIX-604: FIX-555 moved token_iter to BEFORE this iteration's tool calls,
+    // so the lookup tables must survive it — they hold exactly the blocks the
+    // incoming tool_call(input) events have to target. Defer the reset to the
+    // next iteration's first new block (beginIterationReset) instead of wiping
+    // them here, which made every multi-tool intent land on the last block.
+    iterResetPending = true;
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
     // breathing dot on all blocks now, not only at the final done event.
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
@@ -2254,6 +2280,7 @@ function renderEvent(ev) {
     lastBlock = null;
     toolBlockByName = {};
     iterToolBlocks = [];
+    iterResetPending = false;
     // FEATURE-427: mark the last content block as the result block so silent
     // mode shows and expands it — the final completion block, whatever its type
     // (TOOL: 完成任务, or a final LLM summary). Skip meta (token-stats) rows.
@@ -2327,6 +2354,10 @@ function renderEvent(ev) {
         // their "..." immediately, then start the new LLM block.
         unmarkStreaming(curThinking && curThinking.body);
         unmarkStreaming(curTool && curTool.body);
+        // FIX-604: a new LLM block starts a new iteration — clear the previous
+        // iteration's tool-block lookup tables (no-op unless a token_iter is
+        // pending, i.e. the previous iteration ended with tool calls).
+        beginIterationReset();
         curLLM = newStreamBlock("llm", "LLM", msgIndex);
         curThinking = null;
         curTool = null;
@@ -2344,6 +2375,9 @@ function renderEvent(ev) {
         // "..." immediately, then start the new THINK block.
         unmarkStreaming(curLLM && curLLM.body);
         unmarkStreaming(curTool && curTool.body);
+        // FIX-604: a new THINK block starts a new iteration — clear the
+        // previous iteration's tool-block lookup tables (no-op unless pending).
+        beginIterationReset();
         curThinking = newStreamBlock("thinking", "THINK", msgIndex);
         curLLM = null;
         curTool = null;
@@ -2382,6 +2416,10 @@ function renderEvent(ev) {
       unmarkStreaming(curLLM && curLLM.body);
       maybeCollapseEnded("llm");
       curLLM = null;
+      // FIX-604: the first streamed TOOL block of a new iteration clears the
+      // previous iteration's lookup tables (no-op unless a token_iter is
+      // pending). Subsequent same-iteration tool blocks keep the tables.
+      beginIterationReset();
       curTool = newStreamBlock("tool", "TOOL", msgIndex);
       // FIX-462: record the block in creation order so the tool_call input
       // events can backfill the intent to each block one by one, even when the

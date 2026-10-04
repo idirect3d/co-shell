@@ -41,6 +41,38 @@
 
 ---
 
+## v0.95.1 — 修复 Web UI 多工具调用意图只落到最后一个工具块
+
+> **版本**: v0.95.1
+
+> **状态**: ✅ 已完成（已合并 main，标签 `v0.95.1`）
+> **里程碑**: 一次 LLM 迭代中连续调用 ≥2 个工具时，意图(intent)只显示在最后一个 TOOL 块上，且能看到意图从第一个工具依次“变化”到最后一个工具；其余工具标题栏完全没有意图信息。根因是 `FIX-555` 把 `token_iter` 前移到工具执行前，而前端 `FIX-474` 在 `token_iter` 分支清空工具块查找表、`FIX-508b` 又保留 `curTool`，导致多工具 `input` 事件全部落到最后一块。本次把查找表清空时机延后到下一轮迭代开始，恢复每个工具块各自回填意图。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-604 | 0.95.1 | P1 | 修复 Web UI 多工具调用意图只落到最后一个工具块（FIX-555 回归） |
+
+> 当前 BUILD: 1215
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-604 修复 Web UI 多工具调用意图只落到最后一个工具块**
+  - 需求（用户 2026-10-04 19:08）：一次迭代中 LLM 连续调用 2 个以上工具时，意图信息只显示在最后一个工具上，且能看到意图从第一个工具变化到最后一个工具，其他工具标题栏不插入意图信息。参考：该问题曾出现过并修复过。
+  - 用户确认（2026-10-04 19:11）：① 版本 v0.95.1（patch 递增）、任务号 FIX-604；② 验收＝Node 离线模拟 + 浏览器注入事件序列 + serve 真实 LLM 多工具实测。
+  - 根因：`web/static/app.js` 的 `token_iter` 分支（~2215 行）在 `FIX-474` 中承担“清空跨迭代查找表”职责（`toolBlockByName = {}; iterToolBlocks = [];`），而 `FIX-508b` 又故意保留 `curTool`。后端 `FIX-555`（v0.74.1）把 `token_iter` 从“迭代末”前移到“LLM 返回后、工具执行前”（`agent/run_stream.go:566-570`）。于是单次迭代调 A/B/C 三工具时：`tool_call_stream(A/B/C)` 建 3 块并登记查找表 → `token_iter` 清空查找表（curTool 仍指向最后一块 C）→ `tool_call(input A/B/C)` 计算 target 时查找表已空 → target=null → 三个意图全部写到 C，标题被 A→B→C 依次覆盖；块 A、B 永远拿不到意图。
+  - 方案（仅前端）：新增 `iterResetPending` 标志与 `beginIterationReset()`；`token_iter` 分支不再清表，改为置标志；在 `content_chunk`/`thinking_chunk`/`tool_call_stream` 新建块处及历史回放 `openToolStreamBlock()` 调用 `beginIterationReset()`；`done`/reset 分支复位标志。如此本轮 token_iter 不再破坏本轮工具定位数据，下一轮首个新块出现时才清空，FIX-474 的跨迭代孤儿块防护不回归。
+  - 验收标准：见 `use-case/FIX-604/`。
+  - 完成情况：✅ 已完成（已合并 main，标签 v0.95.1）[BUILD-1216]
+    - 实施：`web/static/app.js` 新增模块级 `iterResetPending` 标志与 `beginIterationReset()`；`token_iter` 分支不再直接清空 `iterToolBlocks`/`toolBlockByName`，改为 `iterResetPending = true`（保留 `curTool` 的 FIX-508b 处理）；在 `content_chunk` 新建 LLM 块、`thinking_chunk` 新建 THINK 块、`tool_call_stream` 新建 TOOL 块、历史回放 `openToolStreamBlock()` 四处调用 `beginIterationReset()`；`done` 与两处 reset 分支额外复位 `iterResetPending = false`。
+    - 验证：① 离线事件序列模拟 `tmp/fix604_iter_tool_intent_test.js`（真实 app.js + DOM shim）21/21 通过；② 浏览器注入实测（静态服务加载修改后 app.js）：3 工具块标题各自独立（E2E-INTENT-0/1/2）；③ 真实 LLM 实测（隔离实例 `work/co-shell-0.95.1.darwin.arm64`，端口 28897）：一轮内调用 3 个工具，标题分别为“读取文件 - 读取 notes.txt 内容 / 执行系统命令 - 执行 echo hello 验证命令通道 / 列出文件 - 列出当前工作目录内容”，各带风险徽标、互不覆盖。
+    - 静态/回归：`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 通过；`go test ./... -short` 失败集（web 19 / i18n 3）与 main 干净工作树完全一致（既有失败）。
+    - 用例：`use-case/FIX-604/FIX-604-UC-0001.md`。
+    - 产物：`work/co-shell-0.95.1.darwin.arm64`、`work/co-shell-hub-0.95.1.darwin.arm64`。
+
+---
+
 ## v0.94.0 — 模型自动降级与「自动选择」开关
 
 > **版本**: v0.94.0
