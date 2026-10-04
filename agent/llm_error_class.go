@@ -109,6 +109,11 @@ var (
 		"tool_call_id", "tool_calls", "messages with role", "must be a response to",
 		"function_call", "invalid_request_error", "invalid type for",
 		"invalid value for", "unexpected role",
+		// FEATURE-602 (user report 2026-10-04 14:06): the endpoint rejecting the
+		// request body it received (Python json: "Expecting value..." / "Invalid
+		// control character at...") — a malformed JSON blob in the conversation,
+		// typically a half-written tool call. Same FIX-146 reaction as above.
+		"expecting value", "invalid control character at",
 		// FEATURE-602 (user report 2026-10-04 12:44): the streaming tool-call
 		// parser's own failures — a malformed tool call the model produced
 		// ("unbalanced closing brace/square bracket", "unknown tool tag <…>").

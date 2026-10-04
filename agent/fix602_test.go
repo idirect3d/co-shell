@@ -89,6 +89,15 @@ func TestFeature602ToolCallParseErrorIsContextFormat(t *testing.T) {
 	if got := ClassifyLLMError(errors.New("tool call stream parse error: unknown tool tag <nope>")); got != LLMErrContextFormat {
 		t.Errorf("unknown tool tag: ClassifyLLMError = %q, want %q", got, LLMErrContextFormat)
 	}
+	// FEATURE-602: the serving endpoint rejecting the request body it received.
+	for _, msg := range []string{
+		"Expecting value: line 1 column 286 (char 285)",
+		"Invalid control character at: line 1 column 672 (char 671)",
+	} {
+		if got := ClassifyLLMError(errors.New(msg)); got != LLMErrContextFormat {
+			t.Errorf("%q: ClassifyLLMError = %q, want %q", msg, got, LLMErrContextFormat)
+		}
+	}
 }
 
 // buildFallbackAgent wires a model manager with the given models.

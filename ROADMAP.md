@@ -39,6 +39,11 @@
   - 实测证据：`go build ./... && go vet ./...` 通过；`go test ./agent/ ./config/ ./cmd/ -short -run 'Feature602|Fix602'` 全部 PASS；`node --check web/static/app.js` 通过。
   - 产物：`work/co-shell-0.94.0.darwin.arm64`、`work/co-shell-hub-0.94.0.darwin.arm64`。
   - 范围说明：本次仅接入 `:set` 与 Web 设置页（两者共用同一 `SettingsHandler`）；未加入 `:config` 交互向导与 agent 设置工具（LLM 侧），如需可后续补充。
+  - 追加（用户 2026-10-04 14:06~14:15）[BUILD-1212]：
+    a. 「自动选择」开关由独立一行移到与「置顶/新增模型/删除」**同一行**（工具栏最左，`label{order:-1}` 使文字在开关左侧，`.models-toolbar .model-toggle{margin-right:auto}` 把按钮推到右侧）；删除 `.models-auto-row`。
+    b. **修复“开了自动选择却不降级也不改上下文”**：新增分类 needle `expecting value` / `invalid control character at` → `context-format`（删上下文重试）。根因：14:06:42 / 14:07:29 的 `POST http://192.168.3.39:8899/v1/chat/completions → 400 {"message":"Expecting value: line 1 column 286 (char 285)"}` 被归为 `unknown`，而 `unknown` 既不允许删上下文也不属于降级集合（按用户 12:39 确认的触发集），因此直接报错。
+    c. 诊断结论（中高置信度）：该 400 是**服务端无法解析我们发出的请求体**（Python json 报错），属请求体内容/尺寸问题，**不是**模型可用性、连接或能力问题——能力测试发的是小请求，而失败请求为 ~1.05MB / 244 消息 / 71 工具（整段对话）。最可能携带了格式非法的 JSON（半截工具调用，与 12:44 报错同源）。处理：归类为 `context-format` 后自动删出错消息并重试；若复现，说明坏消息在更早历史中，可用 `:context-limit` / `reorganize_context` / 新会话缩小请求体，并核查该网关的请求体大小限制。
+    d. 验证：`go build ./... && go vet ./...`、`node --check web/static/app.js` 通过；`go test ./agent/ ./cmd/ -short -run 'Feature602|Fix602'` PASS（含新增的 400 解析错误分类断言）。产物：`work/co-shell-0.94.0.darwin.arm64`、`work/co-shell-hub-0.94.0.darwin.arm64`。
 
 ---
 
