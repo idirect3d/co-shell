@@ -187,7 +187,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-parse-error-raw",
 		subcommand == "stream-window-max-blocks",
 		subcommand == "stream-window-max-nodes",
-		subcommand == "page-buffer-size":
+		subcommand == "page-buffer-size",
+		subcommand == "result-mode":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -199,7 +200,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "board-enabled",
 		subcommand == "auto-model-select", subcommand == "context-limit",
 		subcommand == "context-start", subcommand == "context-policy",
-		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
+		subcommand == "context-reorganize-threshold",
 		subcommand == "no-tool-action",
 		subcommand == "parse-error-action",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
