@@ -32,6 +32,7 @@
     - 测试：新增 `web/feature608_test.go`（3 个测试：前端不导航 + iframe/HEAD + 编码、i18n 失败文案、iOS 源码结构断言）全部 PASS；`go build ./... && go vet ./...` 一次通过；`xcodebuild -project mobile/ios/Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` → `** BUILD SUCCEEDED **`（首次编译报 1 处无效转义序列，已修正后复验通过）。
     - 产物：`work/co-shell-0.96.2.darwin.arm64`（`--version` 自检 `v0.96.2 [BUILD-1221]`）、`work/co-shell-hub-0.96.2.darwin.arm64`。
     - iOS 测试版（客户端需重装才能生效）：`MARKETING_VERSION` 0.92.0→**0.96.2**（对齐主程序版本）、`CURRENT_PROJECT_VERSION` 1→**2**；`xcodebuild … -archivePath build/FIX-608.xcarchive archive` → `ARCHIVE SUCCEEDED`；`xcodebuild -exportArchive … build/ExportOptions-upload.plist` → `Upload succeeded` / `EXPORT SUCCEEDED`（2026-10-05 09:19，ASC 处理约 5~60 分钟）。已归档版本自检 `0.96.2 (2)`；手机更新走 TestFlight 内测组「co-shell 内测」，若邀请未在设备侧落地则用 `devicectl` 直装兜底（详见 `docs/mobile-appstore-release.md` §11）。
+    - 发布编译（用户指令「编译 3」，2026-10-05 09:30，**版本号/build 按要求不变**：仍 0.96.2 / BUILD-1221）：co-shell 与 co-shell-hub 各出 darwin.arm64 / windows.amd64.exe / linux.arm64 三平台产物（`work/co-shell-0.96.2.*`、`work/co-shell-hub-0.96.2.*`）；非本平台原始文件已压为同名 `.zip` 并删除，保留 darwin.arm64 原始文件。**Linux arm64 已部署到内网 `liangshuang@192.168.3.39:~/bin/{co-shell,co-shell-hub}`**（先传 `.new` 再远端 `mv`；仅复制不重启，远端生效需自行重启）。部署一致性核验：本地与远端 sha256 一致（co-shell `27c19e86…70f2`、co-shell-hub `f41fec55…a54b`）。
     - 待办：真机验收 UC-11~15（需用新构建的 iOS App 重装：下载弹分享面板、取消不白屏、403 有提示、大文件完整、重名不覆盖）；桌面浏览器人工项 UC-05/06/10。
 
 ---
