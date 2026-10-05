@@ -14,15 +14,18 @@
 // Flags:
 //
 //	--config PATH        Config file path (default: ./hub-gateway.json)
-//	--tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
+//	--tcp-addr ADDR      TCP listen address (default 127.0.0.1:27256; the
+//	                     default port auto-increments when occupied)
 //	--api-key KEY        API key required by TCP clients
 //	--no-api-key         Disable TCP API-key auth for this run (also makes the Web UI
 //	                     ignore its "require key" switch; config files are not modified)
-//	--web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
+//	--web-addr ADDR      Web UI listen address (default 127.0.0.1:28256; the
+//	                     default port auto-increments when occupied)
 //	--whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR)
 //	--registry PATH      Agent registry file (default: ./hub-agents.json)
 //	--co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
-//	--base-port N        First port for auto-allocating managed agents (default 28256)
+//	--base-port N        First port for auto-allocating managed agents (default:
+//	                     the Web UI port + 1)
 //	--agent ID=WSURL     External agent endpoint (repeatable, added to registry)
 //	--help               Show help
 package main
@@ -38,6 +41,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -48,8 +52,19 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.96.2"
-	hubBuild   = "1222"
+	hubVersion = "0.97.0"
+	hubBuild   = "1223"
+)
+
+// Default listen ports for the hub. When neither the command line nor the
+// config file specifies an address, the hub listens on defaultBindHost plus
+// these ports, incrementing the port until a free one is found. An address that
+// IS specified (on the command line or in the config file) is used as-is: when
+// its port is occupied the bind fails and startup aborts.
+const (
+	defaultBindHost = "127.0.0.1"
+	defaultTCPPort  = 27256
+	defaultWebPort  = 28256
 )
 
 // config is the JSON config file shape.
@@ -81,16 +96,16 @@ type config struct {
 
 func main() {
 	configPath := flag.String("config", "", "config file path (default: ./hub-gateway.json)")
-	tcpAddr := flag.String("tcp-addr", "", "TCP listen address (default 127.0.0.1:12801)")
+	tcpAddr := flag.String("tcp-addr", "", "TCP listen address (default 127.0.0.1:27256; the default port auto-increments when occupied)")
 	apiKey := flag.String("api-key", "", "API key required by TCP clients")
 	noAPIKey := flag.Bool("no-api-key", false, "Disable TCP API-key auth for this run (also ignores the Web UI \"require key\" switch)")
-	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
+	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:28256; the default port auto-increments when occupied)")
 	lang := flag.String("lang", "", "Web UI language (zh/en, default auto-detect)")
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
 	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
 	boardDB := flag.String("board-db", "", "message board database file (default: hub-board.db next to the registry)")
 	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
-	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 28256)")
+	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default: the Web UI port + 1)")
 	serve := flag.Bool("serve", false, "serve without auto-opening the browser (headless/server mode)")
 	var agents multiFlag
 	flag.Var(&agents, "agent", "external agent endpoint as ID=WSURL (repeatable)")
@@ -145,6 +160,21 @@ func main() {
 		cfg.Serve = true
 	}
 
+	// Resolve the listen addresses. An address supplied on the command line or
+	// in the config file counts as explicit and is used as-is: when its port is
+	// occupied the bind below fails and startup aborts. An address left at the
+	// built-in default auto-increments the port until a free one is found.
+	tcpExplicit := cfg.TCPAddr != ""
+	cfg.TCPAddr = resolveListenAddr(cfg.TCPAddr, defaultBindHost, defaultTCPPort, tcpExplicit)
+	webExplicit := cfg.WebAddr != ""
+	cfg.WebAddr = resolveListenAddr(cfg.WebAddr, defaultBindHost, defaultWebPort, webExplicit)
+	if !tcpExplicit {
+		log.Printf("hub-gateway: TCP address not set, using %s", cfg.TCPAddr)
+	}
+	if !webExplicit {
+		log.Printf("hub-gateway: Web address not set, using %s", cfg.WebAddr)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -164,8 +194,10 @@ func main() {
 	if abs, err := filepath.Abs(cfg.CoShellPath); err == nil {
 		cfg.CoShellPath = abs
 	}
-	if cfg.BasePort == 0 {
-		cfg.BasePort = 28256
+	// Managed agents default to the port right above the Web UI unless
+	// --base-port (or base_port in the config file) explicitly overrides it.
+	if cfg.BasePort <= 0 {
+		cfg.BasePort = agentBasePort(cfg.WebAddr)
 	}
 
 	// Create the agent manager (loads the persisted registry).
@@ -378,6 +410,57 @@ func firstExisting(candidates ...string) string {
 	return ""
 }
 
+// resolveListenAddr returns the address the hub should listen on. An explicit
+// address (from the command line or the config file) is returned unchanged, so
+// an occupied port makes the subsequent bind fail and startup abort. Otherwise
+// the address is built from host and defaultPort, incrementing the port until a
+// free one is found.
+func resolveListenAddr(addr, host string, defaultPort int, explicit bool) string {
+	if explicit {
+		return addr
+	}
+	for port := defaultPort; port <= 65535; port++ {
+		candidate := net.JoinHostPort(host, strconv.Itoa(port))
+		if !addrInUse(candidate) {
+			return candidate
+		}
+	}
+	return net.JoinHostPort(host, strconv.Itoa(defaultPort))
+}
+
+// addrInUse reports whether a TCP address is already bound on the system.
+func addrInUse(addr string) bool {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return true
+	}
+	if err := ln.Close(); err != nil {
+		log.Printf("warning: close probe listener on %s: %v", addr, err)
+	}
+	return false
+}
+
+// agentBasePort returns the default first port for auto-allocating managed
+// agents: one above the hub's Web UI port. An unparsable address falls back to
+// the built-in default Web port.
+func agentBasePort(webAddr string) int {
+	return addrPort(webAddr, defaultWebPort) + 1
+}
+
+// addrPort returns the port part of a host:port address, or fallback when the
+// address cannot be parsed.
+func addrPort(addr string, fallback int) int {
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fallback
+	}
+	p, err := strconv.Atoi(portStr)
+	if err != nil || p <= 0 || p > 65535 {
+		return fallback
+	}
+	return p
+}
+
 func defaultCoShellPath() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -404,10 +487,9 @@ func (m *multiFlag) Set(v string) error {
 // (process cwd) > ~/.co-shell/hub-gateway.json. The first existing file wins;
 // if none exists a default config is returned.
 func loadConfig(path string) *config {
-	cfg := &config{
-		TCPAddr: "127.0.0.1:12801",
-		WebAddr: "127.0.0.1:12802",
-	}
+	// No built-in defaults here: an empty address means "not specified" and is
+	// resolved later (default port, auto-incrementing when occupied).
+	cfg := &config{}
 	var candidates []string
 	if path != "" {
 		// An explicit --config is authoritative: use it alone (no fallback).
@@ -474,16 +556,21 @@ Usage:
 
 Flags:
   --config PATH        Config file path (default: ./hub-gateway.json)
-  --tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
+  --tcp-addr ADDR      TCP listen address (default 127.0.0.1:27256; the default
+                       port auto-increments when occupied; an explicitly set
+                       address aborts startup when its port is occupied)
   --api-key KEY        API key required by TCP clients
   --no-api-key         Disable TCP API-key auth for this run (highest priority; also
                        ignores the Web UI "require key" switch; config files unchanged)
-  --web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
+  --web-addr ADDR      Web UI listen address (default 127.0.0.1:28256; the
+                       default port auto-increments when occupied; an explicitly
+                       set address aborts startup when its port is occupied)
   --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
   --lang CODE          Web UI language: zh/en (default: auto-detect from LANG/LC_ALL, fallback zh)
   --registry PATH      Agent registry file (default: ./hub-agents.json)
   --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
-  --base-port N        First port for auto-allocating managed agents (default 28256)
+  --base-port N        First port for auto-allocating managed agents (default:
+                       the Web UI port + 1)
   --serve              Serve without auto-opening the browser (headless/server mode)
   --agent ID=WSURL     External agent endpoint (repeatable, added to registry)
   --help               Show help
@@ -500,5 +587,5 @@ Examples:
 
   # TCP service with API key + remote Web UI whitelist
   co-shell-hub --api-key secret \
-    --web-addr 0.0.0.0:12802 --whitelist 192.168.1.100,192.168.1.0/24`)
+    --web-addr 0.0.0.0:28256 --whitelist 192.168.1.100,192.168.1.0/24`)
 }
