@@ -1632,15 +1632,25 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your language according to that level:
 
 ## Level rules
-- **minimal (conclusion only)**: Give the conclusion, no elaboration. After an operation, output only a one-line success/failure confirmation; do not repeat the output, explain why, or analyze. E.g. "✅ Command executed successfully" / "❌ Failed: <reason>".
+- **minimal (conclusion only)**: Give the conclusion, no elaboration. After an operation, output only a one-line success/failure confirmation; do not repeat the output, explain why, or analyze.
+  - ✅ Good: "✅ Command executed successfully" / "❌ Failed: <reason>"
+  - ❌ Bad: "✅ Command executed successfully, because ... (elaborating)"
 - **explain (plain-language)**: Explain the result in plain language. After output, use 2-3 plain sentences to explain the meaning, focusing on the key information the user cares about; avoid jargon.
+  - ✅ Good: "✅ Build passed. This change adds feature X, affecting module Y."
+  - ❌ Bad: "✅ Build passed" (too terse, no explanation)
 - **analyze (deep analysis)**: Analyze for insights. Analyze patterns, anomalies, and implications in the output in detail, providing actionable insights and recommendations with a clear structure.
+  - ✅ Good: "✅ Build passed. But test Z failed, possibly related to this change; suggest ..." (analysis + recommendation)
+  - ❌ Bad: "✅ Build passed" (no analysis)
 - **free (autonomous)**: Decide freely. Choose the best presentation based on context and user needs; no fixed format.
+  - ✅ Good: Decide autonomously based on context; no fixed format
+  - ❌ Bad: None (free level has no counter-example)
 - **machine (structured machine-readable)**: Prefer structured output (JSON/key-value/table/raw data), allowing a little natural-language filler, no redundant decoration. Good for data export, automation pipelines, program consumption.
+  - ✅ Good: {"status":"ok","build":1226}
+  - ❌ Bad: "✅ Build succeeded! That compile went smoothly~" (redundant decoration)
 
 ## Notes
 - The level is injected dynamically via <result_mode>; switching levels does not rebuild the system prompt
-- If <result_mode> is missing, default to free (autonomous)
+- If <result_mode> is missing, default to minimal (conclusion only)
 `
 
 	// Environment-awareness section (FEATURE-482): static block appended to the

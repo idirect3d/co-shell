@@ -2053,6 +2053,57 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	log.Info("Result mode set to %s", config.ResultModeString(mode))
 }
 
+// effectiveResultMode returns the result mode that should be injected into the
+// current turn's <environment_details>. A per-turn override (parsed from the
+// user's message) takes precedence over the persistent resultMode; otherwise
+// the persistent value is used (FEATURE-610 P1).
+func (a *Agent) effectiveResultMode() config.ResultMode {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.perTurnResultModeSet {
+		return a.perTurnResultMode
+	}
+	return a.resultMode
+}
+
+// clearPerTurnResultMode resets the per-turn result-mode override so it does
+// not leak into a subsequent turn (FEATURE-610 P1).
+func (a *Agent) clearPerTurnResultMode() {
+	a.mu.Lock()
+	a.perTurnResultMode = config.ResultModeMinimal
+	a.perTurnResultModeSet = false
+	a.mu.Unlock()
+}
+
+// parsePerTurnResultMode scans the user's message for a <result_mode>xxx</result_mode>
+// tag and, when present and valid, sets a per-turn override that takes precedence
+// over the persistent resultMode for this turn only (FEATURE-610 P1).
+// An invalid value is ignored (the persistent resultMode stays in effect).
+func (a *Agent) parsePerTurnResultMode(userInput string) {
+	const open = "<result_mode>"
+	const close = "</result_mode>"
+	i := strings.Index(userInput, open)
+	if i < 0 {
+		return
+	}
+	rest := userInput[i+len(open):]
+	j := strings.Index(rest, close)
+	if j < 0 {
+		return
+	}
+	val := strings.TrimSpace(rest[:j])
+	mode, ok := config.ParseResultMode(val)
+	if !ok {
+		log.Warn("parsePerTurnResultMode: ignoring invalid <result_mode> value %q", val)
+		return
+	}
+	a.mu.Lock()
+	a.perTurnResultMode = mode
+	a.perTurnResultModeSet = true
+	a.mu.Unlock()
+	log.Info("Per-turn result mode override set to %s", config.ResultModeString(mode))
+}
+
 func (a *Agent) getToolTimeout() time.Duration {
 	if a.cfg != nil && a.cfg.LLM.ToolTimeout > 0 {
 		return time.Duration(a.cfg.LLM.ToolTimeout) * time.Second

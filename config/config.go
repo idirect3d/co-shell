@@ -137,7 +137,7 @@ type LLMConfig struct {
 	// Use "default" key to set the default for all tools.
 	// If a tool is not in the map, the default mode is "confirm".
 	ToolModes  map[string]string `json:"tool_modes"`
-	ResultMode int               `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
+	ResultMode int               `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free, 4=machine
 
 	// Output control switches (ENHANCEMENT-126)
 	ShowLlmThinking   bool `json:"show_llm_thinking"`   // Show LLM thinking content (default: true)

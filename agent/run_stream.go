@@ -154,6 +154,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// FEATURE-499: mark the agent busy for the duration of this task run.
 	a.SetBusy(true)
 	defer a.SetBusy(false)
+	// FEATURE-610 P1: clear the per-turn result-mode override on any exit path
+	// so it never leaks into a subsequent turn.
+	defer a.clearPerTurnResultMode()
 	// FEATURE-524: hand the live callback to the render_ui tool for the length
 	// of this turn, so a waiting call can publish its component tree before it
 	// parks instead of only after it returns.
@@ -253,6 +256,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 	// Save raw user input for potential use in system prompt.
 	a.lastUserInput = userInput
+
+	// FEATURE-610 P1: parse a per-turn <result_mode> override from the user's
+	// message. It takes precedence over the persistent resultMode for this turn
+	// only and is cleared at the end of the turn (see clearPerTurnResultMode).
+	a.parsePerTurnResultMode(userInput)
 
 	// When userInput is empty (for .continue command), do NOT append a new user message.
 	// The existing messages (including the last user message with environment_details)

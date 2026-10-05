@@ -54,7 +54,7 @@ import (
 
 const version = "0.98.0"
 
-const build = "1226"
+const build = "1227"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -280,7 +280,7 @@ func parseFlags() cliFlags {
 
 	flag.StringVar(&f.confirmTool, "confirm-tool", "", "Require confirmation before tool calls (on/off, overrides config file)")
 	flag.BoolVar(&f.yolo, "yolo", false, "YOLO mode: auto-approve all tool calls without confirmation (default off)")
-	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free, overrides config file)")
+	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free/machine, overrides config file)")
 
 	// Agent identity parameters
 	flag.StringVar(&f.description, "description", "", "Set agent description/expertise (overrides config file)")
@@ -804,7 +804,7 @@ func main() {
 		if mode, ok := config.ParseResultMode(flags.resultMode); ok {
 			cfg.LLM.ResultMode = int(mode)
 		} else {
-			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
+			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free/machine\n", flags.resultMode)
 		}
 	}
 

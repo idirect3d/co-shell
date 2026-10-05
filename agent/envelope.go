@@ -183,8 +183,10 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// FEATURE-610: expose the current result-mode (output style) so the LLM knows
 	// how to phrase its responses. The full per-mode rules live in the
 	// cap.result-mode meta-capability (queried via introspect_capability).
+	// P1: a per-turn override (parsed from the user's message) takes precedence
+	// over the persistent resultMode for the current turn only.
 	sb.WriteString("<result_mode>")
-	sb.WriteString(config.ResultModeString(a.resultMode))
+	sb.WriteString(config.ResultModeString(a.effectiveResultMode()))
 	sb.WriteString("</result_mode>\n")
 	sb.WriteString("<no_tool_action>")
 	sb.WriteString(a.noToolAction())
