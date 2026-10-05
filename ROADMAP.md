@@ -4,6 +4,41 @@
 
 ---
 
+## v0.97.0 — hub 端口配置策略优化：默认端口占用自动递增 + 托管 agent 端口基点取 web 端口+1
+
+> **版本**: v0.97.0
+
+> **状态**: ✅ 已完成（2026-10-05 用户确认测试通过，已合并 main，标签 `v0.97.0`；UC-18 配置界面人工项由用户后续执行）
+> **里程碑**: co-shell-hub 的监听地址此前为固定默认 `127.0.0.1:12801`（TCP）与 `127.0.0.1:12802`（Web UI），端口被占用时直接启动失败；托管 agent 的端口基点固定 `28256`，与 hub Web 端口无关。本次：① 未显式指定 `--tcp-addr` 时默认 `127.0.0.1:27256`，被占用则端口 +1 直到空闲，显式指定（命令行或 `hub-gateway.json`）时被占用直接退出；② 未显式指定 `--web-addr` 时默认 `127.0.0.1:28256`，同样自动 +1，显式指定被占用直接退出；③ 新建本地托管 agent 的默认端口基点改为「hub Web 端口 + 1」（保留 `--base-port` 作为显式覆盖），配置界面每次进入都重新探测空闲端口作为默认值。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-609 | 0.97.0 | P1 | hub 端口配置策略优化：tcp/web 默认端口占用自动递增、显式指定占用即退出；托管 agent 默认端口基点 = web 端口+1 |
+
+> 当前 BUILD: 1223
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-609 hub 端口配置策略优化**
+  - 需求（用户 2026-10-05 13:51）：① 未指定 `--tcp-addr` 默认 27256，被占用则 +1 直到未占用；显式指定则被占用直接退出；② 未指定 `--web-addr` 默认 28256，同样自动 +1；显式指定则被占用直接退出；③ 新建 co-shell 实例配置 agent 时默认端口号 = web 端口号+1，配置界面自动检测端口占用，被占用则默认值 +1，每次进入配置界面都重新检测。
+  - 用户确认（2026-10-05 13:53）：① 版本 v0.97.0（minor 递增）、任务号 FEATURE-609；② “已显式指定”＝命令行 flag 或 `hub-gateway.json` 配置了该地址（占用即退出）；③ 保留 `--base-port` 作为显式覆盖，未指定时默认基点 = web 端口+1；④ 需求 3 仅适用于本地托管 agent。
+  - 现状：`cmd/co-shell-hub/main.go` 的 `loadConfig()` 硬编码默认 `127.0.0.1:12801`/`127.0.0.1:12802`，`--tcp-addr`/`--web-addr` 空串时回落默认；`tcpSrv.Listen()`/`webUI.Listen()` 失败即 `log.Fatalf`。`--base-port`（缺省 28256）为托管 agent 分配基点，`Manager.RecommendedPort()` 从基点向上跳过已注册与系统占用端口。`/api/agent-defaults` 每次请求调用 `RecommendedPort()`，前端 `webui_static.go` 的 `loadDefaults()` 每次进入创建表单重新拉取。
+  - 方案：① `loadConfig()` 不再预填默认地址（缺失字段留空），main 中判定“显式 = `cfg.TCPAddr`/`cfg.WebAddr` 非空（命令行或配置文件任一）”——显式则原样使用（占用由 Listen 失败 fatal）；否则 `resolveListenAddr()` 从默认端口起用 `net.Listen` 探测并 +1 直到空闲；② `cfg.BasePort <= 0`（既无 `--base-port` 也无 `base_port` 配置）时取 `addrPort(cfg.WebAddr)+1`；③ 前端 `loadDefaults()` 记录上次自动推荐值，用户未手动修改（字段为空或仍等于上次推荐）时用最新推荐刷新，保证每次进入重新探测；④ 单元测试覆盖 `resolveListenAddr`/`addrPort`/base port 推导，隔离实例运行时验证。
+  - 验收标准：见 `use-case/FEATURE-609/`。
+  - 完成情况：✅ 已完成（2026-10-05 用户确认测试通过并指令「提交合并代码（不用改build）」；已合并 main 并打标签 `v0.97.0`）[BUILD-1223]
+    - 实施：① `cmd/co-shell-hub/main.go`——新增 `defaultBindHost/defaultTCPPort(27256)/defaultWebPort(28256)` 常量；`loadConfig()` 不再预填默认地址（缺失字段留空，空地址即“未指定”）；新增 `resolveListenAddr(addr, host, defPort, explicit)`（显式→原样返回，非显式→从默认端口用 `net.Listen` 探测、+1 直到空闲）、`addrInUse`、`addrPort(addr, fallback)`、`agentBasePort(webAddr)=addrPort(webAddr,28256)+1`；main 中在 CLI 覆盖后按 `cfg.TCPAddr/WebAddr != ""` 判定“显式”（命令行或配置文件任一）并解析监听地址；`cfg.BasePort <= 0`（无 `--base-port`/`base_port`）时取 `agentBasePort(cfg.WebAddr)`；同步更新文件头注释与 `printUsage()`。② `hub/gateway/webui_static.go`——创建表单 `loadDefaults()` 记录 `lastSuggestedPort`，每次进入时若端口字段为空或仍等于上次自动推荐值，则用最新 `/api/agent-defaults` 的 `recommended_port` 刷新；创建成功后重置该记录。
+    - 单测：`cmd/co-shell-hub/main_test.go` 新增 `TestDefaultPortConstants`、`TestResolveListenAddrExplicit/AutoFree/AutoIncrement`、`TestAddrPort`、`TestAgentBasePort`；`hub/gateway/feature609_test.go` 新增 `TestFeature609FrontendPortRefresh`、`TestFeature609RecommendedPortSkipsRegistered`——全部 PASS。
+    - 运行时验证（隔离实例，脚本 `work/fe609-verify/verify.sh` + 报告 `work/fe609-verify/report.txt`；本机 28256 已被占用，期望值动态计算）：**11/11 PASS**——默认 tcp 27256、默认 web 因 28256 占用取 28257；第二个 hub tcp 27257/web 28258；第三个 tcp 27258/web 28259；`recommended_port` = 各自 web+1（28259）；显式 `--tcp-addr` 占用 → 退出码 1；显式 `--web-addr` 占用 → 退出码 1；配置文件 `tcp_addr` 占用 → 退出码 1；`--base-port 30000` → `recommended_port` 30000。
+    - 静态/回归：`go build ./... && go vet ./...` 通过；`go test ./cmd/co-shell-hub/... -short`、hub 模块 `go test ./gateway/... -short` 通过。
+    - 产物：`work/co-shell-0.97.0.darwin.arm64`、`work/co-shell-hub-0.97.0.darwin.arm64`。
+    - 发布编译（用户指令「编译 3」，2026-10-05 14:04，**按要求版本/build 不变**：仍 0.97.0 / BUILD-1223）：co-shell 与 co-shell-hub 各出 darwin.arm64 / windows.amd64.exe / linux.arm64 三平台产物；6 个 zip 完整性校验通过；非本平台原始文件已压为同名 `.zip` 并删除，保留 darwin.arm64 原始文件。**Linux arm64 已部署到内网 `liangshuang@192.168.3.39:~/bin/{co-shell,co-shell-hub}`**（先传 `.new` 再远端 `mv`；仅复制不重启，远端生效需自行重启）。产物另已复制到 U 盘 `/Volumes/U/co-shell-0.97.0/`（6 个原始可执行文件 + 6 个 zip，共 12 个文件，逐文件 sha256 与 work/ 比对一致）。
+    - 合并（2026-10-05 用户指令「提交合并代码（不用改build）」）：`FEATURE-609` 以 `--no-ff` 合并入 `main` 并打标签 `v0.97.0`；build 计数保持 1223 不变。
+    - 待办：UC-18 配置界面人工确认（需打开 hub Web UI 新建本地 Agent，观察端口默认值）。
+
+---
+
 ## v0.96.2 — 移动端下载工作区文件：iOS 实现 WKDownload + 前端下载不再卸载页面
 
 > **版本**: v0.96.2

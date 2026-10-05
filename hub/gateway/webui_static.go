@@ -1687,6 +1687,10 @@ var HUB_LANG = "__HUB_LANG__";
   var coshellSel = document.getElementById('m-coshell');
   var mVerEl = document.getElementById('m-ver');
   var eVerEl = document.getElementById('e-ver');
+  // lastSuggestedPort remembers the port the hub most recently auto-filled, so
+  // every entry into the create form refreshes the field with the latest free
+  // port (FEATURE-609) while a value the user typed themselves is preserved.
+  var lastSuggestedPort = '';
   // loadDefaults re-runs on every entry into the create form (FIX-525) so the
   // co-shell list reflects binaries copied after the page was loaded. Fields
   // the user already filled are not overwritten, and a previously selected
@@ -1697,7 +1701,12 @@ var HUB_LANG = "__HUB_LANG__";
       if (st >= 400 || !j) return;
       if (!document.getElementById('m-ws').value) document.getElementById('m-ws').value = j.default_workspace || '';
       if (!document.getElementById('m-id').value) document.getElementById('m-id').value = j.default_id || '';
-      if (!document.getElementById('m-port').value && j.recommended_port) document.getElementById('m-port').value = j.recommended_port;
+      var mPortEl = document.getElementById('m-port');
+      var curPort = mPortEl.value.trim();
+      if (j.recommended_port && (!curPort || curPort === lastSuggestedPort)){
+        mPortEl.value = j.recommended_port;
+        lastSuggestedPort = String(j.recommended_port);
+      }
       // co-shell executables.
       coshellSel.innerHTML = '';
       var shells = j.co_shells || [];
@@ -1843,7 +1852,7 @@ var HUB_LANG = "__HUB_LANG__";
         refresh();
         return;
       }
-      document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value='';
+      document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value=''; lastSuggestedPort='';
       var newYolo = document.getElementById('m-yolo');
       newYolo.checked = false;
       syncYoloHint(newYolo, document.getElementById('m-yolo-hint'));
