@@ -73,6 +73,7 @@ const I18N = {
     statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
+    downloadFailed: "下载失败：%s",
     treeLoading: "加载中…",
     sessionDelete: "删除会话",
     sessionSwitchBusy: "任务运行中，无法切换会话",
@@ -183,6 +184,7 @@ const I18N = {
     statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
+    downloadFailed: "Download failed: %s",
     treeLoading: "Loading…",
     sessionDelete: "Delete session",
     sessionSwitchBusy: "A task is running — cannot switch sessions",
@@ -6278,10 +6280,31 @@ async function postPath(api, path) {
 }
 
 // downloadFile triggers a browser download of a workspace file (FEATURE-455).
-// It navigates to /api/download?path=... so the server's Content-Disposition
-// header makes the browser save the file instead of rendering it.
+// FIX-608: it must never navigate the top-level document. A full-page
+// navigation to /api/download unloads the SPA, and on iOS WKWebView the
+// attachment response cannot be rendered at all, which left the page blank.
+// A reused hidden iframe keeps the current page in place; a HEAD probe turns
+// an error status (403/404) into a visible message instead of a blank page.
+let downloadFrame = null;
 function downloadFile(path) {
-  window.location.href = "api/download?path=" + encodeURIComponent(path);
+  const url = "api/download?path=" + encodeURIComponent(path);
+  fetch(url, { method: "HEAD" }).then((resp) => {
+    if (!resp.ok) {
+      return resp.json()
+        .then((body) => { throw new Error(body.error || resp.status); })
+        .catch(() => { throw new Error(String(resp.status)); });
+    }
+    if (!downloadFrame) {
+      downloadFrame = document.createElement("iframe");
+      downloadFrame.style.display = "none";
+      downloadFrame.setAttribute("aria-hidden", "true");
+      document.body.appendChild(downloadFrame);
+    }
+    downloadFrame.src = url;
+  }).catch((err) => {
+    console.error(T.actionFailed, err);
+    alert(T.downloadFailed.replace("%s", err.message || err));
+  });
 }
 
 previewClose.onclick = () => preview.classList.add("hidden");

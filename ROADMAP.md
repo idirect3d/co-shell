@@ -4,6 +4,37 @@
 
 ---
 
+## v0.96.2 — 移动端下载工作区文件：iOS 实现 WKDownload + 前端下载不再卸载页面
+
+> **版本**: v0.96.2
+
+> **状态**: 🚧 开发完成，待用户确认（分支 FIX-608；自动化验证通过，真机人工项待验收）
+> **里程碑**: 移动端（co-shell iOS App 的 WKWebView）点击工作区文件的下载图标后，主工作区变白、无响应。根因有二：① 前端 `downloadFile()` 用 `window.location.href = "api/download?path=..."` 做整页导航触发下载，导航已卸载 SPA 页面；② iOS 端 `WebViewController` 未实现下载处理（无 `WKDownloadDelegate`、无 `decidePolicyFor` 的 `.download` 分支），WKWebView 收到 `Content-Disposition: attachment` 响应时既不保存文件也不回退，页面留在空白状态。本次：iOS 端实现 WKDownload（iOS 14.5+，工程部署目标 15.0），把文件落到沙盒并弹分享面板让用户存到「文件」；前端下载改为不卸载页面的方式。注意：这不是 iOS 系统权限问题，服务端 `--download-enabled` 开关（hub 的「启用下载功能」）仍是必要前提。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-608 | 0.96.2 | P1 | 移动端下载白屏修复：iOS 实现 WKDownload 下载处理 + 前端下载不再整页跳转 |
+
+> 当前 BUILD: 1221
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-608 移动端下载工作区文件：iOS 实现 WKDownload + 前端下载不再卸载页面**
+  - 需求（用户 2026-10-05 09:04）：在移动端下载工作区文件时，主工作区会变白、无响应，似乎下载被阻止。
+  - 用户确认（2026-10-05 09:07）：① 修复方案 = iOS 端实现 WKDownload 下载处理 + 前端下载改为不卸载页面（一起做）；② 版本 v0.96.2（patch 递增）、任务号 FIX-608。
+  - 诊断（2026-10-05）：非 iOS 系统权限问题，两层原因——① 服务端门：`web/server.go:1508` `downloadEnabled(r) = opts.DownloadEnabled && isRemoteRequest(r)`，未启用 `--download-enabled` 时 `/api/download` 返回 403 JSON（用户 hub 的 co-shell-source 已启用该开关）；② 根因：`web/static/app.js:6283` `downloadFile()` 用 `window.location.href = "api/download?path=..."` 整页导航，而 `mobile/ios/Runner/WebViewController.swift` 未实现任何下载处理（源码中无 `WKDownloadDelegate`/`decidePolicyFor`/`navigationResponse`）——WKWebView 对附件响应取消导航且不落盘，而 SPA 页面已被导航卸载 → 白屏且不恢复。
+  - 方案（待实施）：① iOS `WebViewController.swift` —— 实现 `WKNavigationDelegate.decidePolicyFor navigationResponse`（`Content-Disposition: attachment` 或 `canShowMIMEType == false` → `.download`）、`webView(_:navigationResponse:didBecome:)` 与 `webView(_:navigationAction:didBecome:)` 设置 `WKDownload.delegate`；实现 `WKDownloadDelegate.download(_:decideDestinationUsing:suggestedFilename:completionHandler:)` 落到沙盒 `Documents/download/`，完成后经 `UIActivityViewController`（或提示）让用户保存到「文件」/分享，失败时 alert；② 前端 `downloadFile()` 改为不卸载页面的下载方式（隐藏 iframe / 新窗口），并在服务端 403 时给出可见提示而非空白页；③ Info.plist 视需要声明文档共享（`UIFileSharingEnabled`/`LSSupportsOpeningDocumentsInPlace`）；④ 测试：前端下载实现的静态断言测试 + iOS 端手工验收用例。
+  - 验收标准：见 `use-case/FIX-608/`。
+  - 完成情况：⏳ 开发完成，待用户确认（含真机人工项）[BUILD-1221]
+    - 实施：① `mobile/ios/Runner/WebViewController.swift`——新增 `WKNavigationDelegate.decidePolicyFor navigationResponse`（`!canShowMIMEType` 或 `Content-Disposition: attachment` → `.download`）+ `isAttachment(_:)` + `webView(_:navigationResponse:didBecome:)` 挂接 `download.delegate`；新增 `WKDownloadDelegate` 扩展：落盘到 `Documents/download/`（文件名净化 + 重名加序号）、完成后弹 `UIActivityViewController`（可存到「文件」App）、失败弹 alert 且过滤 `NSURLErrorCancelled`（用户取消不报错）；② `web/static/app.js`——`downloadFile()` 不再 `window.location.href` 整页导航，改为复用隐藏 `iframe` 触发下载 + `HEAD` 预检把 403/404 转为可见提示，zh/en 文案表新增 `downloadFailed`；③ 服务端判定（`--download-enabled` + 非 loopback）与 `/api/download` 未改动。
+    - 测试：新增 `web/feature608_test.go`（3 个测试：前端不导航 + iframe/HEAD + 编码、i18n 失败文案、iOS 源码结构断言）全部 PASS；`go build ./... && go vet ./...` 一次通过；`xcodebuild -project mobile/ios/Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` → `** BUILD SUCCEEDED **`（首次编译报 1 处无效转义序列，已修正后复验通过）。
+    - 产物：`work/co-shell-0.96.2.darwin.arm64`（`--version` 自检 `v0.96.2 [BUILD-1221]`）、`work/co-shell-hub-0.96.2.darwin.arm64`。
+    - 待办：真机验收 UC-11~15（需用新构建的 iOS App 重装：下载弹分享面板、取消不白屏、403 有提示、大文件完整、重名不覆盖）；桌面浏览器人工项 UC-05/06/10。
+
+---
+
 ## v0.96.1 — co-shell-hub 新增 `--no-api-key` 显式免密开关
 
 > **版本**: v0.96.1
