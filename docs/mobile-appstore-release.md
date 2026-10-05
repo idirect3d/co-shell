@@ -241,3 +241,15 @@ xcrun devicectl device install app --device <DEVICE_UDID> <path-to-Runner.app>
 2. **TestFlight 邀请落地**：把 iPhone 的「媒体与购买项目」账号切到 `idirect3d@hotmail.com`，或点邀请邮件里的 View in TestFlight；落地后即可分发给小团队其他成员。
 3. **构建到期**：TestFlight 构建 90 天后过期，到期前把 `CURRENT_PROJECT_VERSION` 递增（1 → 2）后重新归档上传。
 4. **工程合并**：FEATURE-593 的改动仍在分支 `FEATURE-593`（提交 `2700f836`），待验收后合并 main 并打 `v0.92.0` 标签。
+
+---
+
+## 11. FIX-608 构建上传记录（2026-10-05）
+
+| 项目 | 状态 |
+|---|---|
+| 版本号 | **`0.96.2 (2)`** —— `MARKETING_VERSION` 由 0.92.0 对齐到 co-shell 主程序版本 0.96.2，`CURRENT_PROJECT_VERSION` 1→2（同 App 递归上传需要递增构建号） |
+| 归档 | `mobile/ios/build/FIX-608.xcarchive` → `** ARCHIVE SUCCEEDED **` |
+| 上传 | `xcodebuild -exportArchive … -exportOptionsPlist build/ExportOptions-upload.plist` → `Progress 100%: Upload succeeded`、`** EXPORT SUCCEEDED **`（2026-10-05 09:19） |
+| 内容 | FIX-608：iOS `WebViewController` 实现 WKDownload（附件响应 → 下载落盘到 `Documents/download/` + 完成后分享面板），修复移动端下载工作区文件时主工作区白屏/无响应；前端 `downloadFile` 改为隐藏 iframe 触发、不再整页导航 |
+| 后续 | ① ASC 处理约 5~60 分钟；② 把该构建分配给内测组「co-shell 内测」；③ 手机 TestFlight 更新（若邀请仍未在设备侧落地，用 §9 路径 C 的 `devicectl` 直装兜底）；④ 按 `use-case/FIX-608/FIX-608-UC-0001.md` 的 UC-11~15 做真机验收 |
