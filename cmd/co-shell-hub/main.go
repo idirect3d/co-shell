@@ -16,6 +16,8 @@
 //	--config PATH        Config file path (default: ./hub-gateway.json)
 //	--tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
 //	--api-key KEY        API key required by TCP clients
+//	--no-api-key         Disable TCP API-key auth for this run (also makes the Web UI
+//	                     ignore its "require key" switch; config files are not modified)
 //	--web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
 //	--whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR)
 //	--registry PATH      Agent registry file (default: ./hub-agents.json)
@@ -46,8 +48,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.96.0"
-	hubBuild   = "1219"
+	hubVersion = "0.96.1"
+	hubBuild   = "1220"
 )
 
 // config is the JSON config file shape.
@@ -81,6 +83,7 @@ func main() {
 	configPath := flag.String("config", "", "config file path (default: ./hub-gateway.json)")
 	tcpAddr := flag.String("tcp-addr", "", "TCP listen address (default 127.0.0.1:12801)")
 	apiKey := flag.String("api-key", "", "API key required by TCP clients")
+	noAPIKey := flag.Bool("no-api-key", false, "Disable TCP API-key auth for this run (also ignores the Web UI \"require key\" switch)")
 	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
 	lang := flag.String("lang", "", "Web UI language (zh/en, default auto-detect)")
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
@@ -107,6 +110,15 @@ func main() {
 	}
 	if *apiKey != "" {
 		cfg.APIKey = *apiKey
+	}
+	// FIX-606: --no-api-key disables TCP auth for this run (and makes the Web UI
+	// ignore its persisted "require key" switch). It wins over the config file;
+	// when both --api-key and --no-api-key are given, the one appearing later on
+	// the command line wins, e.g. "--api-key K --no-api-key" ends up keyless.
+	authDisabled := authDisabledByCLI(*noAPIKey, os.Args[1:])
+	if authDisabled {
+		cfg.APIKey = ""
+		log.Printf("WARNING: TCP auth disabled (--no-api-key); the Web UI \"require key\" switch is ignored for this run (config files are not modified)")
 	}
 	if *webAddr != "" {
 		cfg.WebAddr = *webAddr
@@ -260,6 +272,13 @@ func main() {
 	if len(cfg.Whitelist) > 0 {
 		settings.Whitelist = cfg.Whitelist
 	}
+	// FIX-606: --no-api-key also makes the Web UI ignore its persisted
+	// "require key" switch for this process only. This is in-memory: the settings
+	// file is never rewritten, and the whitelist / access key stay as configured
+	// (an out-of-whitelist host still needs the access key).
+	if authDisabled {
+		settings.RequireKey = false
+	}
 	webUI := gateway.NewWebUI(webCfg, proxy, mgr, settings, hubVersion, hubBuild)
 	// The Chat pane shows the board conversations (FEATURE-530).
 	webUI.SetBoard(board)
@@ -412,6 +431,30 @@ func loadConfig(path string) *config {
 	return cfg
 }
 
+// lastAuthFlag reports which auth flag appears last in args: "none" for
+// --no-api-key, "key" for --api-key and "" when neither is present. Both flags
+// may be supplied; the later one wins (FIX-606), so "--api-key K --no-api-key"
+// disables auth while "--no-api-key --api-key K" keeps requiring key K.
+// authDisabledByCLI reports whether TCP auth must be disabled for this run:
+// --no-api-key turns it off, and when both auth flags are present the one that
+// appears later in args wins (FIX-606).
+func authDisabledByCLI(noAPIKey bool, args []string) bool {
+	return noAPIKey && lastAuthFlag(args) != "key"
+}
+
+func lastAuthFlag(args []string) string {
+	last := ""
+	for _, arg := range args {
+		switch {
+		case arg == "--no-api-key" || arg == "-no-api-key":
+			last = "none"
+		case strings.HasPrefix(arg, "--api-key") || strings.HasPrefix(arg, "-api-key"):
+			last = "key"
+		}
+	}
+	return last
+}
+
 // splitList splits a comma-separated string into trimmed non-empty parts.
 func splitList(s string) []string {
 	var out []string
@@ -433,6 +476,8 @@ Flags:
   --config PATH        Config file path (default: ./hub-gateway.json)
   --tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
   --api-key KEY        API key required by TCP clients
+  --no-api-key         Disable TCP API-key auth for this run (highest priority; also
+                       ignores the Web UI "require key" switch; config files unchanged)
   --web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
   --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
   --lang CODE          Web UI language: zh/en (default: auto-detect from LANG/LC_ALL, fallback zh)
@@ -449,6 +494,9 @@ Examples:
 
   # Connect one external agent and serve Web UI on localhost
   co-shell-hub --agent default=ws://127.0.0.1:8399/ws
+
+  # Temporarily disable the TCP API key (config files are left untouched)
+  co-shell-hub --no-api-key
 
   # TCP service with API key + remote Web UI whitelist
   co-shell-hub --api-key secret \
