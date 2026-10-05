@@ -68,6 +68,22 @@ func TestMetaCapabilityIndex_EnvAwareness(t *testing.T) {
 	}
 }
 
+// TestMetaCapabilityIndex_ResultMode verifies cap.result-mode is listed in the
+// index with its 5-level short description (FEATURE-610).
+func TestMetaCapabilityIndex_ResultMode(t *testing.T) {
+	i18n.Init("zh")
+	index := buildMetaCapabilityIndex()
+	if !strings.Contains(index, "cap.result-mode") {
+		t.Errorf("index missing cap.result-mode:\n%s", index)
+	}
+	// The 5-level short description must be present in the index.
+	for _, want := range []string{"minimal", "explain", "analyze", "free", "machine"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("index missing result-mode level %q:\n%s", want, index)
+		}
+	}
+}
+
 // TestFindMetaCapabilityByID verifies exact ID lookup.
 func TestFindMetaCapabilityByID(t *testing.T) {
 	i18n.Init("zh")
@@ -84,6 +100,24 @@ func TestFindMetaCapabilityByID(t *testing.T) {
 	// Unknown ID returns nil.
 	if findMetaCapabilityByID("cap.nonexistent") != nil {
 		t.Error("unknown ID should return nil")
+	}
+}
+
+// TestFindMetaCapabilityByID_ResultMode verifies cap.result-mode lookup returns
+// the full 5-level detail text (FEATURE-610).
+func TestFindMetaCapabilityByID_ResultMode(t *testing.T) {
+	i18n.Init("zh")
+	c := findMetaCapabilityByID("cap.result-mode")
+	if c == nil {
+		t.Fatal("cap.result-mode should be found")
+	}
+	if c.Detail == "" {
+		t.Error("cap.result-mode detail should not be empty")
+	}
+	for _, want := range []string{"minimal", "explain", "analyze", "free", "machine"} {
+		if !strings.Contains(c.Detail, want) {
+			t.Errorf("cap.result-mode detail missing level %q:\n%s", want, c.Detail)
+		}
 	}
 }
 

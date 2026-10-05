@@ -50,6 +50,7 @@ var (
 		"context_window":   true,
 		"cwd":              true,
 		"current_mode":     true,
+		"result_mode":      true,
 		"no_tool_action":   true,
 		"session_title":    true,
 		"task_plan":        true,

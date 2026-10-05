@@ -67,6 +67,7 @@ var metaCapabilityIDs = []string{
 	"cap.subagent-collab",
 	"cap.context-management",
 	"cap.self-config",
+	"cap.result-mode",
 }
 
 // metaCapabilityCategory returns the localized category label for a capability ID.
@@ -82,6 +83,8 @@ func metaCapabilityCategory(id string) string {
 		return i18n.T(i18n.KeyCapCategoryCollab)
 	case "cap.context-management":
 		return i18n.T(i18n.KeyCapCategoryContext)
+	case "cap.result-mode":
+		return i18n.T(i18n.KeyCapCategorySelf)
 	default:
 		return ""
 	}
@@ -102,6 +105,8 @@ func metaCapabilityName(id string) string {
 		return i18n.T(i18n.KeyCapContextManagementName)
 	case "cap.self-config":
 		return i18n.T(i18n.KeyCapSelfConfigName)
+	case "cap.result-mode":
+		return i18n.T(i18n.KeyCapResultModeName)
 	default:
 		return id
 	}
@@ -122,6 +127,8 @@ func metaCapabilityDescription(id string) string {
 		return i18n.T(i18n.KeyCapContextManagementDesc)
 	case "cap.self-config":
 		return i18n.T(i18n.KeyCapSelfConfigDesc)
+	case "cap.result-mode":
+		return i18n.T(i18n.KeyCapResultModeDesc)
 	default:
 		return ""
 	}
@@ -142,6 +149,8 @@ func metaCapabilityDetail(id string) string {
 		return i18n.T(i18n.KeyCapContextManagementDetail)
 	case "cap.self-config":
 		return i18n.T(i18n.KeyCapSelfConfigDetail)
+	case "cap.result-mode":
+		return i18n.T(i18n.KeyCapResultModeDetail)
 	default:
 		return ""
 	}

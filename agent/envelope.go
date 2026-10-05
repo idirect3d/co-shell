@@ -180,6 +180,12 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<current_mode>")
 	sb.WriteString(a.currentWorkMode())
 	sb.WriteString("</current_mode>\n")
+	// FEATURE-610: expose the current result-mode (output style) so the LLM knows
+	// how to phrase its responses. The full per-mode rules live in the
+	// cap.result-mode meta-capability (queried via introspect_capability).
+	sb.WriteString("<result_mode>")
+	sb.WriteString(config.ResultModeString(a.resultMode))
+	sb.WriteString("</result_mode>\n")
 	sb.WriteString("<no_tool_action>")
 	sb.WriteString(a.noToolAction())
 	sb.WriteString("</no_tool_action>\n")

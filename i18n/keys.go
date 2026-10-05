@@ -2591,6 +2591,11 @@ const (
 	KeyCapSelfConfigDesc   = "cap_self_config_desc"
 	KeyCapSelfConfigDetail = "cap_self_config_detail"
 
+	// Meta-capability: result-mode (FEATURE-610).
+	KeyCapResultModeName   = "cap_result_mode_name"
+	KeyCapResultModeDesc   = "cap_result_mode_desc"
+	KeyCapResultModeDetail = "cap_result_mode_detail"
+
 	// Environment-awareness section (FEATURE-482): a static block appended to
 	// the META-CAPABILITIES index describing the capabilities the agent can
 	// perceive directly from <environment_details> (service mode, user dynamic

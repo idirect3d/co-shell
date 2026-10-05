@@ -1624,6 +1624,25 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 - Settings are persisted to config.json
 `
 
+	// Meta-capability: result-mode (FEATURE-610).
+	enMessages[KeyCapResultModeName] = `Result Output Style`
+	enMessages[KeyCapResultModeDesc] = `Phrase output per the <result_mode> level (minimal=conclusion only; explain=plain-language; analyze=deep analysis; free=autonomous; machine=structured machine-readable)`
+	enMessages[KeyCapResultModeDetail] = `# Result Output Style (cap.result-mode)
+
+Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your language according to that level:
+
+## Level rules
+- **minimal (conclusion only)**: Give the conclusion, no elaboration. After an operation, output only a one-line success/failure confirmation; do not repeat the output, explain why, or analyze. E.g. "✅ Command executed successfully" / "❌ Failed: <reason>".
+- **explain (plain-language)**: Explain the result in plain language. After output, use 2-3 plain sentences to explain the meaning, focusing on the key information the user cares about; avoid jargon.
+- **analyze (deep analysis)**: Analyze for insights. Analyze patterns, anomalies, and implications in the output in detail, providing actionable insights and recommendations with a clear structure.
+- **free (autonomous)**: Decide freely. Choose the best presentation based on context and user needs; no fixed format.
+- **machine (structured machine-readable)**: Prefer structured output (JSON/key-value/table/raw data), allowing a little natural-language filler, no redundant decoration. Good for data export, automation pipelines, program consumption.
+
+## Notes
+- The level is injected dynamically via <result_mode>; switching levels does not rebuild the system prompt
+- If <result_mode> is missing, default to free (autonomous)
+`
+
 	// Environment-awareness section (FEATURE-482): static block appended to the
 	// META-CAPABILITIES index describing capabilities perceivable directly from
 	// <environment_details>.

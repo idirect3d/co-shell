@@ -87,7 +87,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "auto-model-select", Value: boolStr(cfg.LLM.AutoSelectEnabled()), Desc: i18n.T(i18n.KeyCol3AutoModelSelect), Type: "bool", Default: boolStr(def.AutoSelectEnabled())},
 		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
 		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
-		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
+		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free", "machine"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool", Default: boolStr(def.ShellSessionEnabled)},
 		{Key: "shell-session-timeout", Value: strconv.Itoa(llm.ShellSessionTimeout), Desc: i18n.T(i18n.KeyCol3ShellSessionTimeout), Type: "number", Default: strconv.Itoa(def.ShellSessionTimeout)},
 		{Key: "shell-vt-rows", Value: strconv.Itoa(shellVTRowsValue(llm.ShellVTRows)), Desc: i18n.T(i18n.KeySettingCmd_306), Type: "number", Default: strconv.Itoa(shellVTRowsValue(def.ShellVTRows))},

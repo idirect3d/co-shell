@@ -52,9 +52,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.97.0"
+const version = "0.98.0"
 
-const build = "1223"
+const build = "1224"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1449,8 +1449,9 @@ func main() {
 		ModelName: modelName,
 	})
 
-	// Apply result mode BEFORE restoring session, because SetResultMode
-	// resets a.messages to [{system}] which would destroy restored messages.
+	// Apply result mode. FEATURE-610: SetResultMode no longer rebuilds the
+	// system prompt or resets a.messages, so ordering vs RestoreSession is
+	// no longer critical; it only sets the <result_mode> env hint.
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 
 	// Restore previous session if available

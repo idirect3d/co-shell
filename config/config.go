@@ -50,6 +50,9 @@ const (
 	ResultModeAnalyze
 	// ResultModeFree: no specific instruction, LLM decides how to present results.
 	ResultModeFree
+	// ResultModeMachine: prefer structured, machine-readable output (JSON/key-value/table/raw data),
+	// with minimal natural-language filler (FEATURE-610).
+	ResultModeMachine
 )
 
 // ResultModeString returns the string representation of a ResultMode.
@@ -63,6 +66,8 @@ func ResultModeString(m ResultMode) string {
 		return "analyze"
 	case ResultModeFree:
 		return "free"
+	case ResultModeMachine:
+		return "machine"
 	default:
 		return "minimal"
 	}
@@ -79,6 +84,8 @@ func ParseResultMode(s string) (ResultMode, bool) {
 		return ResultModeAnalyze, true
 	case "free":
 		return ResultModeFree, true
+	case "machine":
+		return ResultModeMachine, true
 	default:
 		return ResultModeMinimal, false
 	}

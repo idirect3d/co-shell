@@ -2043,66 +2043,14 @@ func (a *Agent) SetScheduler(s *scheduler.Scheduler) { a.scheduler = s }
 func (a *Agent) Scheduler() *scheduler.Scheduler     { return a.scheduler }
 
 func (a *Agent) SetResultMode(mode config.ResultMode) {
-	// Build system prompt outside the lock to avoid deadlock:
-	// getCurrentTaskDescription() acquires a.mu internally.
+	// FEATURE-610: result-mode no longer changes the system prompt. It is a
+	// per-message output-style hint injected into <environment_details> as
+	// <result_mode>, so switching it only updates the agent field. The full
+	// per-mode rules live in the cap.result-mode meta-capability.
 	a.mu.Lock()
 	a.resultMode = mode
 	a.mu.Unlock()
-
-	workMode := ""
-	id := promptIdentity{}
-	channel := ""
-	if a.cfg != nil {
-		id.Name = ResolveAgentName(a.identityDir())
-		workMode = a.cfg.LLM.WorkMode
-		id.Description = ResolveAgentDescription(a.identityDir())
-		id.Principles = a.resolveAgentPrinciples()
-		id.UserName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
-		// FEATURE-535: the user description now reaches the prompt.
-		id.UserDescription = ResolveUserDescription(a.identityDir())
-		channel = a.cfg.LLM.Channel
-		// Fall back to mode-specific i18n description
-		if id.Description == "" {
-			switch workMode {
-			case "plan":
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
-			case "research":
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
-			default:
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
-			}
-		}
-		// Fall back to global i18n description
-		if id.Description == "" {
-			id.Description = i18n.T(i18n.KeyAgentDefaultDescription)
-		}
-	}
-
-	toolUsageText := ""
-	if a.toolCallModeMgr != nil {
-		mode := a.toolCallModeMgr.Mode()
-		if mode == ToolCallModeXML {
-			tools := a.buildToolsInternal()
-			lang := string(i18n.GetLang())
-			workMode := ""
-			if a.cfg != nil {
-				workMode = a.cfg.LLM.WorkMode
-			}
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, a.intentExposureEnabled, workMode)
-		}
-	}
-
-	taskPlanText := a.getTaskPlanText()
-	taskDesc := a.getCurrentTaskDescription()
-
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, id, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
-
-	a.mu.Lock()
-	a.messages = []llm.Message{
-		{Role: "system", Content: a.systemPrompt},
-	}
-	a.mu.Unlock()
-	log.Info("Result mode set to %s, system prompt rebuilt", config.ResultModeString(mode))
+	log.Info("Result mode set to %s", config.ResultModeString(mode))
 }
 
 func (a *Agent) getToolTimeout() time.Duration {

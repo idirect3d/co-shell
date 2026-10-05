@@ -2007,7 +2007,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyConfigValueUnchanged:   "  值未改变。",
 	KeyConfigInvalidChoice:    "无效选择，请重新输入。",
 	KeyConfigValOnOff:         "请输入 on 或 off",
-	KeyConfigValMinExplAnFree: "请输入 minimal/explain/analyze/free",
+	KeyConfigValMinExplAnFree: "请输入 minimal/explain/analyze/free/machine",
 	KeyConfigValWinTaskSmart:  "请输入 window/task/smart",
 	KeyConfigValDebugOff:      "请输入 debug/info/warn/error/off",
 	KeyConfigValUnlimited:     "不限制",

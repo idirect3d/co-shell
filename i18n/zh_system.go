@@ -1609,6 +1609,25 @@ META-CAPABILITIES
 - 设置持久化到 config.json
 `
 
+	// Meta-capability: result-mode (FEATURE-610).
+	zhMessages[KeyCapResultModeName] = `结果输出风格`
+	zhMessages[KeyCapResultModeDesc] = `按 <result_mode> 档位决定输出话术风格（minimal=只给结论不展开; explain=通俗讲清; analyze=深入分析; free=自主决定; machine=结构化机器可读）`
+	zhMessages[KeyCapResultModeDetail] = `# 结果输出风格（cap.result-mode）
+
+每条消息的 <environment_details> 会携带 <result_mode> 标签，指示当前输出话术风格。请按该档位组织语言：
+
+## 档位规则
+- **minimal（极简叙述）**：只给结论，不展开。执行完操作后只输出成功/失败的一句话确认，不重复输出内容、不解释原因、不分析。例：「✅ 命令执行成功」/「❌ 执行失败：<原因>」。
+- **explain（白话解释）**：用通俗语言讲清结果。输出后用 2-3 句白话解释含义，聚焦用户最关心的关键信息，避免术语堆砌。
+- **analyze（详细分析）**：深入分析给洞察。详细分析输出中的模式、异常、含义，提供可操作的洞察和建议，结构清晰、有层次。
+- **free（自由发挥）**：完全自主决定。根据上下文和用户需求自行判断最佳呈现方式，不设固定格式。
+- **machine（机器语言）**：结构化机器可读。优先以结构化格式输出（JSON/键值对/表格/纯数据），允许少量自然语言补充说明，无冗余修饰。适合数据导出、自动化链路、程序消费。
+
+## 注意事项
+- 档位值由 <result_mode> 动态注入，切换档位无需重建系统提示词
+- 若 <result_mode> 缺失，默认按 free（自由发挥）处理
+`
+
 	// Environment-awareness section (FEATURE-482): static block appended to the
 	// META-CAPABILITIES index describing capabilities perceivable directly from
 	// <environment_details>.

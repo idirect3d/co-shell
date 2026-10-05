@@ -639,7 +639,7 @@ func applySetting(a *Agent, param, value string) error {
 
 		mode, ok := config.ParseResultMode(value)
 		if !ok {
-			return fmt.Errorf("invalid result mode: %s (valid: minimal, explain, analyze, free)", value)
+			return fmt.Errorf("invalid result mode: %s (valid: minimal, explain, analyze, free, machine)", value)
 		}
 		cfg.LLM.ResultMode = int(mode)
 		if err := cfg.Save(); err != nil {
