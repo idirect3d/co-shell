@@ -165,7 +165,7 @@ func TestUIWindowUC52BlockingAndInjection(t *testing.T) {
 	payload := json.RawMessage(`{"name":"Ada"}`)
 	ag.AddDynamicEvent(DynamicUIAction, UIActionMessage("ui-7", "send", payload))
 	block := ag.consumeDynamicEvents(false)
-	if !strings.Contains(block, "<ui_action>") {
+	if !strings.Contains(block, "<ui_action") {
 		t.Fatalf("UC-52: injected action missing from %q", block)
 	}
 	for _, want := range []string{"ui-7", "send", "Ada"} {

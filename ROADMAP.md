@@ -4,6 +4,31 @@
 
 ---
 
+## v0.100.0 — 动态事件保留机制（未确认事件重放 + meta.ack 确认）：FEATURE-611
+
+> **版本**: v0.100.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.100.0）
+> **里程碑**: 解决 `<user_dynamic_events>` one-shot 注入导致的信息硬遗忘问题——事件被注入到某一条消息的 `<environment_details>` 后，该消息在对话历史中被 `env_prune` 降级（L1/L2）时 `user_dynamic_events` 块被直接丢弃；若 LLM 当轮未回应（正在跑长任务、事件注入后继续做别的事），信息便永久丢失。本次引入「未确认事件重放 + meta.ack 确认」机制：重要事件（user_message / board_message / board_timeout / sub_agent_done / ui_action）在未被确认前，会在后续每条消息的 `<user_dynamic_events>` 中带 `[unacked]` 标记重复出现（保留原始时间戳），直到 LLM 在工具调用的 `meta.ack` 中按事件 ID 精确确认；瞬时事件（clip/upload/open/view）保持 one-shot 不重放。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-611 | 0.100.0 | P1 | 动态事件保留机制：事件唯一 ID + 未确认事件重放（[unacked] 标记 · 保留原时间戳）+ 工具调用 meta.ack 按 ID 精确确认 + 配置项 dynamic_event_retain_max（0=禁用，默认100）与 user_message_mode（dynamic/full）+ 系统提示词处理策略 |
+
+> 当前 BUILD: 1231
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-611 动态事件保留机制（未确认事件重放 + meta.ack 确认）**
+  - 需求：用户讨论确认的完整方案（未确认事件重放 + meta.ack 按事件 ID 精确确认；ACL 决策见本会话讨论）
+  - 用例：`use-case/FEATURE-611/`
+  - 分支：**FEATURE-611**（基于 main），版本 v0.100.0
+  - 进度：**已完成并合并 main（用户确认，build 1231）**。落地：① `DynamicEvent` 新增唯一 ID（`ev-<seq>`）；② 队列新增 retained 集合与 `takeForInjection`/`ack`：未确认的可确认事件在后续每条 envelope 重放（`unacked="true"` + `[unacked]` 标记，保留原始时间戳），`retain_max=0` 退化为原 one-shot；③ 工具调用 `meta.ack`（可选字段，按事件 ID 精确确认、幂等；已加入 `metaFieldNames`，`executeToolCall` 中处理）；④ 瞬时事件（clip/upload/open/view）保持 one-shot 且不带 `ack_id`；⑤ 新增配置 `dynamic_event_retain_max`（0=禁用，默认 100）与 `user_message_mode`（dynamic/full）——Web「记忆与上下文」与 CLI `:set` 均可改/可查，`full` 模式在 `web/session.go` 将补充消息作为完整用户消息排队；⑥ `PendingUserMessages`/`clearUserMessages` 同时覆盖 retained，避免未确认用户消息丢回填；⑦ 系统提示词 zh/en 补充重放与 `meta.ack` 处理策略；⑧ 新增 13 个单元测试（`agent/feature611_test.go`）。预存在失败（已在 main 分支复现，非本次引入）：agent `TestSetResultMode_UsesResolvedRulesAndPrinciples`、cmd `TestSkillHandlerListEmpty`/`TestSettingsJSONFillsDefaults`、i18n `TestRules*` 三项。 [BUILD-1231]
+
+---
+
 ## v0.99.0 — Web 会话韧性（设计阶段）：FEATURE-542
 
 > **版本**: v0.99.0

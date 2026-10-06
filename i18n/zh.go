@@ -2055,6 +2055,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3WebWhitelist:          "Web 服务访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
 	KeyCol3WebInputDir:           "上传附件目录（工作区相对路径，默认 input）",
 	KeyCol3DynamicQueueSize:      "动态感知队列容量（默认 100）",
+	KeyCol3DynamicRetainMax:      "未确认动态事件重放上限（0=禁用此机制，默认 100）",
+	KeyCol3UserMessageMode:       "用户补充消息处理方式（dynamic=动态感知/full=完整消息）",
 	KeyCol3StreamWindowMaxBlocks: "前端消息窗口最大块数（默认 300）",
 	KeyCol3StreamWindowMaxNodes:  "前端消息窗口最大 DOM 节点数（默认 30000）",
 	KeyCol3StreamWindowMaxChars:  "前端消息窗口最大文本字符数（默认 2000000）",

@@ -232,6 +232,10 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "env-dir-change-detect", Value: boolStr(llm.EnvDirChangeDetect), Desc: i18n.T(i18n.KeyCol3EnvDirChangeDetect), Type: "bool", Default: boolStr(def.EnvDirChangeDetect)},
 		{Key: "env-runtime-info-once", Value: boolStr(llm.EnvRuntimeInfoOnce), Desc: i18n.T(i18n.KeyCol3EnvRuntimeInfoOnce), Type: "bool", Default: boolStr(def.EnvRuntimeInfoOnce)},
 		{Key: "tool-desc-compact", Value: boolStr(llm.ToolDescCompact), Desc: i18n.T(i18n.KeyCol3ToolDescCompact), Type: "bool", Default: boolStr(def.ToolDescCompact)},
+		// FEATURE-611: dynamic-event retention (unacked replay cap + supplemental
+		// user-message delivery mode).
+		{Key: "dynamic-event-retain-max", Value: strconv.Itoa(cfg.DynamicEventRetainMax), Desc: i18n.T(i18n.KeyCol3DynamicRetainMax), Type: "number", Default: strconv.Itoa(defCfg.DynamicEventRetainMax)},
+		{Key: "user-message-mode", Value: userMessageModeValue(cfg), Desc: i18n.T(i18n.KeyCol3UserMessageMode), Type: "enum", Options: []string{"dynamic", "full"}, Default: userMessageModeValue(defCfg)},
 	}
 
 	// Group 5: Developer (matches showSettingsHelp Group 6)
@@ -392,6 +396,15 @@ func dynamicQueueSizeValue(cfg *config.Config) int {
 		return cfg.DynamicEventQueueSize
 	}
 	return 100
+}
+
+// userMessageModeValue returns the effective supplemental-user-message delivery
+// mode (FEATURE-611), defaulting to "dynamic".
+func userMessageModeValue(cfg *config.Config) string {
+	if cfg != nil && cfg.UserMessageMode != "" {
+		return cfg.UserMessageMode
+	}
+	return "dynamic"
 }
 
 // boardAckTimeoutValue returns the effective board-ack-timeout (default 5).

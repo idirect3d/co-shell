@@ -83,6 +83,10 @@ type DynamicEvent struct {
 	Text string
 	// Time is when the event occurred (RFC3339).
 	Time time.Time
+	// ID is the stable unique identifier assigned on enqueue (FEATURE-611),
+	// e.g. "ev-7". A retainable event keeps its ID across replays, and the LLM
+	// acknowledges it by listing that ID in the tool call's meta.ack.
+	ID string
 }
 
 // dynamicEventQueue is the thread-safe FIFO queue of pending dynamic events.
@@ -92,6 +96,14 @@ type DynamicEvent struct {
 type dynamicEventQueue struct {
 	mu     sync.Mutex
 	events []DynamicEvent
+	// retained holds events that were already injected but not yet
+	// acknowledged (FEATURE-611). They are replayed in every following
+	// envelope until the LLM acks them via meta.ack. Only retainable kinds
+	// (see isRetainableKind) ever enter this list: a transient file event is
+	// dropped right after its single injection.
+	retained []DynamicEvent
+	// seq assigns each enqueued event a stable unique id ("ev-<n>").
+	seq int
 	// maxSize caps the queue; when full the oldest event is dropped.
 	maxSize int
 }
@@ -128,6 +140,8 @@ func (q *dynamicEventQueue) add(ev DynamicEvent) {
 	if len(q.events) >= q.maxSize {
 		q.events = q.events[1:]
 	}
+	q.seq++
+	ev.ID = fmt.Sprintf("ev-%d", q.seq)
 	q.events = append(q.events, ev)
 }
 
@@ -143,13 +157,103 @@ func (q *dynamicEventQueue) drain() []DynamicEvent {
 	return out
 }
 
+// isRetainableKind reports whether an event of this kind is kept for replay
+// until the LLM acknowledges it (FEATURE-611). Transient path events are
+// excluded: a file the user just dropped or opened is actionable immediately,
+// so replaying it would only waste context.
+func isRetainableKind(kind DynamicEventKind) bool {
+	switch kind {
+	case DynamicUserMessage, DynamicUIAction, DynamicBoardMessage,
+		DynamicBoardTimeout, DynamicSubAgentDone:
+		return true
+	}
+	return false
+}
+
+// takeForInjection removes every pending event and returns them as fresh
+// (first-time) events, together with the previously injected but still
+// unacknowledged events that must be replayed. Newly injected retainable
+// events move into the retained list; transient events are dropped after their
+// single injection. retainMax <= 0 disables retention altogether, restoring
+// the pre-FEATURE-611 one-shot behaviour.
+func (q *dynamicEventQueue) takeForInjection(retainMax int) (fresh, replayed []DynamicEvent) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	fresh = q.events
+	q.events = nil
+	if retainMax <= 0 {
+		q.retained = nil
+		return fresh, nil
+	}
+	replayed = append([]DynamicEvent(nil), q.retained...)
+	for _, ev := range fresh {
+		if isRetainableKind(ev.Kind) {
+			q.retained = append(q.retained, ev)
+		}
+	}
+	// Cap the retained set by dropping its oldest entries.
+	if len(q.retained) > retainMax {
+		q.retained = q.retained[len(q.retained)-retainMax:]
+	}
+	return fresh, replayed
+}
+
+// ack drops the given event ids from the retained (and, defensively, the
+// pending) set so they stop being replayed (FEATURE-611). Unknown or already
+// acknowledged ids are ignored, which makes acknowledgement idempotent. It
+// returns how many events were acknowledged.
+func (q *dynamicEventQueue) ack(ids []string) int {
+	if len(ids) == 0 {
+		return 0
+	}
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if id != "" {
+			want[id] = true
+		}
+	}
+	if len(want) == 0 {
+		return 0
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	n := 0
+	keptRetained := q.retained[:0]
+	for _, ev := range q.retained {
+		if want[ev.ID] {
+			n++
+			continue
+		}
+		keptRetained = append(keptRetained, ev)
+	}
+	q.retained = keptRetained
+	keptPending := q.events[:0]
+	for _, ev := range q.events {
+		if want[ev.ID] {
+			n++
+			continue
+		}
+		keptPending = append(keptPending, ev)
+	}
+	q.events = keptPending
+	return n
+}
+
 // pendingUserMessages returns (without consuming) the buffered user_message
-// events, oldest first. Used to backfill the Web UI input box when a task ends
-// with unconsumed user messages (FEATURE-471).
+// events, oldest first. Both the pending queue and the retained set are
+// scanned (FEATURE-611): a user message that was already injected but never
+// acknowledged is still unconsumed from the user's point of view. Used to
+// backfill the Web UI input box when a task ends with unconsumed user messages
+// (FEATURE-471).
 func (q *dynamicEventQueue) pendingUserMessages() []DynamicEvent {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	var out []DynamicEvent
+	for _, ev := range q.retained {
+		if ev.Kind == DynamicUserMessage {
+			out = append(out, ev)
+		}
+	}
 	for _, ev := range q.events {
 		if ev.Kind == DynamicUserMessage {
 			out = append(out, ev)
@@ -158,8 +262,9 @@ func (q *dynamicEventQueue) pendingUserMessages() []DynamicEvent {
 	return out
 }
 
-// clearUserMessages removes all buffered user_message events. Called after the
-// pending messages have been handed back to the Web UI input box.
+// clearUserMessages removes all buffered user_message events (pending and
+// retained). Called after the pending messages have been handed back to the
+// Web UI input box.
 func (q *dynamicEventQueue) clearUserMessages() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -170,6 +275,13 @@ func (q *dynamicEventQueue) clearUserMessages() {
 		}
 	}
 	q.events = kept
+	keptRetained := q.retained[:0]
+	for _, ev := range q.retained {
+		if ev.Kind != DynamicUserMessage {
+			keptRetained = append(keptRetained, ev)
+		}
+	}
+	q.retained = keptRetained
 }
 
 // dynamicEventQueue returns the agent's dynamic event queue, creating it on
@@ -183,12 +295,53 @@ func (a *Agent) dynamicEventQueue() *dynamicEventQueue {
 	return a.dynEvents
 }
 
+// Defaults for the FEATURE-611 dynamic-event retention settings.
+const (
+	// defaultDynamicEventRetainMax is the default cap on injected-but-unacked
+	// retainable events kept for replay; 0 disables replay altogether.
+	defaultDynamicEventRetainMax = 100
+	// UserMessageModeDynamic delivers a supplemental user message through
+	// <user_dynamic_events>; UserMessageModeFull delivers it as a complete user
+	// message (a regular user turn).
+	UserMessageModeDynamic = "dynamic"
+	UserMessageModeFull    = "full"
+)
+
 // dynamicEventQueueCapacity returns the configured queue capacity (default 100).
 func (a *Agent) dynamicEventQueueCapacity() int {
 	if a.cfg != nil && a.cfg.DynamicEventQueueSize > 0 {
 		return a.cfg.DynamicEventQueueSize
 	}
 	return 100
+}
+
+// dynamicEventRetainMax returns the configured cap on injected-but-unacked
+// events retained for replay (FEATURE-611). 0 (or a negative value) disables
+// the mechanism, restoring one-shot injection.
+func (a *Agent) dynamicEventRetainMax() int {
+	if a.cfg != nil {
+		return a.cfg.DynamicEventRetainMax
+	}
+	return defaultDynamicEventRetainMax
+}
+
+// AckDynamicEvents acknowledges the given dynamic-event ids (FEATURE-611): the
+// events stop being replayed in <user_dynamic_events>. Unknown or already
+// acknowledged ids are ignored, so acknowledgement is idempotent. It returns
+// how many events were acknowledged. Safe to call while a task is running.
+func (a *Agent) AckDynamicEvents(ids []string) int {
+	return a.dynamicEventQueue().ack(ids)
+}
+
+// UserMessageMode returns how a message the user types while a task is running
+// is delivered (FEATURE-611): UserMessageModeDynamic (default) injects it into
+// <user_dynamic_events>, while UserMessageModeFull turns it into a complete
+// user message.
+func (a *Agent) UserMessageMode() string {
+	if a.cfg != nil && a.cfg.UserMessageMode != "" {
+		return a.cfg.UserMessageMode
+	}
+	return UserMessageModeDynamic
 }
 
 // AddDynamicEvent enqueues a user-action event into the dynamic perception
@@ -207,52 +360,102 @@ func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 	a.dynamicEventQueue().add(ev)
 }
 
-// consumeDynamicEvents drains the queue and renders the <user_dynamic_events>
-// block. includeUserMessages controls whether buffered user_message events are
-// included (tool messages only, per FEATURE-471). Each event is rendered as a
-// single flat tag in queue (time) order:
+// consumeDynamicEvents returns the rendered <user_dynamic_events> block: the
+// freshly queued events plus every retainable event that was already injected
+// but not yet acknowledged (FEATURE-611). A replayed event carries
+// unacked="true" and a "[unacked] " marker so the LLM knows it is a repeat;
+// a retainable event is acknowledged by listing its ack_id in a tool call's
+// meta.ack, after which it stops being replayed. includeUserMessages controls
+// whether user_message events are included (tool messages only, per
+// FEATURE-471). Each event is rendered as a single flat tag in queue (time)
+// order:
 //
 //	<open_file>2026-09-04 12:33:43.321 ./work/test.md 20.3KB</open_file>
-//	<user_message>2026-09-04 12:35:00.000 补充消息</user_message>
+//	<user_message ack_id="ev-12">2026-09-04 12:35:00.000 补充消息</user_message>
 //
 // File size/mtime are resolved live via os.Stat at injection time.
 func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 	q := a.dynamicEventQueue()
-	events := q.drain()
-	if len(events) == 0 {
+	fresh, replayed := q.takeForInjection(a.dynamicEventRetainMax())
+	if len(fresh) == 0 && len(replayed) == 0 {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString("<user_dynamic_events>\n")
-	for _, ev := range events {
-		switch ev.Kind {
-		case DynamicUserMessage:
-			if includeUserMessages {
-				sb.WriteString("  <user_message>" + formatEventTime(ev.Time) + " " + ev.Text + "</user_message>\n")
-			}
-		case DynamicUIAction:
-			// FEATURE-524 window mode: a component interaction that happened while
-			// the agent was working. The text already carries the ui id, the action
-			// id and the structured payload, so it is injected verbatim.
-			sb.WriteString("  <ui_action>" + formatEventTime(ev.Time) + " " + ev.Text + "</ui_action>\n")
-		case DynamicClipObject:
-			sb.WriteString("  <clip_object>" + formatFileEvent(ev) + "</clip_object>\n")
-		case DynamicUploadFile:
-			sb.WriteString("  <upload_file>" + formatFileEvent(ev) + "</upload_file>\n")
-		case DynamicOpenFile:
-			sb.WriteString("  <open_file>" + formatFileEvent(ev) + "</open_file>\n")
-		case DynamicViewFile:
-			sb.WriteString("  <view_file>" + formatFileEvent(ev) + "</view_file>\n")
-		case DynamicBoardMessage, DynamicBoardTimeout, DynamicSubAgentDone:
-			// FEATURE-530/FEATURE-566: board events and sub-agent completion notices
-			// carry an already-rendered tag in Text (like ui_action), so they are
-			// injected verbatim.
-			sb.WriteString("  " + ev.Text + "\n")
+	for _, ev := range fresh {
+		if ev.Kind == DynamicUserMessage && !includeUserMessages {
+			continue
 		}
+		sb.WriteString(renderDynamicEvent(ev, false))
+	}
+	for _, ev := range replayed {
+		if ev.Kind == DynamicUserMessage && !includeUserMessages {
+			continue
+		}
+		sb.WriteString(renderDynamicEvent(ev, true))
 	}
 	sb.WriteString("</user_dynamic_events>")
 	return sb.String()
+}
+
+// renderDynamicEvent renders one event as a flat tag line (two-space indent and
+// trailing newline). Retainable events carry an ack_id attribute so the LLM can
+// acknowledge them via meta.ack; a replay (already injected once, not yet
+// acknowledged) additionally carries unacked="true" and a "[unacked] " marker
+// (FEATURE-611).
+func renderDynamicEvent(ev DynamicEvent, replayed bool) string {
+	attrs := ""
+	marker := ""
+	if isRetainableKind(ev.Kind) && ev.ID != "" {
+		attrs = ` ack_id="` + ev.ID + `"`
+	}
+	if replayed {
+		attrs += ` unacked="true"`
+		marker = "[unacked] "
+	}
+	switch ev.Kind {
+	case DynamicUserMessage:
+		return "  <user_message" + attrs + ">" + marker + formatEventTime(ev.Time) + " " + ev.Text + "</user_message>\n"
+	case DynamicUIAction:
+		// FEATURE-524 window mode: a component interaction that happened while
+		// the agent was working. The text carries the ui id, the action id and
+		// the structured payload.
+		return "  <ui_action" + attrs + ">" + marker + formatEventTime(ev.Time) + " " + ev.Text + "</ui_action>\n"
+	case DynamicClipObject:
+		return "  <clip_object>" + formatFileEvent(ev) + "</clip_object>\n"
+	case DynamicUploadFile:
+		return "  <upload_file>" + formatFileEvent(ev) + "</upload_file>\n"
+	case DynamicOpenFile:
+		return "  <open_file>" + formatFileEvent(ev) + "</open_file>\n"
+	case DynamicViewFile:
+		return "  <view_file>" + formatFileEvent(ev) + "</view_file>\n"
+	case DynamicBoardMessage, DynamicBoardTimeout, DynamicSubAgentDone:
+		// FEATURE-530/FEATURE-566: board events and sub-agent completion notices
+		// arrive as an already-rendered tag in Text, so the ack id and the
+		// replay marker are injected into that tag.
+		return "  " + injectTagAttrs(ev.Text, attrs, marker) + "\n"
+	}
+	return ""
+}
+
+// injectTagAttrs inserts attrs before the closing bracket of an already-rendered
+// tag and marker right after it (FEATURE-611). A self-closing tag keeps its
+// "/>" well-formed; text that is not a tag gets the attrs appended so nothing
+// is silently dropped.
+func injectTagAttrs(tag, attrs, marker string) string {
+	if tag == "" {
+		return tag
+	}
+	gt := strings.Index(tag, ">")
+	if gt < 0 {
+		return tag + attrs + marker
+	}
+	at := gt
+	if at > 0 && tag[at-1] == '/' {
+		at-- // self-closing tag: insert before "/>"
+	}
+	return tag[:at] + attrs + tag[at:gt] + ">" + marker + tag[gt+1:]
 }
 
 // formatFileEvent renders one path event's inner text as:

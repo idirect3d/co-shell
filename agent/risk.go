@@ -152,6 +152,42 @@ var metaFieldNames = map[string]bool{
 	"risk_reason":      true,
 	"affected_objects": true,
 	"progress":         true,
+	// FEATURE-611: meta.ack carries the dynamic-event ids the LLM reports as
+	// handled. It is optional, so validateMeta does not require it.
+	"ack": true,
+}
+
+// parseMetaAck extracts the optional meta.ack field: the dynamic-event ids the
+// LLM reports as already handled (FEATURE-611). It is deliberately NOT part of
+// validateMeta — most tool calls have nothing to acknowledge. A malformed value
+// (not an array of strings) yields nil instead of failing the call.
+func parseMetaAck(args map[string]interface{}) []string {
+	meta := metaObject(args)
+	v, ok := meta["ack"]
+	if !ok {
+		return nil
+	}
+	var out []string
+	switch ids := v.(type) {
+	case []interface{}:
+		for _, item := range ids {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+	case []string:
+		for _, s := range ids {
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+	case string:
+		// Tolerate a single id sent without the array wrapper.
+		if ids != "" {
+			out = append(out, ids)
+		}
+	}
+	return out
 }
 
 // promoteMisplacedMetaParams promotes tool parameters that the LLM mistakenly

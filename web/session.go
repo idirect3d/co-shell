@@ -307,7 +307,15 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		// (clip_object / upload_file / user_message / open_file). Enqueue it
 		// into the agent's dynamic perception queue so the next tool/user
 		// message injection surfaces it to the LLM.
-		s.ag.AddDynamicEvent(agent.DynamicEventKind(msg.Kind), msg.Value)
+		// FEATURE-611: in `full` mode a supplemental user message is delivered
+		// as a complete user turn (queued for the next ReadLine) instead of a
+		// dynamic-perception event.
+		kind := agent.DynamicEventKind(msg.Kind)
+		if kind == agent.DynamicUserMessage && s.ag.UserMessageMode() == agent.UserMessageModeFull {
+			s.inputQ.push(clientMessage{Type: "input", Text: msg.Value, Source: msg.Source, SourceID: msg.SourceID})
+			return
+		}
+		s.ag.AddDynamicEvent(kind, msg.Value)
 	case "board_registered", "board_roster", "board_sent", "board_message", "board_timeout":
 		// FEATURE-530: flat board frames pushed by the hub.
 		s.handleBoardFrame(msg)

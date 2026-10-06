@@ -2067,7 +2067,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 // keeps the previous wording byte-for-byte for ToolDescCompact=false.
 const (
 	toolMetaDescCompact = "Transparency metadata; see the system prompt for the structure and rules."
-	toolMetaDescLong    = "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status)."
+	toolMetaDescLong    = "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure. progress must cover every step that is still in_progress plus the current step (index/description/status). Optional ack lists the ack_id values of the <user_dynamic_events> you have handled."
 )
 
 // toolMetaDesc returns the meta parameter description honoring the
@@ -2286,6 +2286,14 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	// affected_objects/progress; any other key found inside it is a misplaced
 	// tool parameter and is promoted to the top level so the tool can run.
 	promoteMisplacedMetaParams(args)
+
+	// FEATURE-611: acknowledge the dynamic events the LLM reports as handled via
+	// meta.ack. An acknowledged event stops being replayed in
+	// <user_dynamic_events>. The field is optional and acknowledgement is
+	// idempotent, so an unknown or repeated id is a no-op.
+	if ack := parseMetaAck(args); len(ack) > 0 {
+		a.AckDynamicEvents(ack)
+	}
 
 	// Check for vault placeholders and optionally mask them for confirmation display.
 	// Placeholders like @pwd:entry_name, @user:entry_name need the vault to be unlocked.

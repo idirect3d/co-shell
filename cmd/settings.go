@@ -323,6 +323,14 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "dynamic-event-queue-size":
 		return h.handleDynamicQueueSetting(args)
 
+	// FEATURE-611: unacked dynamic-event replay cap + supplemental user-message
+	// delivery mode.
+	case subcommand == "dynamic-event-retain-max":
+		return h.handleDynamicRetainMaxSetting(args)
+
+	case subcommand == "user-message-mode":
+		return h.handleUserMessageModeSetting(args)
+
 	// FEATURE-553: workspace tree exclusion list (Web settings "工作区" tab).
 	case subcommand == TreeExcludesSettingKey:
 		return h.handleTreeExcludesSetting(args)
@@ -424,6 +432,47 @@ func (h *SettingsHandler) handleDynamicQueueSetting(args []string) (string, erro
 	}
 	log.Info("Dynamic event queue size set to %d", n)
 	return i18n.T(i18n.KeyCol3DynamicQueueSize) + ": " + strconv.Itoa(n), nil
+}
+
+// handleDynamicRetainMaxSetting handles the unacked dynamic-event replay cap
+// (FEATURE-611): `:set dynamic-event-retain-max <n>`. 0 disables replay;
+// negative values are rejected.
+func (h *SettingsHandler) handleDynamicRetainMaxSetting(args []string) (string, error) {
+	if len(args) < 2 {
+		return i18n.T(i18n.KeyCol3DynamicRetainMax) + ": " + strconv.Itoa(h.cfg.DynamicEventRetainMax), nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+	if err != nil || n < 0 {
+		return "", fmt.Errorf("dynamic-event-retain-max must be a non-negative integer (0 disables replay)")
+	}
+	h.cfg.DynamicEventRetainMax = n
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.Info("Dynamic event retain max set to %d", n)
+	return i18n.T(i18n.KeyCol3DynamicRetainMax) + ": " + strconv.Itoa(n), nil
+}
+
+// handleUserMessageModeSetting handles the supplemental user-message delivery
+// mode (FEATURE-611): `:set user-message-mode dynamic|full`.
+func (h *SettingsHandler) handleUserMessageModeSetting(args []string) (string, error) {
+	current := h.cfg.UserMessageMode
+	if current == "" {
+		current = "dynamic"
+	}
+	if len(args) < 2 {
+		return i18n.T(i18n.KeyCol3UserMessageMode) + ": " + current, nil
+	}
+	v := strings.TrimSpace(args[1])
+	if v != "dynamic" && v != "full" {
+		return "", fmt.Errorf("user-message-mode must be dynamic or full")
+	}
+	h.cfg.UserMessageMode = v
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.Info("User message mode set to %s", v)
+	return i18n.T(i18n.KeyCol3UserMessageMode) + ": " + v, nil
 }
 
 // showSettingsHelp displays the current configuration grouped by category.
@@ -963,6 +1012,10 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("env-dir-change-detect", boolStr(cfg.LLM.EnvDirChangeDetect), i18n.T(i18n.KeyCol3EnvDirChangeDetect)),
 		makeLine("env-runtime-info-once", boolStr(cfg.LLM.EnvRuntimeInfoOnce), i18n.T(i18n.KeyCol3EnvRuntimeInfoOnce)),
 		makeLine("tool-desc-compact", boolStr(cfg.LLM.ToolDescCompact), i18n.T(i18n.KeyCol3ToolDescCompact)),
+		// FEATURE-611: dynamic-event retention (unacked replay cap +
+		// supplemental user-message delivery mode).
+		makeLine("dynamic-event-retain-max", fmt.Sprintf("%d", cfg.DynamicEventRetainMax), i18n.T(i18n.KeyCol3DynamicRetainMax)),
+		makeLine("user-message-mode", userMessageModeValue(cfg), i18n.T(i18n.KeyCol3UserMessageMode)),
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
 	})
 

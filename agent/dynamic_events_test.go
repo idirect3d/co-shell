@@ -102,14 +102,14 @@ func TestConsumeDynamicEventsUserVsTool(t *testing.T) {
 	if !strings.Contains(userBlock, "<clip_object>") {
 		t.Errorf("user block should include clip_object, got:\n%s", userBlock)
 	}
-	if strings.Contains(userBlock, "<user_message>") {
+	if strings.Contains(userBlock, "<user_message") {
 		t.Errorf("user block must NOT include user_message, got:\n%s", userBlock)
 	}
 
 	// Tool message: includes user_message.
 	a.AddDynamicEvent(DynamicUserMessage, "补充说明")
 	toolBlock := a.consumeDynamicEvents(true)
-	if !strings.Contains(toolBlock, "<user_message>") {
+	if !strings.Contains(toolBlock, "<user_message") {
 		t.Errorf("tool block should include user_message, got:\n%s", toolBlock)
 	}
 	if !strings.Contains(toolBlock, "补充说明") {

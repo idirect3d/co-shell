@@ -1189,6 +1189,18 @@ type Config struct {
 	// the number of buffered user-action events (clip/upload/message/open)
 	// drained into <environment_details>. 0 means the default 100.
 	DynamicEventQueueSize int `json:"dynamic_event_queue_size,omitempty"`
+	// DynamicEventRetainMax caps how many injected-but-unacknowledged dynamic
+	// events are kept for replay in <user_dynamic_events> (FEATURE-611). Such
+	// events reappear (marked [unacked]) in every following envelope until the
+	// LLM acknowledges them via a tool call's meta.ack. 0 (or a negative value)
+	// disables the mechanism, restoring one-shot injection. Default 100. No
+	// omitempty: an explicit 0 must be persisted.
+	DynamicEventRetainMax int `json:"dynamic_event_retain_max"`
+	// UserMessageMode selects how a message the user types while a task is
+	// running is delivered (FEATURE-611): "dynamic" (default) injects it into
+	// <user_dynamic_events> and replays it until acknowledged; "full" delivers
+	// it as a complete user message instead.
+	UserMessageMode string `json:"user_message_mode,omitempty"`
 	// BoardEnabled enables the hub agent bulletin board collaboration
 	// (FEATURE-490). It is ON by default (FIX-592, hence no omitempty: an
 	// explicit false must be persisted); turning it off makes the co-shell
@@ -1390,6 +1402,12 @@ func DefaultConfig() *Config {
 
 		UIEnabled:      true,
 		UIContextPrune: true,
+		// FEATURE-611: keep injected-but-unacknowledged dynamic events for
+		// replay (default 100; 0 disables) and deliver supplemental user
+		// messages through the dynamic-perception path by default.
+		DynamicEventRetainMax: 100,
+		UserMessageMode:       "dynamic",
+
 		// FIX-592: the bulletin board collaboration is ON by default; an explicit
 		// false is persisted (see the BoardEnabled field tag).
 		BoardEnabled: true,

@@ -2727,6 +2727,11 @@ const (
 	KeyCol3WebInputDir      = "col3_web_input_dir"
 	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
 
+	// FEATURE-611: dynamic-event retention settings (unacked replay cap +
+	// supplemental user-message delivery mode).
+	KeyCol3DynamicRetainMax = "col3_dynamic_retain_max"
+	KeyCol3UserMessageMode  = "col3_user_message_mode"
+
 	// FEATURE-553: workspace tree exclusion list (Web settings "工作区" tab).
 	KeyCol3WorkspaceTreeTab          = "col3_workspace_tree_tab"
 	KeyCol3WorkspaceTreePathDesc     = "col3_workspace_tree_path_desc"

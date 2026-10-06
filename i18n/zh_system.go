@@ -1649,6 +1649,8 @@ META-CAPABILITIES
 
 - 服务模式感知：<runtime_info> 中的 <service_mode> 表明当前运行方式（stdio=单次命令 / enhanced=交互式 REPL / serve=Web UI），serve 模式还含 <serve_port>/<serve_bind>/<serve_whitelist>；<model_name> 表明当前消息发送给模型的 API 模型名。
 - 用户动态感知：<user_dynamic_events> 携带用户实时动作（拖拽文件、复制截图、补充消息、打开/预览文件等），反映用户当前思考路径，应据此调整响应。
+  - **未确认事件会重放**：带 ack_id 的事件（用户补充消息、board 消息、子代理完成通知、UI 动作）在未被确认前，会在后续每条消息中**重复出现**；重放时带 unacked="true" 与 [unacked] 标记，时间戳为事件最初发生的时间。请务必处理这些事件，不要忽略。
+  - **确认方式**：在你已处理这些事件的工具调用 meta.ack 中列出它们的 ack_id（如 "ack": ["ev-12"]），确认后它们不再出现。未确认的事件会一直悬置重放。
 - 用户在场感知：<user_presence> 表明用户此刻是否可达（online=有浏览器直连客户端 / offline=无人在场；stdio、REPL 恒为 online），随每条消息实时注入；offline 时不要发起需要人工输入的阻塞调用，具体策略见 RULES 节。
 - 模型参数感知：<context_window> 显示当前 token 用量与上限，<current_mode> 表明当前工作模式（act/plan/research），据此判断上下文余量与行为边界。
 - 输出风格感知：<result_mode> 表明当前输出话术档位（随每条消息注入，可能被当轮消息内嵌的 <result_mode> 覆盖），各档话术规则见 cap.result-mode。
