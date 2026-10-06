@@ -67,18 +67,37 @@ func sendClient(t *testing.T, c *wsTestClient, msg clientMessage) {
 // readServerMsg reads one downstream server message.
 func readServerMsg(t *testing.T, c *wsTestClient) serverMessage {
 	t.Helper()
-	op, payload, err := c.readFrame()
-	if err != nil {
-		t.Fatalf("read server message: %v", err)
+	// FEATURE-542: a browser connection also carries the hub's flat control
+	// frames (e.g. {"type":"board_unregister"} pushed through sendRaw). The web
+	// frontend ignores every frame without a known "kind", so the harness skips
+	// them too instead of mistaking one for the frame under test.
+	for {
+		op, payload, err := c.readFrame()
+		if err != nil {
+			t.Fatalf("read server message: %v", err)
+		}
+		if op != wsOpText {
+			t.Fatalf("server message opcode = %d, want text", op)
+		}
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(payload, &raw); err != nil {
+			t.Fatalf("unmarshal server message: %v", err)
+		}
+		if _, ok := raw["kind"]; !ok {
+			continue
+		}
+		var msg serverMessage
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			t.Fatalf("unmarshal server message: %v", err)
+		}
+		// The connect-time state burst ends with an empty sub-agent snapshot
+		// (FEATURE-564). It carries no information, so the harness skips it and
+		// keeps "state frame, then the frame under test" deterministic.
+		if msg.Kind == "event" && msg.Event != nil && msg.Event.Type == "sub_agents" && msg.Event.Meta["sub_agents"] == "[]" {
+			continue
+		}
+		return msg
 	}
-	if op != wsOpText {
-		t.Fatalf("server message opcode = %d, want text", op)
-	}
-	var msg serverMessage
-	if err := json.Unmarshal(payload, &msg); err != nil {
-		t.Fatalf("unmarshal server message: %v", err)
-	}
-	return msg
 }
 
 // TestSessionInputToReadLine verifies a browser input message is returned
@@ -199,11 +218,16 @@ func TestWebIOAskAnswer(t *testing.T) {
 		}
 		done <- v
 	}()
+	// FEATURE-542: the ask request travels as an interaction_request event whose
+	// meta carries the id and the mode; the direct `ask` frame is gone.
 	msg := readServerMsg(t, client)
-	if msg.Kind != "ask" {
-		t.Fatalf("expected ask, got %+v", msg)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest {
+		t.Fatalf("expected interaction_request event, got %+v", msg)
 	}
-	sendClient(t, client, clientMessage{Type: "answer", ID: msg.ID, Value: "42"})
+	if msg.Event.Meta["mode"] != "line" {
+		t.Fatalf("ask mode = %q, want line", msg.Event.Meta["mode"])
+	}
+	sendClient(t, client, clientMessage{Type: "answer", ID: msg.Event.Meta["id"], Value: "42"})
 	select {
 	case v := <-done:
 		if v != "42" {
@@ -229,10 +253,10 @@ func TestWebIOReadKey(t *testing.T) {
 		done <- b
 	}()
 	msg := readServerMsg(t, client)
-	if msg.Kind != "ask" || msg.Mode != "key" {
-		t.Fatalf("expected key ask, got %+v", msg)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest || msg.Event.Meta["mode"] != "key" {
+		t.Fatalf("expected key interaction_request event, got %+v", msg)
 	}
-	sendClient(t, client, clientMessage{Type: "answer", ID: msg.ID, Value: "y"})
+	sendClient(t, client, clientMessage{Type: "answer", ID: msg.Event.Meta["id"], Value: "y"})
 	select {
 	case b := <-done:
 		if b != 'y' {
@@ -563,14 +587,14 @@ func TestWebIOAskInteractionPushesStructured(t *testing.T) {
 	}()
 
 	msg := readServerMsg(t, client)
-	if msg.Kind != "interaction" {
-		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest {
+		t.Fatalf("expected interaction_request event, got kind=%q", msg.Kind)
 	}
-	if msg.ID == "" {
-		t.Error("interaction message missing id")
+	if msg.Event.Meta["id"] == "" {
+		t.Error("interaction_request event missing id")
 	}
 	var in agent.Interaction
-	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+	if err := json.Unmarshal([]byte(msg.Event.Meta["interaction"]), &in); err != nil {
 		t.Fatalf("unmarshal interaction: %v", err)
 	}
 	if in.Kind != agent.InteractionConfirm || in.Title != "⚙️ execute_command: ls -la" {
@@ -583,7 +607,7 @@ func TestWebIOAskInteractionPushesStructured(t *testing.T) {
 	// Resolve with an approve result.
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
-		ID:   msg.ID,
+		ID:   msg.Event.Meta["id"],
 		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionApprove}),
 	})
 	select {
@@ -618,11 +642,11 @@ func TestWebIOAskInteractionApproveCount(t *testing.T) {
 	}()
 
 	msg := readServerMsg(t, client)
-	if msg.Kind != "interaction" {
-		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest {
+		t.Fatalf("expected interaction_request event, got kind=%q", msg.Kind)
 	}
 	var in agent.Interaction
-	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+	if err := json.Unmarshal([]byte(msg.Event.Meta["interaction"]), &in); err != nil {
 		t.Fatalf("unmarshal interaction: %v", err)
 	}
 	if len(in.Presets) != 3 || in.Presets[0] != "3" || in.Presets[2] != "50" {
@@ -632,7 +656,7 @@ func TestWebIOAskInteractionApproveCount(t *testing.T) {
 	// Resolve with approve_count = 10.
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
-		ID:   msg.ID,
+		ID:   msg.Event.Meta["id"],
 		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionApproveCount, Value: "10"}),
 	})
 	select {
@@ -667,11 +691,11 @@ func TestWebIOAskInteractionSelect(t *testing.T) {
 	}()
 
 	msg := readServerMsg(t, client)
-	if msg.Kind != "interaction" {
-		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest {
+		t.Fatalf("expected interaction_request event, got kind=%q", msg.Kind)
 	}
 	var in agent.Interaction
-	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+	if err := json.Unmarshal([]byte(msg.Event.Meta["interaction"]), &in); err != nil {
 		t.Fatalf("unmarshal interaction: %v", err)
 	}
 	if in.Kind != agent.InteractionSelect || len(in.Options) != 2 {
@@ -680,7 +704,7 @@ func TestWebIOAskInteractionSelect(t *testing.T) {
 
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
-		ID:   msg.ID,
+		ID:   msg.Event.Meta["id"],
 		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionSelect, Value: "立即执行"}),
 	})
 	select {

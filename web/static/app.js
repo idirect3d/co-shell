@@ -568,10 +568,53 @@ const delModelConfirm = document.getElementById("delModelConfirm");
 let ws = null;
 let wsReady = false;
 
-// FEATURE-458: the connection status control is now a connect/disconnect
-// toggle. When disconnected, we do NOT auto-reconnect — the user must click
-// the control to reconnect (avoids two browsers fighting over the single
-// WebSocket client connection).
+// FEATURE-542: stable per-tab client id. It is sent on the WebSocket URL and
+// stamped on every instruction, so the backend records which end issued it and
+// this page can recognise its own echo in a broadcast.
+const clientID = (() => {
+  try {
+    let id = sessionStorage.getItem("co-shell-client-id");
+    if (!id) {
+      id = "c" + Math.random().toString(36).slice(2, 8);
+      sessionStorage.setItem("co-shell-client-id", id);
+    }
+    return id;
+  } catch (e) {
+    return "c" + Math.random().toString(36).slice(2, 8);
+  }
+})();
+
+// FEATURE-542: the source label the backend assigned to this connection
+// ("端 N"), carried by the state frame on connect.
+let myLabel = "";
+
+// FEATURE-542: highest event seq this page has rendered. On a reconnect it is
+// sent back so the backend replays only what was missed; 0 means "nothing
+// rendered yet" and triggers a tail replay instead.
+let lastSeq = 0;
+
+// FEATURE-542 REVERSES FEATURE-458's "never auto-reconnect" decision. That rule
+// existed only so two browsers would not fight over the single WebSocket slot;
+// the slot is gone (every tab keeps its own connection and all of them read the
+// same persisted event stream), so the reason is gone with it. A dropped
+// connection is retried with exponential backoff instead of leaving the page
+// stuck on a dead socket.
+const reconnectBackoff = [1000, 2000, 5000, 10000, 20000, 30000];
+let reconnectAttempt = 0;
+let reconnectTimer = null;
+let manualClose = false;
+
+function scheduleReconnect() {
+  if (manualClose || reconnectTimer) return;
+  const delay = reconnectBackoff[Math.min(reconnectAttempt, reconnectBackoff.length - 1)];
+  reconnectAttempt++;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    wsConnect();
+  }, delay);
+}
+
+// FEATURE-458: the connection status control is a connect/disconnect toggle.
 function wsConnect() {
   if (wsReady || (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN))) return;
   // Relative WS endpoint: works both at the root path (co-shell standalone)
@@ -582,18 +625,27 @@ function wsConnect() {
   // state of the current connection, otherwise a late onclose from the old
   // socket resets wsReady and wipes the running state just restored on
   // reconnect.
-  const sock = new WebSocket(wsProto + location.host + location.pathname + 'ws');
+  const sock = new WebSocket(wsProto + location.host + location.pathname + 'ws?client_id=' + encodeURIComponent(clientID));
   ws = sock;
   sock.onopen = () => {
     if (sock !== ws) return; // superseded socket
     wsReady = true;
+    reconnectAttempt = 0;
     conn.classList.add("on");
     connText.textContent = T.connected;
+    // FEATURE-542: flush anything the user did while the socket was down (an
+    // answer typed into a dialog that stayed open across the drop).
+    if (pendingSends.length) {
+      const queued = pendingSends.splice(0);
+      for (const m of queued) { try { sock.send(JSON.stringify(m)); } catch (e) { /* dropped */ } }
+    }
     // FIX-511: rebuild the view from the server's persisted history. On a page
     // load the stream is already empty (no-op); on a reconnect this drops the
     // previous content so the replay below rebuilds it instead of appending a
     // second copy of the same messages.
-    resetStreamView();
+    // FEATURE-542: an incremental reconnect (lastSeq > 0) keeps what is on
+    // screen and only appends the missed events, so nothing is reset.
+    if (lastSeq === 0) resetStreamView();
     wsSend({ type: "mode_get" }); // FEATURE-410: load the work-mode list
     // Fetch the session list on connect so the 💬 count is correct immediately
     // (FEATURE-387), not only after hovering the status-bar item.
@@ -602,7 +654,14 @@ function wsConnect() {
     wsSend({ type: "yolo_get" });
     // FEATURE-507: replay the tail of the persisted event stream so a refresh
     // (or a reconnect) restores the conversation instead of an empty view.
-    wsSend({ type: "history_get", count: pageBufferSize });
+    // FEATURE-542: when this page already rendered events, ask only for what it
+    // missed (after=lastSeq) — a reconnecting browser then behaves exactly like
+    // a continuous read instead of rebuilding the tail (R3).
+    if (lastSeq > 0) {
+      wsSend({ type: "history_get", count: pageBufferSize, after: lastSeq });
+    } else {
+      wsSend({ type: "history_get", count: pageBufferSize });
+    }
     // FEATURE-583: restore the loaded-skills panel on connect as well (the
     // recorded skill_state events may not cover the current session tail).
     refreshSkills();
@@ -617,11 +676,16 @@ function wsConnect() {
     wsReady = false;
     conn.classList.remove("on");
     connText.textContent = T.disconnected;
-    hideAsk();
+    // FEATURE-542: the dialog is deliberately NOT hidden here. A dropped
+    // connection is only a temporarily unreachable client — the interaction is
+    // still parked on the backend, and hiding the box would make it impossible
+    // to answer (the request is behind the lastSeq cursor, so the incremental
+    // replay will not re-open it). It closes when the resolution arrives.
     setRunning(false);
     clearStreamingMarks();
-    // FEATURE-458: no auto-reconnect. The user clicks the connection control
-    // to reconnect manually.
+    // FEATURE-542: retry with exponential backoff (reversing FEATURE-458); a
+    // manual disconnect does not schedule a retry.
+    scheduleReconnect();
   };
   sock.onmessage = (m) => {
     // FIX-511: after the user clicked "断开连接" no message may be processed
@@ -631,10 +695,20 @@ function wsConnect() {
     if (!wsReady || sock !== ws) return;
     let msg;
     try { msg = JSON.parse(m.data); } catch { return; }
-    if (msg.kind === "event" && msg.event) renderEvent(msg.event);
-    else if (msg.kind === "ask") showAsk(msg);
-    else if (msg.kind === "interaction") showInteraction(msg);
+    if (msg.kind === "event" && msg.event) {
+      // FEATURE-542: remember the newest seq so a reconnect can ask for exactly
+      // what was missed (history frames carry it as well).
+      if (typeof msg.event.seq === "number" && msg.event.seq > lastSeq) lastSeq = msg.event.seq;
+      // FEATURE-542: interactive dialogs are driven by the persisted event
+      // stream, not by direct ask/interaction frames, so several tabs stay in
+      // sync and a reconnect replays whatever is still unanswered.
+      handleInteractionEvent(msg.event);
+      renderEvent(msg.event);
+    }
     else if (msg.kind === "state") {
+      // FEATURE-542: this connection's source label ("端 N"), used to tag our
+      // own YOU blocks the same way the event stream does.
+      if (typeof msg.client === "string") myLabel = msg.client;
       // FIX-511: the connect-time snapshot carries the agent's running state, so
       // a refreshed or reconnected page restores the running indicators (logo
       // breathing, red ⏸ button, session-title highlight dot) instead of staying
@@ -716,13 +790,16 @@ function wsConnect() {
 // FEATURE-458: actively close the WebSocket (user clicked the toggle while
 // connected).
 function wsDisconnect() {
+  // FEATURE-542: a manual disconnect must not be undone by the auto-reconnect
+  // timer; the dialog stays open (the interaction is still parked backend-side).
+  manualClose = true;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (ws) {
     try { ws.close(); } catch (e) { /* ignore */ }
   }
   wsReady = false;
   conn.classList.remove("on");
   connText.textContent = T.disconnected;
-  hideAsk();
   setRunning(false);
 }
 
@@ -732,12 +809,23 @@ conn.onclick = () => {
   if (wsReady) {
     wsDisconnect();
   } else {
+    // FEATURE-542: an explicit reconnect re-arms auto-reconnect.
+    manualClose = false;
+    reconnectAttempt = 0;
     wsConnect();
   }
 };
 
+// FEATURE-542: while the socket is down, messages that answer a parked
+// interaction are queued and flushed on the next connection instead of being
+// dropped silently (the dialog stays open across a transient drop).
+const pendingSends = [];
+
 function wsSend(obj) {
-  if (wsReady) ws.send(JSON.stringify(obj));
+  if (wsReady) { ws.send(JSON.stringify(obj)); return; }
+  if (obj && (obj.type === "answer" || obj.type === "interaction_answer")) {
+    pendingSends.push(obj);
+  }
 }
 
 // FEATURE-524: report the browser viewport (CSS pixels) so <runtime_info>
@@ -2129,7 +2217,14 @@ function renderEvent(ev) {
   // merged send/interrupt button, never render as blocks.
   // FEATURE-548: the user's own message, recorded when its turn began. Replaying
   // it rebuilds the YOU block that the live view drew from the local echo.
-  if (ev.type === "user_echo") { renderUserEcho(ev.text); return; }
+  if (ev.type === "user_echo") {
+    // FEATURE-542: the echo is broadcast to every end; the end that typed the
+    // message already rendered its YOU block locally, so it skips its own echo.
+    const meta = ev.meta || {};
+    if (meta.source_id && meta.source_id === clientID) return;
+    renderUserEcho(ev.text, { source: meta.source || "" });
+    return;
+  }
   if (ev.type === "await_input") { setRunning(false); clearStreamingMarks(); return; }
   if (ev.type === "turn_start") { setRunning(true); return; }
   if (ev.type === "task_plan") {
@@ -2688,6 +2783,11 @@ function renderEvent(ev) {
 function renderHistory(msg) {
   const events = msg.events || [];
   if (!events.length) return;
+  // FEATURE-542: history pages carry the store seq of every event, so a
+  // reconnecting page knows the cursor to resume from even after a reload.
+  for (const ev of events) {
+    if (typeof ev.seq === "number" && ev.seq > lastSeq) lastSeq = ev.seq;
+  }
   // FIX-518: hold back workspace refreshes for the whole replay — the events
   // below are historical, so nothing they change needs to be reflected in the
   // file tree while it runs; one refresh is issued when the replay ends.
@@ -2754,6 +2854,10 @@ function notifyUser(text) {
 }
 
 function renderUserEcho(text, opts) {
+  // FEATURE-542: default the source label to this connection, so a locally typed
+  // message is tagged exactly like the echo the backend broadcasts to the others.
+  opts = opts || {};
+  if (!opts.source) opts.source = myLabel;
   // A new user input (command / confirmation / selection) starts a fresh
   // REPL output block: reset curREPL so the next ui_text repl event opens a
   // new block instead of appending to the previous one (FIX-411).
@@ -2767,7 +2871,12 @@ function renderUserEcho(text, opts) {
   // backfillPendingUserIndex in renderEvent).
   // FEATURE-512: an answer collected by ask_user is still a user message, but
   // its title carries a marker so it is distinguishable from a typed command.
-  const body = makeBlock("user-msg", opts && opts.answer ? "YOU · " + i18nT("answerTag", "Answer") : "YOU", "");
+  // FEATURE-542: tag the block with the source label ("端 N") so a message that
+  // came from another tab is visibly attributed to that end.
+  let youTitle = "YOU";
+  if (opts.answer) youTitle += " · " + i18nT("answerTag", "Answer");
+  if (opts.source) youTitle += " · " + opts.source;
+  const body = makeBlock("user-msg", youTitle, "");
   // FIX-506 (续修): makeBlock() sets data-msg-index on the .ev box (and returns
   // the .ev-body), while the ⏪ button reads box.dataset.msgIndex and
   // truncateStreamFrom() queries .ev[data-msg-index]. The pending reference must
@@ -3666,6 +3775,32 @@ function refreshSkills() {
 }
 
 /* ---------- ask area ---------- */
+
+// FEATURE-542: dialogs are driven by the persisted event stream.
+//
+// Direct ask/interaction frames no longer exist: every end learns about a request
+// from interaction_request and about its resolution from interaction_resolved.
+// That is what keeps several tabs in sync (one answers, the others close) and
+// lets a reconnecting browser re-open whatever is still unanswered (R4).
+function handleInteractionEvent(ev) {
+  const meta = ev.meta || {};
+  const id = meta.id || "";
+  if (!id) return;
+  if (ev.type === "interaction_request") {
+    if (meta.mode) {
+      showAsk({ id, mode: meta.mode });
+    } else if (meta.interaction) {
+      let inJSON = null;
+      try { inJSON = JSON.parse(meta.interaction); } catch (e) { return; }
+      showInteraction({ id, interaction: inJSON });
+    }
+    return;
+  }
+  if (ev.type === "interaction_resolved") {
+    // First answer wins: close the box whoever answered (§5.6.3).
+    if (pendingAsk === id || pendingInteraction === id) hideAsk();
+  }
+}
 
 let pendingAsk = null;
 

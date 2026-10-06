@@ -31,7 +31,7 @@ func TestSendStateReplaysSubAgents(t *testing.T) {
 	s := &Server{}
 	s.SetSubAgentsProvider(func() (string, string) { return sessionID, rows })
 	c := newStateTestConn()
-	s.sendState(c)
+	s.sendState(c, "")
 
 	if got := string(drainStateMessage(t, c)["kind"]); got != `"state"` {
 		t.Fatalf("first frame kind = %s, want \"state\"", got)
@@ -69,7 +69,7 @@ func TestSendStateReplaysSubAgents(t *testing.T) {
 func TestSendStateWithoutSubAgentsProvider(t *testing.T) {
 	s := &Server{}
 	c := newStateTestConn()
-	s.sendState(c)
+	s.sendState(c, "")
 	_ = drainStateMessage(t, c)
 
 	select {

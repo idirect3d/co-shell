@@ -63,7 +63,7 @@ func TestSendStateCarriesBusy(t *testing.T) {
 				s.SetBusyProvider(tc.busyFn)
 			}
 			c := newStateTestConn()
-			s.sendState(c)
+			s.sendState(c, "")
 			msg := drainStateMessage(t, c)
 
 			if got := string(msg["kind"]); got != `"state"` {
@@ -90,7 +90,7 @@ func TestSendStateCarriesBusy(t *testing.T) {
 func TestSendStateWithoutPlanOrBusy(t *testing.T) {
 	s := &Server{}
 	c := newStateTestConn()
-	s.sendState(c)
+	s.sendState(c, "")
 	msg := drainStateMessage(t, c)
 
 	if got := string(msg["plan"]); got != "null" {
@@ -109,7 +109,7 @@ func TestSendStatePreservesPlan(t *testing.T) {
 	s.SetPlanProvider(func() string { return plan })
 	s.SetBusyProvider(func() bool { return true })
 	c := newStateTestConn()
-	s.sendState(c)
+	s.sendState(c, "")
 	msg := drainStateMessage(t, c)
 
 	var got map[string]any

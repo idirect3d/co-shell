@@ -319,6 +319,19 @@ func (d *DualStore) AppendEvent(sessionID string, eventJSON []byte) error {
 	return d.Bolt.AppendEvent(sessionID, eventJSON)
 }
 
+// AppendEventSeq appends one event and returns the sequence it was stored under
+// (FEATURE-542); live frames are stamped with it so a reconnecting client can
+// resume from the cursor it last saw.
+func (d *DualStore) AppendEventSeq(sessionID string, eventJSON []byte) (int, error) {
+	return d.Bolt.AppendEventSeq(sessionID, eventJSON)
+}
+
+// LoadEventsAfter returns the events newer than afterSeq, oldest first
+// (FEATURE-542; forward paging for an incremental reconnect).
+func (d *DualStore) LoadEventsAfter(sessionID string, afterSeq, limit int) ([]EventStreamEntry, bool, error) {
+	return d.Bolt.LoadEventsAfter(sessionID, afterSeq, limit)
+}
+
 // LoadEvents returns up to limit events of a session (chronological order).
 func (d *DualStore) LoadEvents(sessionID string, limit, beforeSeq int) ([]EventStreamEntry, bool, error) {
 	return d.Bolt.LoadEvents(sessionID, limit, beforeSeq)

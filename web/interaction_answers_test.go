@@ -55,12 +55,16 @@ func TestWebIOAskInteractionAnswers(t *testing.T) {
 		done <- res
 	}()
 
+	// FEATURE-542: the request now travels as a persisted interaction_request
+	// event (GAP-1) whose meta carries the id and the Interaction payload — the
+	// direct `interaction` frame no longer exists.
 	msg := readServerMsg(t, client)
-	if msg.Kind != "interaction" {
-		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != eventInteractionRequest {
+		t.Fatalf("expected an interaction_request event, got kind=%q", msg.Kind)
 	}
+	meta := msg.Event.Meta
 	var in agent.Interaction
-	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+	if err := json.Unmarshal([]byte(meta["interaction"]), &in); err != nil {
 		t.Fatalf("unmarshal interaction: %v", err)
 	}
 	if in.Kind != agent.InteractionQuestions || len(in.Questions) != 2 {
@@ -69,7 +73,7 @@ func TestWebIOAskInteractionAnswers(t *testing.T) {
 
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
-		ID:   msg.ID,
+		ID:   meta["id"],
 		Result: resultJSON(t, agent.InteractionResult{
 			Action: agent.ActionSubmit,
 			Answers: []agent.QuestionAnswer{

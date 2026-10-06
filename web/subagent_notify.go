@@ -8,8 +8,6 @@
 package web
 
 import (
-	"time"
-
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -35,14 +33,9 @@ func (s *WebSession) startSubAgentCompletionTurn(sessionID, notice string) bool 
 			sessionID, s.ag.CurrentSessionID())
 		return false
 	}
-	select {
-	case s.inputCh <- clientMessage{Type: "input", Text: notice}:
-		log.Info("session: sub-agent completion notice starts a new turn (session=%s)", sessionID)
-		return true
-	case <-s.closed:
-		return false
-	case <-time.After(2 * time.Second):
-		log.Warn("session: sub-agent completion notice dropped (input queue busy)")
-		return false
-	}
+	// FEATURE-542: the explicit FIFO queue never blocks, so the notice can no
+	// longer be dropped because the channel happened to be busy.
+	s.inputQ.push(clientMessage{Type: "input", Text: notice})
+	log.Info("session: sub-agent completion notice starts a new turn (session=%s)", sessionID)
+	return true
 }

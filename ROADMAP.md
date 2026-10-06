@@ -15,7 +15,7 @@
 |------|------|------|------|
 | FEATURE-542 | 0.99.0 | P1 | Web 会话韧性：事件队列为单一事实源（多端共存 + 自动重连 + ask 持久化 + 按 seq 串行）+ 用户在线感知 `<user_presence>` 与在线/离线策略（离线时避免阻塞式提问） |
 
-> 当前 BUILD: 1229
+> 当前 BUILD: 1230
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -24,9 +24,9 @@
 - [ ] **FEATURE-542 Web 会话韧性（事件队列为单一事实源）**
   - 设计文档：`docs/web-session-resilience.md`（主体设计 §2~§8 已确认；本次追加 §9「用户在线感知与在线/离线策略」）
   - 需求：见文档 §3（R1~R9）+ §9（在线感知与离线策略：独立标签 `<user_presence>` 每轮注入；仅直连客户端算在线，hub 上报留待多端改造；离线时避免 `ask_user`、自主决策继续、汇总待确认项）
-  - 用例：`use-case/FEATURE-542/`（待编写）
+  - 用例：`use-case/FEATURE-542/FEATURE-542-UC-0001.md`（会话韧性 + 多端一致性 38 条）、`FEATURE-542-UC-0002.md`（在线感知 19 条）——已由用户确认
   - 分支：**FEATURE-542**（基于 main），版本 v0.99.0
-  - 进度：**设计阶段**——本次仅落文档（含 §9 追加），不编码。设计要点：① ask/interaction 提升为持久化事件（`interaction_request`/`interaction_resolved`）；② `s.conn` 单槽位 → `conns` 列表 + fan-out；③ 断连不再 `failAll`、无客户端时永久阻塞；④ 前端自动重连（撤销 FEATURE-458）+ `lastSeq` 增量补齐；⑤ 多端指令按 seq 串行入队；⑥ 新增 `<user_presence>` 在线感知与在线/离线策略。[BUILD-1229]
+  - 进度：**编码完成，待用户实测确认**（[BUILD-1230]）。落地：① ask/interaction 提升为持久化事件 `interaction_request`/`interaction_resolved`（两路径统一 id 空间 + 事件 + pending 表；竞态先到先得 + 后到静默忽略）；② `s.conn` 单槽位 → `conns` 列表 + fan-out（新端不踢旧端，gwConn 独立共存）；③ 断连不再 `failAll`（无客户端永久阻塞；暂停/终止键 `cancelAll` 取消并回传「用户已取消」语义）；④ 前端自动重连（撤销 FEATURE-458）+ `lastSeq` 增量补齐（新增 `LoadEventsAfter`）+ 事件驱动弹窗/关闭 + `client_id` 来源端标识；⑤ `inputCh` 无缓冲 → 显式 FIFO 队列（seq + 来源端），多端指令串行；⑥ `<user_presence>` 每轮注入（`HasClient()` 判定，仅浏览器直连算在线；hub 上报订阅数按设计 §9.2 留待多端改造）+ i18n 环境感知条目与在线/离线策略规则。设计要点：模型无关（事件队列为单一事实源）。——本次仅落文档（含 §9 追加），不编码。设计要点：① ask/interaction 提升为持久化事件（`interaction_request`/`interaction_resolved`）；② `s.conn` 单槽位 → `conns` 列表 + fan-out；③ 断连不再 `failAll`、无客户端时永久阻塞；④ 前端自动重连（撤销 FEATURE-458）+ `lastSeq` 增量补齐；⑤ 多端指令按 seq 串行入队；⑥ 新增 `<user_presence>` 在线感知与在线/离线策略。[BUILD-1229]
 
 ---
 

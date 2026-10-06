@@ -26,21 +26,20 @@ func TestWebSessionStartSubAgentCompletionTurn(t *testing.T) {
 	ag := &agent.Agent{}
 	ag.SetCurrentSessionID("sess-1")
 	s := &WebSession{
-		ag:      ag,
-		inputCh: make(chan clientMessage, 1),
-		closed:  make(chan struct{}),
+		ag:     ag,
+		inputQ: newInputQueue(),
+		closed: make(chan struct{}),
 	}
 
 	if !s.startSubAgentCompletionTurn("sess-1", subAgentNoticeText) {
 		t.Fatal("a notice for the current session must start a turn")
 	}
-	select {
-	case msg := <-s.inputCh:
-		if msg.Type != "input" || msg.Text != subAgentNoticeText {
-			t.Errorf("queued message = %+v, want the notice as user input", msg)
-		}
-	default:
-		t.Error("no message was queued")
+	it, ok := s.inputQ.pop()
+	if !ok {
+		t.Fatal("no message was queued")
+	}
+	if it.msg.Type != "input" || it.msg.Text != subAgentNoticeText {
+		t.Errorf("queued message = %+v, want the notice as user input", it.msg)
 	}
 
 	// A notice for another session must be refused: the turn would otherwise run

@@ -14,11 +14,19 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
 )
+
+// ErrInteractionCancelled reports that the user aborted a parked interaction
+// with the pause/stop key (FEATURE-542, GAP-2/R8). Callers should surface it as
+// "user cancelled" instead of as a failure: the previous disconnect path made
+// every pending interaction fail with a connection error, which the LLM saw as a
+// broken tool call.
+var ErrInteractionCancelled = errors.New("interaction cancelled by user")
 
 // InteractionKind identifies the type of a user interaction.
 type InteractionKind string

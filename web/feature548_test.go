@@ -151,8 +151,11 @@ func TestFeature548UC0005UserEchoPersistedFirst(t *testing.T) {
 	}
 }
 
-// UC-0006: the user message is persisted but NOT forwarded to the browser,
-// which renders the YOU block locally when the input is sent.
+// UC-0006: the user message is persisted for replay. FEATURE-542 supersedes the
+// original "never forwarded live" rule: with several ends connected the echo must
+// also reach the OTHER tabs, otherwise a second tab would show the answer without
+// the question that produced it. The end that typed it is not duplicated because
+// the frame carries the source_id the browser uses to skip its own echo.
 func TestFeature548UC0006UserEchoNotForwarded(t *testing.T) {
 	_, sess, ag, client := newSessionFixture(t)
 	readServerMsg(t, client) // initial state
@@ -166,21 +169,21 @@ func TestFeature548UC0006UserEchoNotForwarded(t *testing.T) {
 	r := &WebRenderer{s: ws}
 	r.Render(agent.NewStreamEvent("content", agent.ChannelLLM, agent.LevelInfo, "回复"))
 
-	seenContent := false
-	for i := 0; i < 8 && !seenContent; i++ {
+	seenEcho := false
+	for i := 0; i < 12 && !seenEcho; i++ {
 		msg := readServerMsg(t, client)
 		if msg.Kind != "event" || msg.Event == nil {
 			continue
 		}
 		if msg.Event.Type == eventUserEcho {
-			t.Fatal("user_echo was forwarded to the browser (duplicates the locally rendered YOU block)")
-		}
-		if msg.Event.Type == "content" {
-			seenContent = true
+			seenEcho = true
+			if msg.Event.Seq == 0 {
+				t.Error("broadcast user_echo carries no seq (a reconnecting client could not resume)")
+			}
 		}
 	}
-	if !seenContent {
-		t.Fatal("the turn's business event was not forwarded to the browser")
+	if !seenEcho {
+		t.Error("user_echo was not broadcast (a second tab would miss the instruction)")
 	}
 
 	types, _ := uc548PersistedTexts(t, ag, sid)

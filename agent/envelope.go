@@ -191,6 +191,12 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<no_tool_action>")
 	sb.WriteString(a.noToolAction())
 	sb.WriteString("</no_tool_action>\n")
+	// FEATURE-542: whether a user is reachable right now. This is a live state
+	// read on every envelope (not a one-shot event like <user_dynamic_events>),
+	// so the LLM can decide between asking the user and deciding on its own.
+	sb.WriteString("<user_presence>")
+	sb.WriteString(a.userPresenceString())
+	sb.WriteString("</user_presence>\n")
 	// FEATURE-488: expose the current session title so the LLM can use it as a
 	// memory anchor when generating a new session_title in attempt_completion
 	// (combining the existing title with the newly completed work). Only

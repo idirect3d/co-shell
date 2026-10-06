@@ -76,10 +76,19 @@ func eventStreamPrefix(sessionID string) []byte {
 // When the session exceeds maxEventStreamEntries, the oldest entries are
 // removed in the same transaction.
 func (s *Store) AppendEvent(sessionID string, eventJSON []byte) error {
+	_, err := s.AppendEventSeq(sessionID, eventJSON)
+	return err
+}
+
+// AppendEventSeq appends one event and returns the sequence number it was
+// stored under (FEATURE-542). Live WebSocket frames are stamped with that seq so
+// a reconnecting client can ask for everything after the cursor it last saw.
+func (s *Store) AppendEventSeq(sessionID string, eventJSON []byte) (int, error) {
 	if sessionID == "" || len(eventJSON) == 0 {
-		return nil
+		return 0, nil
 	}
-	return s.db.Update(func(tx *bbolt.Tx) error {
+	seq := 0
+	err := s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(eventStreamBucket))
 		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", eventStreamBucket)
@@ -114,10 +123,12 @@ func (s *Store) AppendEvent(sessionID string, eventJSON []byte) error {
 		if err := bucket.Put(eventStreamKey(sessionID, nextSeq), eventJSON); err != nil {
 			return err
 		}
+		seq = nextSeq
 
 		// Trim the oldest entries when the cap is exceeded.
 		return trimEventStream(bucket, prefix)
 	})
+	return seq, err
 }
 
 // parseEventSeq extracts the sequence number from a session event key.
@@ -205,6 +216,49 @@ func (s *Store) LoadEvents(sessionID string, limit, beforeSeq int) ([]EventStrea
 			seq, err := parseEventSeq(k, prefix)
 			if err != nil {
 				continue
+			}
+			entries = append(entries, EventStreamEntry{
+				Seq:  seq,
+				Data: append(json.RawMessage(nil), v...),
+			})
+		}
+		return nil
+	})
+	return entries, hasMore, err
+}
+
+// LoadEventsAfter returns up to limit events of a session whose sequence number
+// is strictly greater than afterSeq, oldest first (FEATURE-542). It is the
+// forward counterpart of LoadEvents: a reconnecting browser sends back the
+// highest seq it saw and receives exactly the events it missed, so a tail
+// recall and a continuous read are the same path (R3).
+//
+// The returned entries are read one by one and never cached, so the backend
+// keeps no history in memory.
+func (s *Store) LoadEventsAfter(sessionID string, afterSeq, limit int) ([]EventStreamEntry, bool, error) {
+	if sessionID == "" {
+		return nil, false, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	var entries []EventStreamEntry
+	hasMore := false
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(eventStreamBucket))
+		if bucket == nil {
+			return nil
+		}
+		prefix := eventStreamPrefix(sessionID)
+		cursor := bucket.Cursor()
+		for k, v := cursor.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, v = cursor.Next() {
+			seq, err := parseEventSeq(k, prefix)
+			if err != nil || seq <= afterSeq || v == nil {
+				continue
+			}
+			if len(entries) >= limit {
+				hasMore = true
+				break
 			}
 			entries = append(entries, EventStreamEntry{
 				Seq:  seq,

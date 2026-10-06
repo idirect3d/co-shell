@@ -76,6 +76,12 @@ type Agent struct {
 	// FEATURE-579 plan C slim-down of <environment_details>.
 	envState envAgentState
 
+	// userPresenceProvider reports whether a user is reachable right now
+	// (FEATURE-542). The web session registers it (a directly connected browser
+	// counts, the hub link does not); nil in stdio/REPL mode, where the terminal
+	// user is always present.
+	userPresenceProvider func() bool
+
 	mu                  sync.Mutex
 	llmClient           llm.Client
 	mcpMgr              *mcp.Manager
