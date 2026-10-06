@@ -8,20 +8,20 @@
 
 > **版本**: v0.98.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（已合并 main，标签 v0.98.0）
 > **里程碑**: result-mode（minimal/explain/analyze/free）此前已失效——配置项仍可设置，但 `{RESULT_MODE_INSTRUCTION}` 占位符已无任何节文本引用，指令永不注入系统提示词；`resultModeInstruction()` / `env.resultModeInstruction` / 占位符替换逻辑均为死代码。本次把 result-mode 从「已失效的静态指令注入」重构为「元能力 + env_details 动态注入 + 完整话术按需查询」机制，重新定义为「LLM 如何组织语言和话术风格」，并新增 machine 档，共 5 档：minimal(极简叙述) / explain(白话解释) / analyze(详细分析) / free(自由发挥) / machine(机器语言)。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-610 | 0.98.0 | P1 | result-mode 机制重构：新增 cap.result-mode 元能力（5 档话术规则）+ env_details 注入 <result_mode> + 清理死代码 + 新增 machine 档 |
 
-> 当前 BUILD: 1223
+> 当前 BUILD: 1228
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-610 result-mode 机制重构（元能力 + env_details 动态注入）**
+- [x] **FEATURE-610 result-mode 机制重构（元能力 + env_details 动态注入）** [BUILD-1228]
   - 背景：result-mode 配置项仍可设置（CLI/`:set`/Web UI/LLM 工具），但 `{RESULT_MODE_INSTRUCTION}` 占位符已无任何节文本引用，指令永不注入系统提示词；`resultModeInstruction()` / `env.resultModeInstruction` / 占位符替换逻辑均为死代码。
   - 需求（用户确认）：① 采用方案 C——env_details 注入当前档位值 + META-CAPABILITIES 索引常驻简短描述 + 完整话术放 Detail 按需查询；② 5 档沿用现有顺序追加 machine：minimal(极简叙述)/explain(白话解释)/analyze(详细分析)/free(自由发挥)/machine(机器语言)；③ 保留现有 result_mode 配置、`:set result-mode`、`--result-mode` 作为数据源，env_details 从它取值；④ 独立维度，不随 work mode 变化；⑤ 5 档简短描述放入 META-CAPABILITIES 索引中 cap.result-mode 的 Description（受 meta-capability-enabled 开关控制）；⑥ 清理旧死代码；⑦ 切换 result-mode 不需要重建 system prompt（仅改 agent 字段，env_details 每轮动态注入）。
   - 决策（用户拍板）：版本 v0.98.0（minor 递增），任务编号 FEATURE-610，分支 FEATURE-610。
