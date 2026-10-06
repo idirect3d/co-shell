@@ -52,9 +52,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.97.0"
+const version = "0.98.0"
 
-const build = "1223"
+const build = "1228"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -280,7 +280,7 @@ func parseFlags() cliFlags {
 
 	flag.StringVar(&f.confirmTool, "confirm-tool", "", "Require confirmation before tool calls (on/off, overrides config file)")
 	flag.BoolVar(&f.yolo, "yolo", false, "YOLO mode: auto-approve all tool calls without confirmation (default off)")
-	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free, overrides config file)")
+	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free/machine, overrides config file)")
 
 	// Agent identity parameters
 	flag.StringVar(&f.description, "description", "", "Set agent description/expertise (overrides config file)")
@@ -804,7 +804,7 @@ func main() {
 		if mode, ok := config.ParseResultMode(flags.resultMode); ok {
 			cfg.LLM.ResultMode = int(mode)
 		} else {
-			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
+			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free/machine\n", flags.resultMode)
 		}
 	}
 
@@ -1449,8 +1449,9 @@ func main() {
 		ModelName: modelName,
 	})
 
-	// Apply result mode BEFORE restoring session, because SetResultMode
-	// resets a.messages to [{system}] which would destroy restored messages.
+	// Apply result mode. FEATURE-610: SetResultMode no longer rebuilds the
+	// system prompt or resets a.messages, so ordering vs RestoreSession is
+	// no longer critical; it only sets the <result_mode> env hint.
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 
 	// Restore previous session if available

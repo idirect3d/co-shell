@@ -447,7 +447,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				h.agent.SetConfig(h.cfg)
 				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", "on")
 			}},
-		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free"}, CurrentValue: func() string {
+		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free", "machine"}, CurrentValue: func() string {
 			return config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
 		}, SetValue: func(v string) (string, error) {
 			if mode, ok := config.ParseResultMode(v); ok {

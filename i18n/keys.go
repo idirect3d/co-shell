@@ -2560,6 +2560,9 @@ const (
 	KeyCapCategoryProblem = "cap_category_problem"
 	KeyCapCategoryCollab  = "cap_category_collab"
 	KeyCapCategoryContext = "cap_category_context"
+	// FEATURE-610: result-mode has its own category (输出话术 / Output Style),
+	// moved out of Self-Modification where it did not belong.
+	KeyCapCategoryOutput = "cap_category_output"
 
 	// Meta-capability: self-modify (FEATURE-466).
 	KeyCapSelfModifyName   = "cap_self_modify_name"
@@ -2590,6 +2593,11 @@ const (
 	KeyCapSelfConfigName   = "cap_self_config_name"
 	KeyCapSelfConfigDesc   = "cap_self_config_desc"
 	KeyCapSelfConfigDetail = "cap_self_config_detail"
+
+	// Meta-capability: result-mode (FEATURE-610).
+	KeyCapResultModeName   = "cap_result_mode_name"
+	KeyCapResultModeDesc   = "cap_result_mode_desc"
+	KeyCapResultModeDetail = "cap_result_mode_detail"
 
 	// Environment-awareness section (FEATURE-482): a static block appended to
 	// the META-CAPABILITIES index describing the capabilities the agent can

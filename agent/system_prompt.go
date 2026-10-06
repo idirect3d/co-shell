@@ -499,7 +499,6 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{USER_NAME}", env.userName)
 	text = strings.ReplaceAll(text, "{USER_DESCRIPTION}", env.userDescription)
 	text = strings.ReplaceAll(text, "{CHANNEL}", env.channelInfo)
-	text = strings.ReplaceAll(text, "{RESULT_MODE_INSTRUCTION}", env.resultModeInstruction)
 	text = strings.ReplaceAll(text, "{OS}", env.os)
 	text = strings.ReplaceAll(text, "{ARCH}", env.arch)
 	text = strings.ReplaceAll(text, "{SHELL}", env.shell)
@@ -535,7 +534,6 @@ type promptEnv struct {
 	userName              string
 	userDescription       string
 	channelInfo           string
-	resultModeInstruction string
 	// contextReorganizeThreshold is the configured token-usage percentage that
 	// triggers an automatic reorganize_context suggestion (FEATURE-472).
 	contextReorganizeThreshold string
@@ -799,7 +797,6 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	env.channelInfo = displayChannel
 	env.taskDesc = taskDesc
 	env.customRules = rules
-	env.resultModeInstruction = resultModeInstruction(mode)
 	// FEATURE-472: expose the configured context-reorganize-threshold percentage
 	// (default 80) so the RULES section can tell the LLM when to proactively
 	// reorganize context before the system forces it.
@@ -904,17 +901,4 @@ func buildVisionIdentityPrompt(cfg *config.Config, dir string) string {
 	return buildNamedSection("Identity", env, cfg, false, nil, false)
 }
 
-func resultModeInstruction(mode config.ResultMode) string {
-	switch mode {
-	case config.ResultModeMinimal:
-		return i18n.T(i18n.KeyCmdExecOkNoRepeat)
-	case config.ResultModeExplain:
-		return `When you execute a system command and receive its output, provide a brief explanation of what the output means. Keep your explanation concise (2-3 sentences max). Focus on the key information the user would want to know.`
-	case config.ResultModeAnalyze:
-		return `When you execute a system command and receive its output, perform a thorough analysis. Explain patterns, anomalies, and implications in detail. Provide actionable insights and recommendations based on the output.`
-	case config.ResultModeFree:
-		return `You have full autonomy to decide how to present command execution results. Use your judgment to determine the best way to respond based on the context and the user's needs.`
-	default:
-		return ""
-	}
-}
+

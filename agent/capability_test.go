@@ -66,6 +66,37 @@ func TestMetaCapabilityIndex_EnvAwareness(t *testing.T) {
 	if !strings.Contains(index, "服务模式感知") || !strings.Contains(index, "用户动态感知") || !strings.Contains(index, "模型参数感知") {
 		t.Errorf("environment-awareness section missing expected sub-items:\n%s", index)
 	}
+	// FEATURE-610: the output-style awareness entry was added because
+	// <result_mode> is carried by every message's <environment_details>.
+	if !strings.Contains(index, "输出风格感知") {
+		t.Errorf("environment-awareness section missing 输出风格感知 (FEATURE-610):\n%s", index)
+	}
+}
+
+// TestMetaCapabilityIndex_ResultMode verifies cap.result-mode is listed in the
+// index with its 5-level short description (FEATURE-610).
+func TestMetaCapabilityIndex_ResultMode(t *testing.T) {
+	i18n.Init("zh")
+	index := buildMetaCapabilityIndex()
+	if !strings.Contains(index, "cap.result-mode") {
+		t.Errorf("index missing cap.result-mode:\n%s", index)
+	}
+	// The 5-level short description must be present in the index.
+	for _, want := range []string{"minimal", "explain", "analyze", "free", "machine"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("index missing result-mode level %q:\n%s", want, index)
+		}
+	}
+	// FEATURE-610: cap.result-mode now lives under its own 【输出话术】 category
+	// (moved out of 【自我改造】, where it did not belong).
+	catIdx := strings.Index(index, "【输出话术】")
+	rmIdx := strings.Index(index, "cap.result-mode")
+	if catIdx < 0 {
+		t.Errorf("index missing 【输出话术】 category:\n%s", index)
+	}
+	if catIdx >= 0 && rmIdx <= catIdx {
+		t.Errorf("cap.result-mode should be listed under 【输出话术】:\n%s", index)
+	}
 }
 
 // TestFindMetaCapabilityByID verifies exact ID lookup.
@@ -84,6 +115,24 @@ func TestFindMetaCapabilityByID(t *testing.T) {
 	// Unknown ID returns nil.
 	if findMetaCapabilityByID("cap.nonexistent") != nil {
 		t.Error("unknown ID should return nil")
+	}
+}
+
+// TestFindMetaCapabilityByID_ResultMode verifies cap.result-mode lookup returns
+// the full 5-level detail text (FEATURE-610).
+func TestFindMetaCapabilityByID_ResultMode(t *testing.T) {
+	i18n.Init("zh")
+	c := findMetaCapabilityByID("cap.result-mode")
+	if c == nil {
+		t.Fatal("cap.result-mode should be found")
+	}
+	if c.Detail == "" {
+		t.Error("cap.result-mode detail should not be empty")
+	}
+	for _, want := range []string{"minimal", "explain", "analyze", "free", "machine"} {
+		if !strings.Contains(c.Detail, want) {
+			t.Errorf("cap.result-mode detail missing level %q:\n%s", want, c.Detail)
+		}
 	}
 }
 

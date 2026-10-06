@@ -1510,6 +1510,9 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 	enMessages[KeyCapCategoryProblem] = `Problem Solving`
 	enMessages[KeyCapCategoryCollab] = `Collaboration`
 	enMessages[KeyCapCategoryContext] = `Context Management`
+	// FEATURE-610: result-mode gets its own category, moved out of
+	// Self-Modification where it did not belong.
+	enMessages[KeyCapCategoryOutput] = `Output Style`
 
 	// Meta-capability: self-modify (FEATURE-466).
 	enMessages[KeyCapSelfModifyName] = `Self-Modification`
@@ -1624,6 +1627,35 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 - Settings are persisted to config.json
 `
 
+	// Meta-capability: result-mode (FEATURE-610).
+	enMessages[KeyCapResultModeName] = `Result Output Style`
+	enMessages[KeyCapResultModeDesc] = `Adjust output style per the per-turn <result_mode> tag: minimal=conclusion only; explain=plain-language explanation; analyze=deep analysis with insights; free=fully autonomous; machine=structured machine-readable (JSON/key-value/table). See introspect_capability for per-level differences, examples and notes`
+	enMessages[KeyCapResultModeDetail] = `# Result Output Style (cap.result-mode)
+
+Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your language according to that level:
+
+## Level rules
+- **minimal (conclusion only)**: Give the conclusion, no elaboration. After an operation, output only a one-line success/failure confirmation; do not repeat the output, explain why, or analyze.
+  - ✅ Good: "✅ Command executed successfully" / "❌ Failed: <reason>"
+  - ❌ Bad: "✅ Command executed successfully, because ... (elaborating)"
+- **explain (plain-language)**: Explain the result in plain language. After output, use 2-3 plain sentences to explain the meaning, focusing on the key information the user cares about; avoid jargon.
+  - ✅ Good: "✅ Build passed. This change adds feature X, affecting module Y."
+  - ❌ Bad: "✅ Build passed" (too terse, no explanation)
+- **analyze (deep analysis)**: Analyze for insights. Analyze patterns, anomalies, and implications in the output in detail, providing actionable insights and recommendations with a clear structure.
+  - ✅ Good: "✅ Build passed. But test Z failed, possibly related to this change; suggest ..." (analysis + recommendation)
+  - ❌ Bad: "✅ Build passed" (no analysis)
+- **free (autonomous)**: Decide freely. Choose the best presentation based on context and user needs; no fixed format.
+  - ✅ Good: Decide autonomously based on context; no fixed format
+  - ❌ Bad: None (free level has no counter-example)
+- **machine (structured machine-readable)**: Prefer structured output (JSON/key-value/table/raw data), allowing a little natural-language filler, no redundant decoration. Good for data export, automation pipelines, program consumption.
+  - ✅ Good: {"status":"ok","build":1226}
+  - ❌ Bad: "✅ Build succeeded! That compile went smoothly~" (redundant decoration)
+
+## Notes
+- The level is injected dynamically via <result_mode>; switching levels does not rebuild the system prompt
+- If <result_mode> is missing, default to minimal (conclusion only)
+`
+
 	// Environment-awareness section (FEATURE-482): static block appended to the
 	// META-CAPABILITIES index describing capabilities perceivable directly from
 	// <environment_details>.
@@ -1634,6 +1666,7 @@ The following capabilities need no tool call — they are perceivable directly f
 - Service-mode awareness: <service_mode> in <runtime_info> tells how you are running (stdio=single command / enhanced=interactive REPL / serve=web UI); serve mode also carries <serve_port>/<serve_bind>/<serve_whitelist>; <model_name> tells the API model name the current message is sent to.
 - User-dynamic awareness: <user_dynamic_events> carries the user's real-time actions (drag-drop files, copied screenshots, supplemental messages, opened/previewed files, etc.), reflecting the user's current thinking path — adjust your response accordingly.
 - Model-parameter awareness: <context_window> shows current token usage and limit, <current_mode> shows the active work mode (act/plan/research) — use these to judge remaining context and behavioral boundaries.
+- Output-style awareness: <result_mode> indicates the current output-style level (injected with every message; may be overridden by a <result_mode> tag embedded in the current message). See cap.result-mode for the phrasing rules.
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
@@ -1662,6 +1695,7 @@ RULES
 
 - By default, respond in the language specified by <lang> in <system_info>.
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
+- Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your reply strictly according to that level: minimal=conclusion only, no elaboration; explain=plain-language explanation; analyze=deep analysis; free=autonomous; machine=structured machine-readable.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
 
 {CUSTOM_RULES}

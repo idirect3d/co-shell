@@ -106,7 +106,13 @@ type Agent struct {
 
 	cfg          *config.Config // configuration for timeout settings
 	resultMode   config.ResultMode
-	modelManager *config.ModelManager // model manager for multi-model switching
+	// perTurnResultMode is a per-turn override parsed from the user's message
+	// (e.g. a <result_mode>machine</result_mode> tag). It takes precedence over
+	// resultMode for the current turn only and is cleared at the end of the turn
+	// (FEATURE-610 P1).
+	perTurnResultMode    config.ResultMode
+	perTurnResultModeSet bool // true when perTurnResultMode was explicitly set this turn
+	modelManager         *config.ModelManager // model manager for multi-model switching
 
 	// Output control switches (ENHANCEMENT-126)
 	showLlmThinking   bool

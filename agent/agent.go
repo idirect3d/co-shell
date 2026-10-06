@@ -2043,66 +2043,65 @@ func (a *Agent) SetScheduler(s *scheduler.Scheduler) { a.scheduler = s }
 func (a *Agent) Scheduler() *scheduler.Scheduler     { return a.scheduler }
 
 func (a *Agent) SetResultMode(mode config.ResultMode) {
-	// Build system prompt outside the lock to avoid deadlock:
-	// getCurrentTaskDescription() acquires a.mu internally.
+	// FEATURE-610: result-mode no longer changes the system prompt. It is a
+	// per-message output-style hint injected into <environment_details> as
+	// <result_mode>, so switching it only updates the agent field. The full
+	// per-mode rules live in the cap.result-mode meta-capability.
 	a.mu.Lock()
 	a.resultMode = mode
 	a.mu.Unlock()
+	log.Info("Result mode set to %s", config.ResultModeString(mode))
+}
 
-	workMode := ""
-	id := promptIdentity{}
-	channel := ""
-	if a.cfg != nil {
-		id.Name = ResolveAgentName(a.identityDir())
-		workMode = a.cfg.LLM.WorkMode
-		id.Description = ResolveAgentDescription(a.identityDir())
-		id.Principles = a.resolveAgentPrinciples()
-		id.UserName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
-		// FEATURE-535: the user description now reaches the prompt.
-		id.UserDescription = ResolveUserDescription(a.identityDir())
-		channel = a.cfg.LLM.Channel
-		// Fall back to mode-specific i18n description
-		if id.Description == "" {
-			switch workMode {
-			case "plan":
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
-			case "research":
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
-			default:
-				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
-			}
-		}
-		// Fall back to global i18n description
-		if id.Description == "" {
-			id.Description = i18n.T(i18n.KeyAgentDefaultDescription)
-		}
-	}
-
-	toolUsageText := ""
-	if a.toolCallModeMgr != nil {
-		mode := a.toolCallModeMgr.Mode()
-		if mode == ToolCallModeXML {
-			tools := a.buildToolsInternal()
-			lang := string(i18n.GetLang())
-			workMode := ""
-			if a.cfg != nil {
-				workMode = a.cfg.LLM.WorkMode
-			}
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, a.intentExposureEnabled, workMode)
-		}
-	}
-
-	taskPlanText := a.getTaskPlanText()
-	taskDesc := a.getCurrentTaskDescription()
-
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, id, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
-
+// effectiveResultMode returns the result mode that should be injected into the
+// current turn's <environment_details>. A per-turn override (parsed from the
+// user's message) takes precedence over the persistent resultMode; otherwise
+// the persistent value is used (FEATURE-610 P1).
+func (a *Agent) effectiveResultMode() config.ResultMode {
 	a.mu.Lock()
-	a.messages = []llm.Message{
-		{Role: "system", Content: a.systemPrompt},
+	defer a.mu.Unlock()
+	if a.perTurnResultModeSet {
+		return a.perTurnResultMode
 	}
+	return a.resultMode
+}
+
+// clearPerTurnResultMode resets the per-turn result-mode override so it does
+// not leak into a subsequent turn (FEATURE-610 P1).
+func (a *Agent) clearPerTurnResultMode() {
+	a.mu.Lock()
+	a.perTurnResultMode = config.ResultModeMinimal
+	a.perTurnResultModeSet = false
 	a.mu.Unlock()
-	log.Info("Result mode set to %s, system prompt rebuilt", config.ResultModeString(mode))
+}
+
+// parsePerTurnResultMode scans the user's message for a <result_mode>xxx</result_mode>
+// tag and, when present and valid, sets a per-turn override that takes precedence
+// over the persistent resultMode for this turn only (FEATURE-610 P1).
+// An invalid value is ignored (the persistent resultMode stays in effect).
+func (a *Agent) parsePerTurnResultMode(userInput string) {
+	const open = "<result_mode>"
+	const close = "</result_mode>"
+	i := strings.Index(userInput, open)
+	if i < 0 {
+		return
+	}
+	rest := userInput[i+len(open):]
+	j := strings.Index(rest, close)
+	if j < 0 {
+		return
+	}
+	val := strings.TrimSpace(rest[:j])
+	mode, ok := config.ParseResultMode(val)
+	if !ok {
+		log.Warn("parsePerTurnResultMode: ignoring invalid <result_mode> value %q", val)
+		return
+	}
+	a.mu.Lock()
+	a.perTurnResultMode = mode
+	a.perTurnResultModeSet = true
+	a.mu.Unlock()
+	log.Info("Per-turn result mode override set to %s", config.ResultModeString(mode))
 }
 
 func (a *Agent) getToolTimeout() time.Duration {
