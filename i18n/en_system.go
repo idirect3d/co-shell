@@ -1510,6 +1510,9 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 	enMessages[KeyCapCategoryProblem] = `Problem Solving`
 	enMessages[KeyCapCategoryCollab] = `Collaboration`
 	enMessages[KeyCapCategoryContext] = `Context Management`
+	// FEATURE-610: result-mode gets its own category, moved out of
+	// Self-Modification where it did not belong.
+	enMessages[KeyCapCategoryOutput] = `Output Style`
 
 	// Meta-capability: self-modify (FEATURE-466).
 	enMessages[KeyCapSelfModifyName] = `Self-Modification`
@@ -1626,7 +1629,7 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 
 	// Meta-capability: result-mode (FEATURE-610).
 	enMessages[KeyCapResultModeName] = `Result Output Style`
-	enMessages[KeyCapResultModeDesc] = `Phrase output per the <result_mode> level (minimal=conclusion only; explain=plain-language; analyze=deep analysis; free=autonomous; machine=structured machine-readable)`
+	enMessages[KeyCapResultModeDesc] = `Adjust output style per the per-turn <result_mode> tag: minimal=conclusion only; explain=plain-language explanation; analyze=deep analysis with insights; free=fully autonomous; machine=structured machine-readable (JSON/key-value/table). See introspect_capability for per-level differences, examples and notes`
 	enMessages[KeyCapResultModeDetail] = `# Result Output Style (cap.result-mode)
 
 Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your language according to that level:
@@ -1663,6 +1666,7 @@ The following capabilities need no tool call — they are perceivable directly f
 - Service-mode awareness: <service_mode> in <runtime_info> tells how you are running (stdio=single command / enhanced=interactive REPL / serve=web UI); serve mode also carries <serve_port>/<serve_bind>/<serve_whitelist>; <model_name> tells the API model name the current message is sent to.
 - User-dynamic awareness: <user_dynamic_events> carries the user's real-time actions (drag-drop files, copied screenshots, supplemental messages, opened/previewed files, etc.), reflecting the user's current thinking path — adjust your response accordingly.
 - Model-parameter awareness: <context_window> shows current token usage and limit, <current_mode> shows the active work mode (act/plan/research) — use these to judge remaining context and behavioral boundaries.
+- Output-style awareness: <result_mode> indicates the current output-style level (injected with every message; may be overridden by a <result_mode> tag embedded in the current message). See cap.result-mode for the phrasing rules.
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)

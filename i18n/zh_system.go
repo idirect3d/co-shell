@@ -1495,6 +1495,8 @@ META-CAPABILITIES
 	zhMessages[KeyCapCategoryProblem] = `问题解决`
 	zhMessages[KeyCapCategoryCollab] = `协作`
 	zhMessages[KeyCapCategoryContext] = `上下文管理`
+	// FEATURE-610: result-mode gets its own category, moved out of 自我改造.
+	zhMessages[KeyCapCategoryOutput] = `输出话术`
 
 	// Meta-capability: self-modify (FEATURE-466).
 	zhMessages[KeyCapSelfModifyName] = `自我改造`
@@ -1611,7 +1613,7 @@ META-CAPABILITIES
 
 	// Meta-capability: result-mode (FEATURE-610).
 	zhMessages[KeyCapResultModeName] = `结果输出风格`
-	zhMessages[KeyCapResultModeDesc] = `按 <result_mode> 档位决定输出话术风格（minimal=只给结论不展开; explain=通俗讲清; analyze=深入分析; free=自主决定; machine=结构化机器可读）`
+	zhMessages[KeyCapResultModeDesc] = `按每轮 <result_mode> 标签调整输出话术风格：minimal=只给结论不展开；explain=白话解释讲清含义；analyze=深入分析给洞察与建议；free=完全自主决定；machine=结构化机器可读（JSON/键值对/表格）。各档差异、正反例与注意事项见 introspect_capability 详情`
 	zhMessages[KeyCapResultModeDetail] = `# 结果输出风格（cap.result-mode）
 
 每条消息的 <environment_details> 会携带 <result_mode> 标签，指示当前输出话术风格。请按该档位组织语言：
@@ -1648,6 +1650,7 @@ META-CAPABILITIES
 - 服务模式感知：<runtime_info> 中的 <service_mode> 表明当前运行方式（stdio=单次命令 / enhanced=交互式 REPL / serve=Web UI），serve 模式还含 <serve_port>/<serve_bind>/<serve_whitelist>；<model_name> 表明当前消息发送给模型的 API 模型名。
 - 用户动态感知：<user_dynamic_events> 携带用户实时动作（拖拽文件、复制截图、补充消息、打开/预览文件等），反映用户当前思考路径，应据此调整响应。
 - 模型参数感知：<context_window> 显示当前 token 用量与上限，<current_mode> 表明当前工作模式（act/plan/research），据此判断上下文余量与行为边界。
+- 输出风格感知：<result_mode> 表明当前输出话术档位（随每条消息注入，可能被当轮消息内嵌的 <result_mode> 覆盖），各档话术规则见 cap.result-mode。
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)

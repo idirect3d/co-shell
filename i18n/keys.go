@@ -2560,6 +2560,9 @@ const (
 	KeyCapCategoryProblem = "cap_category_problem"
 	KeyCapCategoryCollab  = "cap_category_collab"
 	KeyCapCategoryContext = "cap_category_context"
+	// FEATURE-610: result-mode has its own category (输出话术 / Output Style),
+	// moved out of Self-Modification where it did not belong.
+	KeyCapCategoryOutput = "cap_category_output"
 
 	// Meta-capability: self-modify (FEATURE-466).
 	KeyCapSelfModifyName   = "cap_self_modify_name"

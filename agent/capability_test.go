@@ -66,6 +66,11 @@ func TestMetaCapabilityIndex_EnvAwareness(t *testing.T) {
 	if !strings.Contains(index, "服务模式感知") || !strings.Contains(index, "用户动态感知") || !strings.Contains(index, "模型参数感知") {
 		t.Errorf("environment-awareness section missing expected sub-items:\n%s", index)
 	}
+	// FEATURE-610: the output-style awareness entry was added because
+	// <result_mode> is carried by every message's <environment_details>.
+	if !strings.Contains(index, "输出风格感知") {
+		t.Errorf("environment-awareness section missing 输出风格感知 (FEATURE-610):\n%s", index)
+	}
 }
 
 // TestMetaCapabilityIndex_ResultMode verifies cap.result-mode is listed in the
@@ -81,6 +86,16 @@ func TestMetaCapabilityIndex_ResultMode(t *testing.T) {
 		if !strings.Contains(index, want) {
 			t.Errorf("index missing result-mode level %q:\n%s", want, index)
 		}
+	}
+	// FEATURE-610: cap.result-mode now lives under its own 【输出话术】 category
+	// (moved out of 【自我改造】, where it did not belong).
+	catIdx := strings.Index(index, "【输出话术】")
+	rmIdx := strings.Index(index, "cap.result-mode")
+	if catIdx < 0 {
+		t.Errorf("index missing 【输出话术】 category:\n%s", index)
+	}
+	if catIdx >= 0 && rmIdx <= catIdx {
+		t.Errorf("cap.result-mode should be listed under 【输出话术】:\n%s", index)
 	}
 }
 

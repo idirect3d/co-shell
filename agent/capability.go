@@ -84,7 +84,9 @@ func metaCapabilityCategory(id string) string {
 	case "cap.context-management":
 		return i18n.T(i18n.KeyCapCategoryContext)
 	case "cap.result-mode":
-		return i18n.T(i18n.KeyCapCategorySelf)
+		// FEATURE-610: its own category (输出话术 / Output Style) — result-mode
+		// is an output-phrasing concern, not self-modification.
+		return i18n.T(i18n.KeyCapCategoryOutput)
 	default:
 		return ""
 	}
