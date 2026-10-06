@@ -110,6 +110,10 @@ type clientMessage struct {
 	// groups to return (default 20); Before is the sequence cursor to page from.
 	Count  int `json:"count,omitempty"`
 	Before int `json:"before,omitempty"`
+	// FEATURE-542: with After > 0 the client asks for every event newer than that
+	// store sequence (incremental catch-up after a reconnect) instead of a tail
+	// page measured in message groups.
+	After int `json:"after,omitempty"`
 
 	// FEATURE-571: ui_window_state — the frontend reports every window change
 	// (close, activate, surface flip) and the full list on connect, so the
@@ -162,6 +166,15 @@ type clientMessage struct {
 	// on every resize. Strictly an enhancement: older clients never send them.
 	ViewportW int `json:"viewport_w,omitempty"`
 	ViewportH int `json:"viewport_h,omitempty"`
+
+	// FEATURE-542: filled in by the server from the connection the message
+	// arrived on (never sent by the client), so the session can record which端
+	// issued the instruction and echo it back in the YOU block.
+	Source   string `json:"-"`
+	SourceID string `json:"-"`
+	// QueueSeq is the FIFO position assigned on enqueue (FEATURE-542, GAP-3).
+	// Named QueueSeq because Seq already carries the board_message hub sequence.
+	QueueSeq int `json:"-"`
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
@@ -177,22 +190,29 @@ type eventJSON struct {
 	// instead of the moment the browser painted the block (which made every
 	// replayed line show the same clock value).
 	Ts int64 `json:"ts,omitempty"`
+	// FEATURE-542: the store sequence this event was persisted under, stamped on
+	// live frames and on history pages. A client keeps the highest value it has
+	// seen and asks for everything after it when reconnecting, so a reconnect
+	// becomes an incremental catch-up instead of a blind rebuild (R3). Omitted for
+	// events that are never persisted (await_input, turn_start, ui_text, ...).
+	Seq int `json:"seq,omitempty"`
 }
 
 // serverMessage is a server-to-browser WebSocket message.
 type serverMessage struct {
-	Kind        string          `json:"kind"`                  // "event" | "ask" | "interaction" | "state" | "sessions" | "settings" | "settings_result" | "identity" | "identity_result"
+	Kind        string          `json:"kind"`                  // "event" | "state" | "sessions" | "settings" | "settings_result" | "identity" | "identity_result"
 	Event       *eventJSON      `json:"event,omitempty"`       // kind=event
-	ID          string          `json:"id,omitempty"`          // kind=ask / kind=interaction
-	Mode        string          `json:"mode,omitempty"`        // kind=ask: "line" | "key"
-	Interaction json.RawMessage `json:"interaction,omitempty"` // kind=interaction: the Interaction JSON
 	Plan        json.RawMessage `json:"plan"`                  // kind=state (null when no plan)
 	// FIX-511: kind=state also carries the agent's running state (agent.IsBusy)
 	// so a refreshed or reconnected browser can restore its running indicators
 	// (logo breathing, red ⏸ button, session-title highlight) instead of
 	// defaulting to idle. Pointer so that `false` is still serialised
 	// (omitempty alone would drop it).
-	Busy     *bool           `json:"busy,omitempty"`
+	Busy     *bool           `json:"busy,omitempty"` // FIX-511: kind=state carries the busy flag too
+	// FEATURE-542: kind=state also carries the label of the connection this frame
+	// was sent to ("端 N"), so the browser can tag its own YOU blocks with the
+	// same source label the event stream records.
+	Client   string          `json:"client,omitempty"`
 	Sessions []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
 	Settings json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
 	Identity json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
@@ -289,9 +309,19 @@ type ServerOptions struct {
 	SkillsSetFn func(body []byte) (string, error)
 }
 
-// Server is the embedded web server: HTTP routes + the single-client
-// WebSocket hub. The WebSession registers itself via SetMessageHandler to
-// receive browser input; the renderer/WebIO push events through sendJSON.
+// clientConn is one connected browser client: its WebSocket plus the identity
+// used to tag the messages it sends (FEATURE-542). Several tabs may be
+// connected at once, each keeping its own connection, and all of them receive
+// the same fan-out — a newly opened tab no longer evicts the previous one.
+type clientConn struct {
+	id    string // client-supplied id (WS query "client_id"), or a generated fallback
+	label string // human-readable source label ("端 1", "端 2", ...)
+	c     *wsConn
+}
+
+// Server is the embedded web server: HTTP routes + the multi-client WebSocket
+// hub. The WebSession registers itself via SetMessageHandler to receive browser
+// input; the renderer/WebIO push events through sendJSON.
 type Server struct {
 	root string
 	opts ServerOptions
@@ -301,21 +331,19 @@ type Server struct {
 	ln      net.Listener
 
 	mu      sync.Mutex
-	conn    *wsConn // current browser client (single-client hub)
+	conns   []clientConn // connected browser clients (FEATURE-542, multi-client)
+	connSeq int          // ordinal used to label connections ("端 N")
 	handler func(clientMessage)
 
 	// gwConn is the hub's own link (WS query role=hub, FEATURE-530). It lives in
 	// a separate slot so the hub's board/proxy link and a browser tab showing
-	// this agent's UI never evict each other.
+	// this agent's UI never evict each other. FEATURE-542: the browser side is a
+	// list and the gateway slot still never touches it.
 	gwConn *wsConn
 
-	// onDisconnect is called when the current client disconnects (pending
-	// ask requests must fail instead of blocking forever).
-	onDisconnect func()
-
-	// onConnect is called when a new client takes over the connection. In serve
-	// mode the hub dials in, so this fires on every hub (re)connect and lets the
-	// board re-announce this agent (FEATURE-530).
+	// onConnect is called when a new client connects. In serve mode the hub
+	// dials in, so this fires on every hub (re)connect and lets the board
+	// re-announce this agent (FEATURE-530).
 	onConnect func()
 
 	// planFn returns the current task plan as a JSON string ("" when none),
@@ -453,13 +481,6 @@ func (s *Server) SetMessageHandler(fn func(clientMessage)) {
 	s.mu.Unlock()
 }
 
-// SetDisconnectHook installs the client-disconnect callback.
-func (s *Server) SetDisconnectHook(fn func()) {
-	s.mu.Lock()
-	s.onDisconnect = fn
-	s.mu.Unlock()
-}
-
 // SetConnectHook installs the client-connect callback (FEATURE-530: the board
 // re-sends its registration whenever the hub link is (re)established).
 func (s *Server) SetConnectHook(fn func()) {
@@ -524,8 +545,18 @@ func (s *Server) Listen(port int) (string, error) {
 
 // Close shuts the server down and drops the current clients.
 func (s *Server) Close() error {
-	s.setConn(nil)
-	s.setGatewayConn(nil)
+	s.mu.Lock()
+	conns := s.conns
+	s.conns = nil
+	gw := s.gwConn
+	s.gwConn = nil
+	s.mu.Unlock()
+	for _, cc := range conns {
+		cc.c.Close()
+	}
+	if gw != nil {
+		gw.Close()
+	}
 	if s.ln != nil {
 		return s.ln.Close()
 	}
@@ -536,24 +567,54 @@ func (s *Server) Close() error {
 // Single-client WebSocket hub
 // ---------------------------------------------------------------------------
 
-// setConn replaces the current client; the old connection is closed (a
-// freshly opened browser tab takes over the session).
-func (s *Server) setConn(c *wsConn) {
+// addConn registers a freshly opened browser connection and returns its entry.
+// FEATURE-542: every tab keeps its own connection — unlike the old single-client
+// slot a new connection no longer closes (evicts) the previous one.
+func (s *Server) addConn(c *wsConn, clientID string) clientConn {
 	s.mu.Lock()
-	old := s.conn
-	s.conn = c
-	onDisc := s.onDisconnect
+	s.connSeq++
+	cc := clientConn{id: clientID, label: fmt.Sprintf("端 %d", s.connSeq), c: c}
+	if cc.id == "" {
+		cc.id = fmt.Sprintf("client-%d", s.connSeq)
+	}
+	s.conns = append(s.conns, cc)
 	onConn := s.onConnect
 	s.mu.Unlock()
-	if old != nil {
-		old.Close()
-		if onDisc != nil {
-			onDisc()
-		}
-	}
-	if c != nil && onConn != nil {
+	if onConn != nil {
 		onConn()
 	}
+	return cc
+}
+
+// removeConn drops one closed browser connection from the list. FEATURE-542: it
+// deliberately does NOT fail that client's pending interactions — a browser
+// that went away is only "temporarily unreachable", so the agent keeps waiting
+// for an answer instead of treating the user as gone forever (R7).
+func (s *Server) removeConn(c *wsConn) {
+	s.mu.Lock()
+	for i, cc := range s.conns {
+		if cc.c == c {
+			s.conns = append(s.conns[:i], s.conns[i+1:]...)
+			break
+		}
+	}
+	s.mu.Unlock()
+}
+
+// HasClient reports whether at least one browser client is connected
+// (FEATURE-542). The hub link (gwConn) deliberately does not count: it is only
+// a relay and may have no user behind it (design §9.2).
+func (s *Server) HasClient() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.conns) > 0
+}
+
+// ClientCount returns the number of connected browser clients (FEATURE-542).
+func (s *Server) ClientCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.conns)
 }
 
 // setGatewayConn replaces the hub gateway connection (role=hub). Unlike
@@ -583,46 +644,43 @@ func (s *Server) clearGatewayConn(c *wsConn) {
 	s.mu.Unlock()
 }
 
-// clearConn drops the client if it is still the current one.
-func (s *Server) clearConn(c *wsConn) {
-	s.mu.Lock()
-	if s.conn == c {
-		s.conn = nil
-	}
-	onDisc := s.onDisconnect
-	s.mu.Unlock()
-	if onDisc != nil {
-		onDisc()
-	}
-}
-
-// sendJSON marshals v and writes it to the current client. It returns false
-// when no browser is connected.
+// sendJSON marshals v and broadcasts it to every connected browser client
+// (FEATURE-542 fan-out). It returns true when at least one write was queued;
+// false means nobody was listening.
 func (s *Server) sendJSON(v serverMessage) bool {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return false
 	}
 	s.mu.Lock()
-	c := s.conn
-	s.mu.Unlock()
-	if c == nil {
-		return false
+	conns := make([]*wsConn, 0, len(s.conns))
+	for _, cc := range s.conns {
+		conns = append(conns, cc.c)
 	}
-	return c.WriteMessage(data) == nil
+	s.mu.Unlock()
+	ok := false
+	for _, c := range conns {
+		if c.WriteMessage(data) == nil {
+			ok = true
+		}
+	}
+	return ok
 }
 
 // sendEvent pushes one agent stream event to the browser.
 // sendRaw writes a raw JSON message to the hub link (role=hub gateway slot)
-// and to the browser client. Used by the board sender to push board_* messages
-// back to the hub (FEATURE-490); a browser client (agent UI) keeps receiving
-// them too, exactly as before the gateway slot existed.
+// and to every browser client. Used by the board sender to push board_* messages
+// back to the hub (FEATURE-490); browser clients (agent UI) keep receiving them
+// too, exactly as before the gateway slot existed.
 func (s *Server) sendRaw(data []byte) error {
 	s.mu.Lock()
 	gw := s.gwConn
-	c := s.conn
+	conns := make([]*wsConn, 0, len(s.conns))
+	for _, cc := range s.conns {
+		conns = append(conns, cc.c)
+	}
 	s.mu.Unlock()
-	if gw == nil && c == nil {
+	if gw == nil && len(conns) == 0 {
 		return errors.New("no web client connected")
 	}
 	var firstErr error
@@ -631,7 +689,7 @@ func (s *Server) sendRaw(data []byte) error {
 			firstErr = err
 		}
 	}
-	if c != nil {
+	for _, c := range conns {
 		if err := c.WriteMessage(data); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -640,26 +698,31 @@ func (s *Server) sendRaw(data []byte) error {
 }
 
 func (s *Server) sendEvent(ev agent.StreamEvent) bool {
+	return s.sendEventSeq(ev, 0)
+}
+
+// sendEventSeq pushes one event stamped with the store sequence it was persisted
+// under (FEATURE-542; 0 = not persisted, so it carries no cursor). A reconnecting
+// client sends back the highest seq it saw and receives exactly what it missed.
+func (s *Server) sendEventSeq(ev agent.StreamEvent, seq int) bool {
 	// FIX-549: stamp the frame with the moment it was emitted; newEventJSON falls
 	// back to now when the caller has no better time to offer.
-	return s.sendJSON(serverMessage{Kind: "event", Event: newEventJSON(ev, 0)})
+	ej := newEventJSON(ev, 0)
+	if seq > 0 {
+		ej.Seq = seq
+	}
+	return s.sendJSON(serverMessage{Kind: "event", Event: ej})
 }
 
-// sendAsk pushes an interactive question request to the browser.
-func (s *Server) sendAsk(id, mode string) bool {
-	return s.sendJSON(serverMessage{Kind: "ask", ID: id, Mode: mode})
-}
-
-// sendInteraction pushes a structured interaction request to the browser.
-// inJSON is the marshaled agent.Interaction payload (FEATURE-388).
-func (s *Server) sendInteraction(id string, inJSON json.RawMessage) bool {
-	return s.sendJSON(serverMessage{Kind: "interaction", ID: id, Interaction: inJSON})
-}
+// NOTE (FEATURE-542): the former sendAsk/sendInteraction direct frames were
+// removed. Interactive requests now travel as the persisted interaction_request
+// event (GAP-1), so every client gets them through the same fan-out path as any
+// other event and a reconnecting browser can replay them.
 
 // sendState pushes the current task plan and running state snapshot to one
 // freshly connected client. It runs on every connection, so a page refresh and
 // a manual reconnect both resynchronise the browser with the backend.
-func (s *Server) sendState(c *wsConn) {
+func (s *Server) sendState(c *wsConn, label string) {
 	s.mu.Lock()
 	fn := s.planFn
 	busyFn := s.busyFn
@@ -679,7 +742,7 @@ func (s *Server) sendState(c *wsConn) {
 	if busyFn != nil {
 		busy = busyFn()
 	}
-	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan, Busy: &busy})
+	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan, Busy: &busy, Client: label})
 	if err != nil {
 		return
 	}
@@ -697,11 +760,18 @@ func (s *Server) sendState(c *wsConn) {
 	}
 }
 
-// dispatch routes one browser message to the registered handler.
-func (s *Server) dispatch(raw []byte) {
+// dispatch routes one browser message to the registered handler. src is the
+// connection the message arrived on (zero value for the hub link); FEATURE-542
+// tags the message with its source so the event stream records which端 issued
+// the instruction.
+func (s *Server) dispatch(raw []byte, src clientConn) {
 	var msg clientMessage
 	if err := json.Unmarshal(raw, &msg); err != nil {
 		return
+	}
+	if src.c != nil {
+		msg.Source = src.label
+		msg.SourceID = src.id
 	}
 	s.mu.Lock()
 	h := s.handler
@@ -724,6 +794,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gateway := r.URL.Query().Get("role") == gatewayRole
+	var src clientConn
 	if gateway {
 		s.setGatewayConn(c)
 		// FIX-475: close the connection when the read loop ends so the async
@@ -731,17 +802,20 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		defer c.Close()
 		defer s.clearGatewayConn(c)
 	} else {
-		s.setConn(c)
-		s.sendState(c)
+		// FEATURE-542: several browsers may be connected at once; each gets its
+		// own entry and they all receive the same fan-out. The source label is
+		// attached to every message this connection sends.
+		src = s.addConn(c, r.URL.Query().Get("client_id"))
+		s.sendState(c, src.label)
 		defer c.Close()
-		defer s.clearConn(c)
+		defer s.removeConn(c)
 	}
 	for {
 		msg, err := c.ReadMessage()
 		if err != nil {
 			return
 		}
-		s.dispatch(msg)
+		s.dispatch(msg, src)
 	}
 }
 

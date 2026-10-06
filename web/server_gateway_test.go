@@ -13,7 +13,6 @@ package web
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"net/http/httptest"
 	"strings"
@@ -76,10 +75,10 @@ func readFrameWithin(c *wsTestClient, d time.Duration) ([]byte, error) {
 	return payload, err
 }
 
-// TestGatewayLinkCoexistsWithBrowser covers the FEATURE-530 fix: a browser
-// client must not evict the hub gateway link, board frames reach both, and a
-// second browser still takes over the first browser (single-client semantics
-// kept for browsers only).
+// TestGatewayLinkCoexistsWithBrowser covers the FEATURE-530 fix (a browser client
+// must not evict the hub gateway link, and board frames reach both) together with
+// the FEATURE-542 change: browsers no longer evict each other either — every tab
+// keeps its own connection and all of them receive the same fan-out.
 func TestGatewayLinkCoexistsWithBrowser(t *testing.T) {
 	s := NewServer(t.TempDir(), ServerOptions{})
 	srv := httptest.NewServer(s.mux)
@@ -89,7 +88,7 @@ func TestGatewayLinkCoexistsWithBrowser(t *testing.T) {
 	waitUntil(t, "gateway slot", func() bool { return s.gwConn != nil })
 
 	b1 := dialWSPath(t, srv, "/ws")
-	waitUntil(t, "browser slot", func() bool { return s.conn != nil })
+	waitUntil(t, "browser slot", func() bool { return s.HasClient() })
 
 	// The browser's initial state frame must arrive (browser path unchanged).
 	if payload, err := readFrameWithin(b1, 2*time.Second); err != nil {
@@ -102,8 +101,8 @@ func TestGatewayLinkCoexistsWithBrowser(t *testing.T) {
 	if s.gwConn == nil {
 		t.Fatal("browser client evicted the hub gateway link")
 	}
-	if s.gwConn == s.conn {
-		t.Fatal("gateway and browser must use different slots")
+	if !s.HasClient() {
+		t.Fatal("browser must be registered while the gateway link is up")
 	}
 
 	// board frames reach both the hub link and the browser.
@@ -121,37 +120,45 @@ func TestGatewayLinkCoexistsWithBrowser(t *testing.T) {
 		t.Errorf("browser frame = %s, want board_roster", payload)
 	}
 
-	// A second browser takes over the first one, but not the gateway link.
-	firstConn := s.conn
+	// FEATURE-542 (R5): a second browser does NOT take over the first one — every
+	// tab keeps its own connection and both receive the same fan-out.
 	b2 := dialWSPath(t, srv, "/ws")
-	waitUntil(t, "second browser takeover", func() bool { return s.conn != nil && s.conn != firstConn })
-	payload1, err1 := readFrameWithin(b1, 2*time.Second)
-	if err1 != io.EOF && !(err1 == nil && len(payload1) == 0) {
-		t.Errorf("first browser read = (%s, %v), want takeover (EOF or close frame)", payload1, err1)
-	}
+	waitUntil(t, "second browser", func() bool { return s.ClientCount() == 2 })
 	if payload, err := readFrameWithin(b2, 2*time.Second); err != nil {
 		t.Fatalf("second browser state frame: %v", err)
 	} else if !strings.Contains(string(payload), `"state"`) {
 		t.Errorf("second browser first frame = %s, want a state frame", payload)
 	}
-	payloadGW, errGW := readFrameWithin(gw, 200*time.Millisecond)
-	if errGW == nil || errGW == io.EOF {
-		t.Errorf("gateway link after browser takeover = (%s, %v), want a quiet open link", payloadGW, errGW)
+	if err := s.sendRaw([]byte(`{"kind":"board_roster","rev":8}`)); err != nil {
+		t.Fatalf("sendRaw to both browsers: %v", err)
+	}
+	if payload, err := readFrameWithin(gw, 2*time.Second); err != nil {
+		t.Fatalf("gateway frame after a second browser: %v", err)
+	} else if !strings.Contains(string(payload), `"rev":8`) {
+		t.Errorf("gateway frame = %s, want rev 8", payload)
+	}
+	for name, c := range map[string]*wsTestClient{"first": b1, "second": b2} {
+		if payload, err := readFrameWithin(c, 2*time.Second); err != nil {
+			t.Fatalf("%s browser frame after fan-out: %v", name, err)
+		} else if !strings.Contains(string(payload), `"rev":8`) {
+			t.Errorf("%s browser frame = %s, want rev 8", name, payload)
+		}
 	}
 	if s.gwConn == nil {
-		t.Fatal("gateway slot empty after browser takeover")
+		t.Fatal("gateway slot empty after a second browser connected")
 	}
 }
 
 // TestBrowserRoleStaysInBrowserSlot checks that only role=hub is routed to the
-// gateway slot: a plain browser dial (and any other role) stays single-client.
+// gateway slot: a plain browser dial (and any other role) goes to the browser
+// list instead.
 func TestBrowserRoleStaysInBrowserSlot(t *testing.T) {
 	s := NewServer(t.TempDir(), ServerOptions{})
 	srv := httptest.NewServer(s.mux)
 	t.Cleanup(srv.Close)
 
 	b := dialWSPath(t, srv, "/ws?role=browser")
-	waitUntil(t, "browser slot", func() bool { return s.conn != nil })
+	waitUntil(t, "browser slot", func() bool { return s.HasClient() })
 	if s.gwConn != nil {
 		t.Fatal("a non-hub role must not use the gateway slot")
 	}

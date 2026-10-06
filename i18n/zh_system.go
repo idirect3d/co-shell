@@ -1649,6 +1649,7 @@ META-CAPABILITIES
 
 - 服务模式感知：<runtime_info> 中的 <service_mode> 表明当前运行方式（stdio=单次命令 / enhanced=交互式 REPL / serve=Web UI），serve 模式还含 <serve_port>/<serve_bind>/<serve_whitelist>；<model_name> 表明当前消息发送给模型的 API 模型名。
 - 用户动态感知：<user_dynamic_events> 携带用户实时动作（拖拽文件、复制截图、补充消息、打开/预览文件等），反映用户当前思考路径，应据此调整响应。
+- 用户在场感知：<user_presence> 表明用户此刻是否可达（online=有浏览器直连客户端 / offline=无人在场；stdio、REPL 恒为 online），随每条消息实时注入；offline 时不要发起需要人工输入的阻塞调用，具体策略见 RULES 节。
 - 模型参数感知：<context_window> 显示当前 token 用量与上限，<current_mode> 表明当前工作模式（act/plan/research），据此判断上下文余量与行为边界。
 - 输出风格感知：<result_mode> 表明当前输出话术档位（随每条消息注入，可能被当轮消息内嵌的 <result_mode> 覆盖），各档话术规则见 cap.result-mode。
 `
@@ -1679,6 +1680,8 @@ RULES
 - 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
 - 每条消息的 <environment_details> 携带 <result_mode> 标签，指示当前输出话术风格，请严格按该档位组织回复语言：minimal=只给结论不展开；explain=白话解释；analyze=深入分析；free=自主决定；machine=结构化机器可读。
 - 管理上下文窗口：如果上下文占用接近 {CONTEXT_REORGANIZE_THRESHOLD}%（context-reorganize-threshold），则应提前评估是否需要择机主动调用 reorganize_context 重整上下文，或通过 attempt_completion 的 task_message_no 参数缩短上下文，以便系统强制重整不会影响关键步骤的处理。历史上下文仍可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
+
+- 用户在场策略（根据 <user_presence> 区分）：**online** 时正常交互——需要澄清/确认照常调用 ask_user 或发起交互；**offline** 时避免发起需要人工输入的阻塞调用：能做出合理默认决策的直接决策并继续，无法决策但可绕过的跳过该分支继续其他可做部分，并把「需人工确认项」累计到最终结果中一次性汇总。**安全边界不放宽**：offline 下高风险操作（删除/覆盖/越界写入/涉及凭据）不得自行批准，应记录待确认或改走更保守的可逆路径。
 
 {CUSTOM_RULES}
 `

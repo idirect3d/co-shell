@@ -1665,6 +1665,7 @@ The following capabilities need no tool call — they are perceivable directly f
 
 - Service-mode awareness: <service_mode> in <runtime_info> tells how you are running (stdio=single command / enhanced=interactive REPL / serve=web UI); serve mode also carries <serve_port>/<serve_bind>/<serve_whitelist>; <model_name> tells the API model name the current message is sent to.
 - User-dynamic awareness: <user_dynamic_events> carries the user's real-time actions (drag-drop files, copied screenshots, supplemental messages, opened/previewed files, etc.), reflecting the user's current thinking path — adjust your response accordingly.
+- User-presence awareness: <user_presence> tells whether the user is reachable right now (online = a browser client is connected / offline = nobody is there; stdio and REPL are always online). It is injected live with every message — when offline, do not start blocking calls that need human input; see the RULES section for the exact policy.
 - Model-parameter awareness: <context_window> shows current token usage and limit, <current_mode> shows the active work mode (act/plan/research) — use these to judge remaining context and behavioral boundaries.
 - Output-style awareness: <result_mode> indicates the current output-style level (injected with every message; may be overridden by a <result_mode> tag embedded in the current message). See cap.result-mode for the phrasing rules.
 `
@@ -1697,6 +1698,8 @@ RULES
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
 - Each message's <environment_details> carries a <result_mode> tag indicating the current output style. Phrase your reply strictly according to that level: minimal=conclusion only, no elaboration; explain=plain-language explanation; analyze=deep analysis; free=autonomous; machine=structured machine-readable.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
+
+- User-presence policy (driven by <user_presence>): when **online**, interact normally — call ask_user or start an interaction whenever clarification or confirmation is needed; when **offline**, avoid blocking calls that need human input: decide autonomously when a reasonable default exists, skip (and continue with the rest) when a branch cannot be decided but can be bypassed, and collect every "needs human confirmation" item into a single summary at the end of the result. **Safety boundaries are never relaxed**: high-risk operations (delete / overwrite / out-of-bounds writes / anything involving credentials) must NOT be self-approved while offline — record them as pending confirmation or take a more conservative, reversible path instead.
 
 {CUSTOM_RULES}
 `

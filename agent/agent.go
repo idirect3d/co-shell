@@ -102,6 +102,42 @@ func (a *Agent) SetIO(io UserIO) {
 	}
 }
 
+// SetUserPresenceProvider installs the callback that reports whether a user is
+// reachable right now (FEATURE-542). The web session registers it with the
+// server's HasClient (a directly connected browser counts, the hub link does
+// not); in stdio/REPL mode it is left nil because the terminal user is always
+// present. The agent reads it on every envelope, so the LLM sees the current
+// state instead of a stale snapshot.
+func (a *Agent) SetUserPresenceProvider(fn func() bool) {
+	a.mu.Lock()
+	a.userPresenceProvider = fn
+	a.mu.Unlock()
+}
+
+// UserPresence reports whether a user is currently reachable (FEATURE-542).
+//
+// With no provider registered the answer depends on the surface: an interactive
+// terminal session (stdio / enhanced REPL) always has its user in front of it,
+// whereas a non-interactive web session whose provider was never registered must
+// not be assumed to have one.
+func (a *Agent) UserPresence() bool {
+	if a.userPresenceProvider != nil {
+		return a.userPresenceProvider()
+	}
+	if io, ok := a.io.(interface{ Interactive() bool }); ok {
+		return io.Interactive()
+	}
+	return true
+}
+
+// userPresenceString renders the <user_presence> tag value (online|offline).
+func (a *Agent) userPresenceString() string {
+	if a.UserPresence() {
+		return "online"
+	}
+	return "offline"
+}
+
 // BoardEnabled reports whether the hub agent bulletin board collaboration is
 // enabled (FEATURE-490). When false, board_task execution messages are ignored.
 func (a *Agent) BoardEnabled() bool {

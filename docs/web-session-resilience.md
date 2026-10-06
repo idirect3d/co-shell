@@ -6,6 +6,7 @@
 > 关联：FEATURE-458（前端不自动重连，本设计撤销其决策）、FEATURE-507/508（事件持久化与历史回放，本设计复用）、
 > FEATURE-388（Interaction 交互模型）、FEATURE-369（await_input/turn_start 边界）、FEATURE-530（hub 网关与公告板）、
 > FIX-475（WS 写超时与异步发送队列）
+> 更新：2026-10-06 追加 §9「用户在线感知与在线/离线策略」（评审后追加，本次先落设计、暂不编码）
 
 ---
 
@@ -192,6 +193,48 @@ case "interrupt":
 因此可以安全撤销该决策。**实施时必须在代码注释与 ROADMAP 决策记录中写明撤销理由**，避免后续维护者误以为是改错了老决策。
 
 ---
+### 5.6 多端交互一致性约束（评审补充，4 项）
+
+> 以下 4 项是实现多端共存时**必须遵守的约束**，任一项缺失都会导致多端体验不一致。
+
+#### 5.6.1 会话切换语义：多端共享同一会话（明确声明）
+
+**决策（用户确认）**：多端**共享 agent 的同一「当前会话」**，这是**预期行为**，不是缺陷。
+
+- 任一端 `session_switch` → 切换 **agent 的当前会话** → **所有端随之切换**（各端读的是同一份会话事件流）。
+- 语义等价于「同一个人在多台设备上看同一段对话」；**不提供**「每端独立会话」。
+- 因此：**不做**端间会话隔离，UI 也不暗示「各端会话独立」。
+- 若未来需要每端独立会话，那是**另一套设计**（每端独立 session key + 独立事件流），不在 FEATURE-542 范围内。
+
+#### 5.6.2 前端弹出/关闭必须由「事件流」驱动
+
+现状（改造前）：`sendAsk`/`sendInteraction` 走 `s.sendJSON` **直接下发**（GAP-1），前端在收到自定义 `ask`/`interaction` 消息时弹出、在本地 `hideAsk()` 时关闭。
+
+**约束**：改造后前端必须改为**消费持久化事件**：
+- 收到 `interaction_request` → 渲染问答框（含重连后的回放场景，§5.3 #7）；
+- 收到 `interaction_resolved` → **关闭对应 id 的问答框**（无论该答案是否由本端提交）。
+
+**理由**：只有走事件流，才能同时满足「多端同时弹出」「一端回答他端自动关闭」「重连后补齐」三个要求；若前端仍依赖直发消息，多端与重连必然不一致。
+
+#### 5.6.3 并发回答竞态：先到先得 + 后到静默忽略
+
+多端可能在几乎同一时刻回答同一个 `interaction_request`。
+
+**规则**：
+- agent 侧只接受**第一个**到达的回答（`interaction_resolved.resolved_by` 记录来源端）；
+- 后到的回答**静默忽略**（不报错、不重复唤醒 agent、不产生第二个 resolved 事件）；
+- 实现上以 `WebIO` pending 通道 + 互斥（或 seq 比较）保证「只 resolve 一次」。
+
+#### 5.6.4 两条交互路径必须统一
+
+`ask_user` 工具走 `WebIO.Ask`，工具确认/向导等走 `WebIO.ask`/`resolveInteraction`（§5.3 #3 并列列出）。
+
+**约束**：两者必须**统一到同一套事件与同一份 pending 表**（`interaction_request`/`interaction_resolved` + 按 id 索引），**不得只覆盖其中一条**——否则会出现「ask_user 多端一致、但工具确认框仍会互相踢/丢失」的半成品状态。
+
+实施验收口径：**一个 id 空间 + 一套事件 + 一份 pending 表**。
+
+---
+
 ## 6. 风险（已在评审阶段向用户声明）
 
 ### 6.1 永久挂起 = session 永久 busy
@@ -242,6 +285,82 @@ R5 允许多端各自发指令，R6 又要求 agent 忙时走动态感知注入�
 3. 编写测试用例 `use-case/FEATURE-542/`，**经用户确认后**才进入编码
 4. 按 §5.3 的七点实施；`go build ./... && go vet ./...` + `go test ./...`
 5. 编译 co-shell / co-shell-hub（含 build 计数更新），提交当前分支，**等用户实测通过后**再合并
+
+---
+
+## 9. 追加设计：用户在线感知与在线/离线策略
+
+> 追加时间：2026-10-06（FEATURE-542 评审后由用户追加；**本次先落设计，暂不编码**）
+> 动机：FEATURE-542 解决了「断连后任务被污染」，但即使 ask 改为永久挂起（R7），离线期间 agent 仍会卡在等待中空转。若 agent 能提前知道「用户不在场」，就可选择「自行决策继续」而非「发起提问等待」，从源头降低阻塞概率。
+
+### 9.1 感知形式：独立状态标签
+
+在 `<environment_details>` 中新增**独立状态标签**（**不是**一次性动态事件——「在线」是持续状态）：
+
+```xml
+<user_presence>online</user_presence>
+```
+
+- 取值：`online` | `offline`
+- 由 agent 构建每个 envelope 时**实时读取** provider，与 `<result_mode>` / `<no_tool_action>` 同属「每轮注入的运行时状态」
+- 与 `<user_dynamic_events>` 的分工：后者报「用户做了什么」（事件，一次性消费），前者报「用户在不在」（状态，每轮刷新）
+
+### 9.2 判定标准（本次实现范围）
+
+| 场景 | 判定 |
+| --- | --- |
+| 浏览器直连（本次：`s.conn != nil`；多端改造后：`len(conns) > 0`） | `online` |
+| 仅 hub 链路（`gwConn != nil`） | **不算在线**——hub 只是中转，其后方可能没有任何前端 |
+| 无任何客户端 | `offline` |
+| stdio / enhanced（REPL）模式 | `online`（用户就在终端前，无「客户端」概念） |
+
+**遗留（明确不做）**：hub 后端的「有人订阅」需 hub↔agent 协议扩展（hub 上报当前订阅客户端数），留待多端改造（§9.4）一并处理。
+
+### 9.3 系统提示词中的在线/离线策略
+
+**位置**：
+1. 【环境感知】节（`KeyCapEnvAwareness`）补一条「用户在场感知」——告知 `<user_presence>` 的含义与来源；
+2. RULES 节补一条**策略规则**（总注入，不受开关影响）——给出两档差异化行为。
+
+**策略**：
+
+| 状态 | 行为 |
+| --- | --- |
+| **online** | 正常交互：需要澄清/确认时照常调用 `ask_user`、发起交互；按常规节奏等待用户反馈 |
+| **offline** | **避免发起需要人工输入的阻塞调用**（`ask_user`、需人工确认的工具调用、结构化交互）：<br>① 能做出合理默认决策的 → 直接决策并继续；<br>② 无法决策但可绕过的 → 跳过该分支、继续其他可做部分；<br>③ 把「需人工确认项」累计到最终结果中**一次性汇总**，等用户回来处理 |
+
+**安全边界（不可放宽）**：offline 策略只改变「是否发起阻塞式交互」，**不改变任务目标与安全边界**——高风险操作（删除/覆盖/越界写入/涉及凭据）在 offline 下**不得自行批准**，应记录待确认或改走更保守的可逆路径。
+
+### 9.4 与 FEATURE-542 主体改造的接口
+
+| 项 | 本次设计 | 多端改造后 |
+| --- | --- | --- |
+| 在线判定源 | `s.conn != nil` | `len(conns) > 0`（任意一端在线即 online） |
+| hub 侧 | 不处理（gwConn 不计入） | hub 上报订阅客户端数（协议扩展），agent 据此判定 |
+| 与 R7（永久挂起）的关系 | 互补：ask 不再被判死，但 LLM 已倾向不发起 | 同 |
+| 与自动重连的关系 | 无 | 重连即回到 online，下一轮 envelope 立即反映 |
+| stdio / REPL | `online` | `online` |
+
+### 9.5 实施要点（供后续编码参考，本次不编码）
+
+| # | 文件 | 改造内容 |
+| --- | --- | --- |
+| 1 | `agent`（loop.go / agent.go） | 新增 `userPresenceProvider func() bool` 字段 + `SetUserPresenceProvider(fn)`；`buildFullEnvironmentDetails` 注入 `<user_presence>online|offline</user_presence>`（provider 为 nil 时：stdio/REPL → online，serve 且未注册 → offline） |
+| 2 | `web/server.go` | 新增 `HasClient() bool`（`s.conn != nil`；多端改造后改 `len(conns) > 0`） |
+| 3 | `web/session.go` | 注册 `srv.SetUserPresenceProvider(sess.srv.HasClient)` → agent（与 `SetBusyProvider` 同构） |
+| 4 | `agent/env_prune.go` | `user_presence` 加入 `envLiteTags`（它决定行为策略，轻量 envelope 也必须携带） |
+| 5 | `i18n`（zh/en） | `KeyCapEnvAwareness` 补「用户在场感知」条目；RULES 节补在线/离线策略规则 |
+| 6 | 测试 | ① provider nil → stdio/REPL 视为 online；② provider=false → 标签为 offline；③ 标签随 provider 实时变化 |
+
+### 9.6 验收标准（补充）
+
+| # | 标准 | 验证方式 |
+| --- | --- | --- |
+| S1 | serve 模式下无浏览器连接时，envelope 出现 `<user_presence>offline</user_presence>` | 断开浏览器后查看 envelope |
+| S2 | 浏览器连上后，下一轮 envelope 变为 `online` | 重连并观察 |
+| S3 | offline 时 LLM 不再调用 `ask_user`，改为自主决策并在结果中汇总待确认项 | 断连后下发需澄清的任务，观察是否阻塞 |
+| S4 | stdio / REPL 模式恒为 `online` | 终端运行观察 |
+| S5 | 高风险操作在 offline 下不被自行批准 | 构造删除类任务，观察是否记录而非执行 |
 
 ---
 

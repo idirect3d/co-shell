@@ -305,12 +305,9 @@ func (s *WebSession) deliverBoardMessages(batch []agent.BoardMessage) {
 	log.Info("session: board messages delivered (batch=%d, busy=false, ids=%s)", len(batch),
 		agent.BoardMessageIDs(batch))
 	text := agent.BoardMessageInputText(batch)
-	select {
-	case s.inputCh <- clientMessage{Type: "input", Text: text}:
-	case <-s.closed:
-	case <-time.After(2 * time.Second):
-		log.Warn("session: board message dropped (input queue busy)")
-	}
+	// FEATURE-542: the explicit FIFO queue never blocks, so a board message can
+	// no longer be dropped because a channel happened to be busy.
+	s.inputQ.push(clientMessage{Type: "input", Text: text})
 }
 
 // decodeBoardDeliveries decodes the per-recipient outcome list of a board_sent.
