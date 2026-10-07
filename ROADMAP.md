@@ -8,7 +8,7 @@
 
 > **版本**: v0.102.0
 
-> **状态**: 🚧 进行中（分支 FEATURE-616）
+> **状态**: ✅ 已完成（已合并 main，标签 v0.102.0）
 > **里程碑**: Web UI 的「消息指示器」（消息可视化图表 `#msgViz`）支持 hover 定位——鼠标划过某条竖线（`.msgviz-line`），主信息窗口（`#streamB`）即时滚动，使该线代表的消息块（`.ev`）标题行（`.ev-head`）对齐消息区顶部；鼠标移出后停留在该位置不回滚。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,11 +21,11 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-616 消息指示器 hover 定位**
+- [x] **FEATURE-616 消息指示器 hover 定位**
   - 需求：用户确认——① 鼠标划过指示器某条竖线即跳转定位到该竖线代表的信息块；② 定位效果＝该块标题行（`.ev-head`）位于消息区顶部；③ 移出后停留在跳转后的位置（不回滚）；④ 即时跳转（划过即定位，无防抖）；⑤ 版本归属＝新建 v0.102.0（FEATURE 走 minor 递增）
   - 用例：`use-case/FEATURE-616/FEATURE-616-UC-0001.md`（16 条）
   - 分支：**FEATURE-616**（基于 main），版本 v0.102.0
-  - 进度：**待用户确认测试（已实现并本地验证）**。落地：① `web/static/app.js` 新增 `msgVizLocate(line)`——以「块矩形顶 − 滚动区矩形顶」的增量置 `#streamB.scrollTop`，使块标题行精确贴消息区顶部（不用 `offsetTop`：`.stream-b` 为 `position:static`，`offsetTop` 相对 `#stream-wrap` 计量，会含 35px 标题栏 + 内边距而偏低；`!box.isConnected` 时安全返回）；② `initMsgViz()` 在 `#msgVizTrack` 上新增 `mouseover` 事件委托（`closest(".msgviz-line")` → `msgVizLocate`），拖拽平移期间由 `dragging` 守卫跳过，保证与平移手势不互扰；③ 新增 `web/feature616_test.go`（6 项静态断言）；不改动 click 定位、拖拽平移、tooltip 与 CSS。
+  - 进度：**已完成并合并 main（用户确认）**。落地：① `web/static/app.js` 新增 `msgVizLocate(line)`——以「块矩形顶 − 滚动区矩形顶」的增量置 `#streamB.scrollTop`，使块标题行精确贴消息区顶部（不用 `offsetTop`：`.stream-b` 为 `position:static`，`offsetTop` 相对 `#stream-wrap` 计量，会含 35px 标题栏 + 内边距而偏低；`!box.isConnected` 时安全返回）；② `initMsgViz()` 在 `#msgVizTrack` 上新增 `mouseover` 事件委托（`closest(".msgviz-line")` → `msgVizLocate`），拖拽平移期间由 `dragging` 守卫跳过，保证与平移手势不互扰；③ 新增 `web/feature616_test.go`（6 项静态断言）；不改动 click 定位、拖拽平移、tooltip 与 CSS。
   - 验证：`node --check web/static/app.js` 通过；`go test ./web/ -run Feature616` 通过。隔离静态实例（:28777，仅命中改动后 app.js，不干扰用户 28256 实例）+ 调试浏览器：用真实 `makeBlock()`/`msgVizFlush()` 注入 8 块消息流（scrollHeight 4825 / 视口 520），逐条 mouseover 8 条竖线 —— 全部 `alignDelta=0`、`scrollTop` 等于期望值（1/658/894/1550/2207/2863/3520/4176）；移出保持、重复划同线幂等、轨道空白不滚动、拖拽中不跳转、`_box=null`/已脱离文档/空指示器均不抛错。**真实指针**（browser_click 移动到 THINK 竖线）实测：scrollTop 由底部 2992 跳到 1314，探针记录 `alignDelta=0`、顶部块为 THINK；截图确认 THINK 标题行位于消息区顶部。回归：点击竖线定位仍可用（0→2863，目标块进入视口）。 [BUILD-1254]
 
 ---
