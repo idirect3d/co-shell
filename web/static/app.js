@@ -3366,6 +3366,19 @@ function msgVizRecolor(box) {
   line.title = msgVizTip(line._cls, box, line._ratio || 0);
 }
 
+// FEATURE-616: msgVizLocate scrolls the message area so the block behind an
+// indicator line sits with its title bar (.ev-head) at the top of the scroller.
+// The delta is measured from the two client rects rather than box.offsetTop:
+// .stream-b is position:static, so a block's offsetTop is taken against
+// #stream-wrap and includes the 35px .stream-head plus the .stream padding -
+// using it would land the title ~49px too low. A line whose block is gone
+// (evicted stream window / stale line) is ignored so a hover can never throw.
+function msgVizLocate(line) {
+  const box = line && line._box;
+  if (!box || !box.isConnected) return;
+  streamB.scrollTop += box.getBoundingClientRect().top - streamB.getBoundingClientRect().top;
+}
+
 // msgVizApplyPan clamps and applies the horizontal pan offset to the track.
 function msgVizApplyPan() {
   if (!msgViz || !msgVizTrack) return;
@@ -3375,7 +3388,7 @@ function msgVizApplyPan() {
   msgVizTrack.style.transform = "translateX(" + msgVizPan + "px)";
 }
 
-// initMsgViz wires the drag-to-pan interaction on the chart.
+// initMsgViz wires the drag-to-pan and hover-to-locate interactions on the chart.
 function initMsgViz() {
   if (!msgViz || !msgVizTrack) return;
   let dragging = false, moved = false, startX = 0, startY = 0, startPan = 0;
@@ -3406,6 +3419,16 @@ function initMsgViz() {
   };
   msgViz.addEventListener("pointerup", end);
   msgViz.addEventListener("pointercancel", end);
+  // FEATURE-616: hovering a line jumps the message area to its block, aligning
+  // the block's title bar with the top of the scroller (msgVizLocate). Delegated
+  // on the track so the lines painted later by msgVizFlush need no per-line
+  // wiring; skipped while panning so the jump never fights the drag. Moving off
+  // the chart keeps the position - nothing restores it.
+  msgVizTrack.addEventListener("mouseover", (e) => {
+    if (dragging) return;
+    const line = e.target && e.target.closest ? e.target.closest(".msgviz-line") : null;
+    if (line) msgVizLocate(line);
+  });
   window.addEventListener("resize", msgVizApplyPan);
 }
 
