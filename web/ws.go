@@ -99,6 +99,10 @@ type wsConn struct {
 	// Fragmented message reassembly state (continuation frames).
 	fragBuf    []byte
 	fragActive bool
+
+	// FIX-619: read deadline refreshed on every received frame (0 = disabled).
+	// A peer that stays silent for the configured timeout is treated as gone.
+	readTimeout time.Duration
 }
 
 // upgrade validates the WebSocket handshake request, hijacks the HTTP
@@ -230,6 +234,9 @@ func (c *wsConn) ReadMessage() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		// FIX-619: any frame — a pong included — proves the peer is still there,
+		// so the read deadline moves forward.
+		c.refreshReadDeadline()
 		switch f.opcode {
 		case wsOpPing:
 			if err := c.writeFrame(wsOpPong, f.payload); err != nil {
@@ -328,4 +335,53 @@ func (c *wsConn) Close() error {
 		_ = c.conn.Close()
 	})
 	return nil
+}
+
+// SetReadTimeout bounds how long the connection may stay silent: the deadline is
+// refreshed on every received frame (a pong included) and the next read fails
+// once nothing has arrived for d. A zero duration disables the deadline
+// (FIX-619).
+func (c *wsConn) SetReadTimeout(d time.Duration) {
+	c.readTimeout = d
+	c.refreshReadDeadline()
+}
+
+// refreshReadDeadline pushes the read deadline forward; it is a no-op when no
+// timeout is configured (FIX-619).
+func (c *wsConn) refreshReadDeadline() {
+	if c.readTimeout <= 0 {
+		return
+	}
+	_ = c.conn.SetReadDeadline(time.Now().Add(c.readTimeout))
+}
+
+// WritePing sends a ping control frame. RFC 6455 requires the peer's stack to
+// answer with a pong, which the read side counts as activity — that is what
+// makes a browser connection provably alive (FIX-619).
+func (c *wsConn) WritePing() error {
+	return c.writeFrame(wsOpPing, nil)
+}
+
+// StartPing pings the peer every interval until the returned stop function is
+// called, the connection closes, or a write fails (FIX-619).
+func (c *wsConn) StartPing(interval time.Duration) func() {
+	stop := make(chan struct{})
+	var once sync.Once
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-c.done:
+				return
+			case <-t.C:
+				if err := c.WritePing(); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return func() { once.Do(func() { close(stop) }) }
 }

@@ -4,6 +4,33 @@
 
 ---
 
+## v0.102.3 — 移动端长时间离线后重连失败修复（FIX-619）
+
+> **版本**: v0.102.3
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.102.3）
+> **里程碑**: 移动端（iOS App 的 WKWebView）长时间不在线后重新连接时可能连不上；点 iOS 导航栏刷新按钮无效（弹「请求超时 / 无法连接」），但完全关闭 App 重启即可恢复。根因三层：① **iOS 壳层**——刷新只有 `webView.reload()`（`WebViewController.swift:128-130`），不 `stopLoading`、不复位网络层、不重建 WebView，加载失败只弹窗不重试；长时间后台后 WKWebView 连接池内可能残留被 NAT 静默回收的死连接，刷新请求复用坏连接 → 约 60s 超时失败（重启 App 重建进程即恢复，与用户实测吻合）。② **前端页面层**——`app.js:689` `wsConnect()` 的 OPEN 守卫把移动网络下“收不到 onclose 的僵尸套接字”当成健康连接 → 永不重连；且无应用层心跳、无前后台/网络恢复事件兜底（`visibilitychange`（1547）只用于 markdown 补绘）。③ **服务端层**——`web/server.go:817 handleWS` 为纯阻塞读，无主动 ping、无读超时（`web/ws.go` 仅被动回 pong），hub 隧道为透明升级亦无心跳 → 死连接长期残留。本次按 E→B→A→C 顺序实施，iOS 端同步出包分发。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-619 | 0.102.3 | P1 | 移动端重连自愈四层修复：E 诊断可观测性 + B 前端心跳看门狗/生命周期兜底 + A iOS 刷新彻底重连 + C 服务端 WS 心跳 |
+
+> 当前 BUILD: 1257
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-619 移动端长时间离线后重连失败修复（E→B→A→C）**
+  - 需求（用户 2026-10-07 14:17 / 14:20 / 14:23）：移动端长时间不在线后重新连接时连不上，点 iOS 导航栏刷新按钮无效且弹错误提示框（请求超时/无法连接），完全关闭 App 重启后可连。用户确认：① 「刷新」= iOS 导航栏左上角箭头刷新按钮；② 失败时弹错误提示框；③ 批准按调查报告建议顺序 E→B→C→A 全量实施；④ 版本归属 = 新建 v0.102.3（FIX 走 patch 递增），任务号 FIX-619；⑤ iOS 端同时出包并上传 TestFlight/直装。调查报告：`work/research/20261007-移动端重连问题/调查报告.md`
+  - 用例：`use-case/FIX-619/`
+  - 分支：**FIX-619**（基于 main），版本 v0.102.3
+  - 实施（BUILD-1257，已完成待用户确认）：E — `mobile/ios/Runner/WebViewController.swift` 新增 `Logger(subsystem:"com.coshell.mobile", category:"webview")`，在加载开始/成功/失败（`didFinish`/`didFail`/`didFailProvisionalNavigation`）三处记录 URL、错误域+码、耗时（`logLoadFailure`/`elapsedMs`）；hub 侧沿用现成 `requestLog` 作分层判据（无需改动）。B — `web/static/app.js` 新增 `WS_HEARTBEAT_MS=25000`/`WS_WATCHDOG_MS=45000`/`WS_WATCHDOG_TICK_MS=10000` 与 `wsMarkActivity`/`wsSilentTooLong`/`startHeartbeat`/`stopHeartbeat`/`forceReconnect`/`ensureConnected`；`wsConnect()` 的 OPEN 守卫改为「OPEN 且未超静默阈值才短路」；`onopen` 启心跳、`onmessage` 标记活动、`onclose`/`wsDisconnect` 停心跳；新增 `visibilitychange`(visible)/`pageshow`/`online`/`focus` 四个信号。`web/session.go` 的 `handleMessage` 新增 `case "ping"` 回 `{"kind":"pong"}`（原 switch 无 default，未知类型静默忽略）。C — `web/server.go` 新增 `wsPingInterval=30s`/`wsReadTimeout=90s`，浏览器连接建立时 `SetReadTimeout` + `StartPing`；`web/ws.go` 新增 `readTimeout` 字段与 `SetReadTimeout`/`refreshReadDeadline`（每收到一帧即刷新，pong 也算活动）/`WritePing`/`StartPing`。A — `WebViewController.swift` 刷新改为 `startFreshLoad()`：`stopLoading` → 只清 memory/disk cache（**不清 cookies**，保住 `access_key`）→ `.reloadIgnoringLocalCacheData` + 12s 超时重载；失败自动重试 1s/3s/5s，随后重建 `WKWebView`（`rebuildWebView()`，等价 App 内软重启），仍失败才弹提示；WebView 创建抽为 `makeWebView()`。
+  - 验证（BUILD-1257）：① `node --check web/static/app.js` 通过；② `go build ./... && go vet ./...` 一次通过；③ 新增 `web/fix619_test.go`（7 个静态断言：前端心跳/生命周期/僵尸守卫/onmessage 标记、服务端 ping-pong 与心跳接线、iOS 刷新结构含「不得清 cookies」反断言）与 `web/fix619_ws_test.go`（4 个运行时：ping 周期、静默连接被读超时断开、数据帧刷新 deadline、pong 刷新 deadline）→ `go test ./web/ -run Fix619 -v` **11/11 PASS**；④ `go test ./... -short` 失败集与 main 基线**逐项一致**（cmd 2 项、i18n 3 项，由既有 `M RULES.md` 与本地技能目录引起，已在 main worktree 复跑确认，非本次引入）；⑤ iOS `xcodebuild … generic/platform=iOS build` → `BUILD SUCCEEDED`（首轮报 1 处 os_log 插值缺显式 `self`，已修正）；⑥ 浏览器运行时验证（隔离实例 0.102.3/1257，端口 28919，独立 workdir）：僵尸判定 `wsSilentTooLong=true` → `ensureConnected()` 重建连接（旧 socket CLOSING、新建 1 条、随后 readyState=1/「已连接」）、`online` 触发立即重连（+1）、手动断开后 4 个生命周期事件均不重连且定时器已清除、37s 内活动时间被 pong 刷新至 12.7s（心跳往返成立）；⑦ iOS 归档 `ARCHIVE SUCCEEDED` + `exportArchive`（destination=upload）→ `Upload succeeded`/`EXPORT SUCCEEDED`，**0.102.3 (3)** 已进 App Store Connect（TestFlight 处理中）。
+  - 用户确认（2026-10-07 14:49）：测试通过，执行合并；本任务收尾 [BUILD-1257]。
+
+---
+
 ## v0.102.2 — 修正空 SYS 块：交互控制事件不再落入消息流（FIX-618）
 
 > **版本**: v0.102.2

@@ -461,6 +461,13 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleYOLOSet(msg.YOLO)
 	case "yolo_get":
 		s.handleYOLOGet()
+	case "ping":
+		// FIX-619: application-level heartbeat. The browser can only tell a live
+		// connection from a silently dead one (mobile networks drop the idle TCP
+		// connection without a close event) if the server answers, so every ping
+		// is acknowledged. The pong carries no payload — the page only counts it
+		// as traffic for its watchdog.
+		s.srv.sendJSON(serverMessage{Kind: "pong"})
 	}
 }
 

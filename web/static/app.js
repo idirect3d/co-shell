@@ -674,6 +674,90 @@ let reconnectAttempt = 0;
 let reconnectTimer = null;
 let manualClose = false;
 
+// FIX-619: a suspended mobile client never gets an onclose — the iOS app being
+// backgrounded, or the mobile network's NAT silently dropping the idle TCP
+// connection, leaves a socket whose readyState still says OPEN while nothing
+// can travel over it. The page then believes it is connected, the guard in
+// wsConnect rejects every reconnect, and only killing the app brought the UI
+// back. Application-level heartbeats give the page its own liveness signal and
+// the watchdog acts on it.
+const WS_HEARTBEAT_MS = 25000; // ping cadence while connected
+const WS_WATCHDOG_MS = 45000; // silence longer than this ⇒ the socket is dead
+const WS_WATCHDOG_TICK_MS = 10000;
+let lastMsgAt = 0; // when the current socket last delivered any frame
+let heartbeatTimer = null;
+let watchdogTimer = null;
+
+// wsMarkActivity records that the socket delivered something (any frame counts,
+// including the pong answering our ping).
+function wsMarkActivity() {
+  lastMsgAt = Date.now();
+}
+
+// wsSilentTooLong reports whether the socket has been silent past the watchdog
+// window, i.e. it is a zombie that never fired onclose.
+function wsSilentTooLong() {
+  return lastMsgAt > 0 && Date.now() - lastMsgAt > WS_WATCHDOG_MS;
+}
+
+// startHeartbeat arms the ping timer and the watchdog while connected.
+function startHeartbeat() {
+  wsMarkActivity();
+  if (!heartbeatTimer) {
+    heartbeatTimer = setInterval(() => {
+      if (!wsReady || !ws || ws.readyState !== WebSocket.OPEN) return;
+      try { ws.send(JSON.stringify({ type: "ping" })); } catch (e) { /* dropped */ }
+    }, WS_HEARTBEAT_MS);
+  }
+  if (!watchdogTimer) {
+    watchdogTimer = setInterval(() => {
+      if (manualClose || !wsReady || !wsSilentTooLong()) return;
+      forceReconnect();
+    }, WS_WATCHDOG_TICK_MS);
+  }
+}
+
+// stopHeartbeat clears both timers (manual disconnect or connection lost).
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
+}
+
+// forceReconnect drops a socket known to be dead and connects again right away,
+// bypassing the exponential backoff. The old socket's late callbacks are ignored
+// by the per-connection identity check in wsConnect.
+function forceReconnect() {
+  if (manualClose) return;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  const stale = ws;
+  ws = null;
+  wsReady = false;
+  stopHeartbeat();
+  if (stale) { try { stale.close(); } catch (e) { /* ignore */ } }
+  reconnectAttempt = 0;
+  wsConnect();
+}
+
+// ensureConnected re-checks the connection when the page becomes visible again
+// (returning to the app, network coming back). A dropped socket reconnects at
+// once instead of waiting for the backoff timer.
+function ensureConnected() {
+  if (manualClose) return;
+  if (ws && ws.readyState === WebSocket.CONNECTING) return;
+  if (wsReady && ws && ws.readyState === WebSocket.OPEN && !wsSilentTooLong()) return;
+  if (ws && ws.readyState === WebSocket.OPEN) { forceReconnect(); return; }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectAttempt = 0;
+  wsConnect();
+}
+
+// FIX-619: the signals that the connection may have died while the page was
+// suspended (backgrounded app, screen locked, network switched).
+document.addEventListener("visibilitychange", () => { if (!document.hidden) ensureConnected(); });
+window.addEventListener("pageshow", ensureConnected);
+window.addEventListener("online", ensureConnected);
+window.addEventListener("focus", ensureConnected);
+
 function scheduleReconnect() {
   if (manualClose || reconnectTimer) return;
   const delay = reconnectBackoff[Math.min(reconnectAttempt, reconnectBackoff.length - 1)];
@@ -686,7 +770,17 @@ function scheduleReconnect() {
 
 // FEATURE-458: the connection status control is a connect/disconnect toggle.
 function wsConnect() {
-  if (wsReady || (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN))) return;
+  // FIX-619: an OPEN socket is trusted only while it keeps delivering traffic.
+  // A silent one is a zombie (the mobile network dropped it without a close
+  // event) — tear it down so the reconnect below can actually happen.
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+    if (ws.readyState === WebSocket.CONNECTING || !wsSilentTooLong()) return;
+    const stale = ws;
+    ws = null;
+    wsReady = false;
+    stopHeartbeat();
+    try { stale.close(); } catch (e) { /* ignore */ }
+  }
   // Relative WS endpoint: works both at the root path (co-shell standalone)
   // and under a sub-path prefix (e.g. hub /agent/{id}/) (FEATURE-484).
   const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -701,6 +795,7 @@ function wsConnect() {
     if (sock !== ws) return; // superseded socket
     wsReady = true;
     reconnectAttempt = 0;
+    startHeartbeat();
     conn.classList.add("on");
     connText.textContent = T.connected;
     // FEATURE-542: flush anything the user did while the socket was down (an
@@ -744,6 +839,7 @@ function wsConnect() {
   sock.onclose = () => {
     if (sock !== ws) return; // superseded socket: leave the new connection alone
     wsReady = false;
+    stopHeartbeat();
     conn.classList.remove("on");
     connText.textContent = T.disconnected;
     // FEATURE-542: the dialog is deliberately NOT hidden here. A dropped
@@ -763,6 +859,7 @@ function wsConnect() {
     // delivered during the closing handshake) used to keep rendering into the
     // stream. Messages from a superseded socket are dropped as well.
     if (!wsReady || sock !== ws) return;
+    wsMarkActivity();
     let msg;
     try { msg = JSON.parse(m.data); } catch { return; }
     if (msg.kind === "event" && msg.event) {
@@ -876,6 +973,7 @@ function wsDisconnect() {
     try { ws.close(); } catch (e) { /* ignore */ }
   }
   wsReady = false;
+  stopHeartbeat();
   conn.classList.remove("on");
   connText.textContent = T.disconnected;
   setRunning(false);

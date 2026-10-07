@@ -811,6 +811,15 @@ func (s *Server) dispatch(raw []byte, src clientConn) {
 // gatewayRole is the WS query value marking the hub's own link (FEATURE-530).
 const gatewayRole = "hub"
 
+// FIX-619: liveness for browser connections. A mobile client that goes away
+// (backgrounded app, dropped NAT mapping) never closes its socket: without a
+// ping and a read deadline the entry would linger in conns forever and the peer
+// would get no signal that the link is gone.
+const (
+	wsPingInterval = 30 * time.Second
+	wsReadTimeout  = 90 * time.Second
+)
+
 // handleWS upgrades the connection, registers it in the browser or gateway
 // slot, pushes the initial state to a browser, then reads messages until
 // disconnect.
@@ -834,6 +843,13 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		// attached to every message this connection sends.
 		src = s.addConn(c, r.URL.Query().Get("client_id"))
 		s.sendState(c, src.label)
+		// FIX-619: keep the read side provably alive (one ping per wsPingInterval,
+		// the peer answers with a pong) and drop the connection once nothing has
+		// arrived for wsReadTimeout — a suspended phone then no longer holds a
+		// connection open forever.
+		c.SetReadTimeout(wsReadTimeout)
+		stopPing := c.StartPing(wsPingInterval)
+		defer stopPing()
 		defer c.Close()
 		defer s.removeConn(c)
 	}
