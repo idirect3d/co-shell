@@ -4,6 +4,32 @@
 
 ---
 
+## v0.101.1 — 修复工具调用失败在实时消息指示器中未变红：FIX-614
+
+> **版本**: v0.101.1
+
+> **状态**: 🚧 进行中（分支 FIX-614）
+> **里程碑**: 修复消息可视化指示器（`#msgVizTrack`）颜色与历史回放不一致：实时流中工具调用失败后指示线仍是黄色（工具色），重载页面后才变红。根因：指示线颜色只在 `msgVizFlush()`（由 `token_iter` 触发）时计算一次，而工具失败的 `level-error` class 是在随后的 tool result 事件里才加上（线已绘制，不会重绘）；历史回放时二者在同一次渲染中完成，所以显示正确。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-614 | 0.101.1 | P1 | 消息指示器颜色实时同步：新增 `msgVizRecolor(box)`（按 `line._box` 定位，用 `msgVizColor`/`msgVizTip` 重算颜色与 tooltip），并在工具失败标记 `level-error` 处调用；`msgVizFlush` 在线上保存 `_ratio` 供 tooltip 重算 |
+
+> 当前 BUILD: 1252
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-614 工具调用失败在实时消息指示器中未变红**
+  - 需求：用户反馈——当前消息进入消息指示器时，工具调用出错没有以红色显示（保持黄色），但重启后历史消息中的失败工具调用会显示为红色
+  - 用例：`use-case/FIX-614/FIX-614-UC-0001.md`（13 条）
+  - 分支：**FIX-614**（基于 main），版本 v0.101.1
+  - 进度：**实施完成，待用户确认测试** [BUILD-1252]。根因（已实证）：指示线颜色只在 `msgVizFlush()`（由 `token_iter` 触发）时计算一次，而工具失败的 `level-error` class 是在随后的 tool result 事件里才加上（线已绘制，不会重绘）；历史回放时二者在同一次渲染中完成，故显示正确。落地：① `web/static/app.js` 新增 `msgVizRecolor(box)`——按 `line._box` 定位、用 `msgVizColor`/`msgVizTip` 重算颜色与 tooltip；② `msgVizFlush` 在线上保存 `line._ratio`（tooltip 重算所需）；③ 工具失败分支（`level-error` 处）改为取 `errBox` 后调用 `msgVizRecolor(errBox)`；④ `msgVizTip` 的类型判定改为同时读 live class（与 `msgVizColor` 一致），否则红线仍会被标注为“工具”；⑤ 新增 `web/fix614_test.go`。
+  - 验证：`go build ./... && go vet ./...` 全绿；`go test ./web/ -run Fix614` 通过；`node --check web/static/app.js` 通过。隔离实例（:28290）实测：修复前加 `level-error` 后 `--line-color` 仍为 `#facc15`（黄）、tooltip 仍为“工具”；修复后同一路径变为 `#FF0000`、“失败 · TOOL · 上下文 0%”；未失败的 tool 线保持 `#facc15`、llm 线保持 `#3fd6ef`（不误伤）；线未绘制时调用不抛异常。真实会话中 `read_file` 不存在的文件未产生 error 事件（被工具正常处理为结果），故“真实 LLM 触发的 error 事件”未覆盖，改用同一渲染入口的等价路径验证。
+
+---
+
 ## v0.101.0 — hub agent 列表拖动排序：FEATURE-613
 
 > **版本**: v0.101.0
