@@ -225,8 +225,6 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "ui-context-prune", Value: boolStr(cfg.UIContextPrune), Desc: i18n.T(i18n.KeyCol3UIContextPrune), Type: "bool", Default: boolStr(defCfg.UIContextPrune)},
 		// FEATURE-579: token-optimization switches (env rendering / tool schema).
 		{Key: "env-history-prune", Value: boolStr(llm.EnvHistoryPrune), Desc: i18n.T(i18n.KeyCol3EnvHistoryPrune), Type: "bool", Default: boolStr(def.EnvHistoryPrune)},
-		{Key: "env-history-full-keep", Value: strconv.Itoa(llm.EnvHistoryFullKeep), Desc: i18n.T(i18n.KeyCol3EnvHistoryFullKeep), Type: "number", Default: strconv.Itoa(def.EnvHistoryFullKeep)},
-		{Key: "env-history-lite-keep", Value: strconv.Itoa(llm.EnvHistoryLiteKeep), Desc: i18n.T(i18n.KeyCol3EnvHistoryLiteKeep), Type: "number", Default: strconv.Itoa(def.EnvHistoryLiteKeep)},
 		{Key: "env-tool-batch-single", Value: boolStr(llm.EnvToolBatchSingle), Desc: i18n.T(i18n.KeyCol3EnvToolBatchSingle), Type: "bool", Default: boolStr(def.EnvToolBatchSingle)},
 		{Key: "env-board-roster-brief", Value: boolStr(llm.EnvBoardRosterBrief), Desc: i18n.T(i18n.KeyCol3EnvBoardRosterBrief), Type: "bool", Default: boolStr(def.EnvBoardRosterBrief)},
 		{Key: "env-dir-change-detect", Value: boolStr(llm.EnvDirChangeDetect), Desc: i18n.T(i18n.KeyCol3EnvDirChangeDetect), Type: "bool", Default: boolStr(def.EnvDirChangeDetect)},

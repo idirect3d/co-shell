@@ -249,29 +249,6 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("%s set to %s", subcommand, status)
 		return fmt.Sprintf("%s: %s", subcommand, status), nil
 
-	case "env-history-full-keep", "env-history-lite-keep":
-		// FEATURE-579: history degradation window sizes; must be non-negative.
-		var target *int
-		switch subcommand {
-		case "env-history-full-keep":
-			target = &h.cfg.LLM.EnvHistoryFullKeep
-		case "env-history-lite-keep":
-			target = &h.cfg.LLM.EnvHistoryLiteKeep
-		}
-		if len(args) < 2 {
-			return fmt.Sprintf("%s: %d", subcommand, *target), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil || n < 0 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingEnvKeepNonNegative), subcommand, args[1])
-		}
-		*target = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("%s set to %d", subcommand, n)
-		return fmt.Sprintf("%s: %d", subcommand, n), nil
-
 	case "plan-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

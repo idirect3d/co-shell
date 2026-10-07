@@ -640,24 +640,27 @@ type LLMConfig struct {
 	// FEATURE-579 token optimizations (all default on; turning a switch off
 	// restores the previous behaviour exactly).
 	//
-	// EnvHistoryPrune: master switch for the three-level degradation of
-	// historical <environment_details> blocks (A).
+	// EnvHistoryPrune: the single switch for trimming historical
+	// <environment_details> envelopes (FEATURE-622). When on, only the newest
+	// user/tool message keeps its full envelope while every older message
+	// collapses to <time> + <message_no>; the envelope generator therefore
+	// always emits that newest envelope in full (no <unchanged .../>
+	// cross-message references), which bypasses the three slim-down sub-switches
+	// below. When off, every frozen envelope is sent as-is and the sub-switches
+	// apply again.
 	EnvHistoryPrune bool `json:"env_history_prune"`
-	// EnvHistoryFullKeep: number of trailing messages kept at full env (L0).
-	// 0 means unlimited (every message stays L0, i.e. degradation off).
-	EnvHistoryFullKeep int `json:"env_history_full_keep"`
-	// EnvHistoryLiteKeep: number of messages after the L0 window kept at the
-	// lite level (L1). 0 means unlimited (no L2 level at all).
-	EnvHistoryLiteKeep int `json:"env_history_lite_keep"`
 	// EnvToolBatchSingle: within one iteration only the last committed tool
 	// result carries a full env; the others carry a minimal one (B).
 	EnvToolBatchSingle bool `json:"env_tool_batch_single"`
 	// EnvBoardRosterBrief: render <board_agents> as id/name/status only (C).
+	// Bypassed while EnvHistoryPrune is on (FEATURE-622).
 	EnvBoardRosterBrief bool `json:"env_board_roster_brief"`
 	// EnvDirChangeDetect: emit <current_dir>/<tools>/<research> only when they
-	// changed (or every envDirForceFullEvery iterations) (C).
+	// changed (or every envDirForceFullEvery iterations) (C). Bypassed while
+	// EnvHistoryPrune is on (FEATURE-622).
 	EnvDirChangeDetect bool `json:"env_dir_change_detect"`
 	// EnvRuntimeInfoOnce: emit <runtime_info> only when it changed (C).
+	// Bypassed while EnvHistoryPrune is on (FEATURE-622).
 	EnvRuntimeInfoOnce bool `json:"env_runtime_info_once"`
 	// ToolDescCompact: compact the repeated meta argument description and
 	// de-duplicate the subagent tool descriptions (D1).
@@ -1299,8 +1302,6 @@ func DefaultConfig() *Config {
 			// FEATURE-579 token optimizations: all switches default to on; turning
 			// any of them off restores the previous behaviour exactly.
 			EnvHistoryPrune:     true,
-			EnvHistoryFullKeep:  1,
-			EnvHistoryLiteKeep:  1,
 			EnvToolBatchSingle:  true,
 			EnvBoardRosterBrief: true,
 			EnvDirChangeDetect:  true,
