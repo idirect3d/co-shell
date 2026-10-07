@@ -4,6 +4,33 @@
 
 ---
 
+## v0.102.1 — 文件树 git status 不再持 index.lock（FIX-617）
+
+> **版本**: v0.102.1
+
+> **状态**: 🚧 进行中（分支 FIX-617）
+> **里程碑**: 修复 co-shell 自身造成的 `.git/index.lock` 冲突——文件树刷新（`GET /api/tree`）每请求都执行 `git status`，而该命令默认会刷新并回写 index（git 的“可选锁”），实测每次持锁约 7ms、占其运行时长 44.7%；它与并发的 git 写操作（`add`/`commit`/`merge`/`tag`，来自 LLM 工具调用或人工）频繁撞锁，报 `fatal: Unable to create '.git/index.lock': File exists`。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-617 | 0.102.1 | P1 | `web/server.go` 的 `gitStatusMap()` 改用 `git --no-optional-locks status --porcelain -z`（等价 `GIT_OPTIONAL_LOCKS=0`），使文件树刷新不再写 index、不再取锁；其余 4 处只读 git 调用（diff/log/rev-parse）不动 |
+
+> 当前 BUILD: 1255
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-617 文件树 git status 不再持 index.lock**
+  - 需求：用户确认——按调查报告【首选·最小改动】实施：让文件树刷新不再写 index（`git --no-optional-locks`）；版本归属=新建 v0.102.1（FIX 走 patch 递增）；本次不做 TTL 缓存 / 超时 SIGTERM 化 / 残留锁清理
+  - 根因取证（实测）：A 真实仓库 20 次 `git status` 出现 **21 次** `index.lock`（B 加 `GIT_OPTIONAL_LOCKS=0` 后 0 次）；E 持锁 **6.9–10.2ms（中位 7.25ms）**，占 status 总耗时 **44.7%**；C 临时仓库轮询者×写入者 408 次写入 **149 次失败(36%)**，去掉可选锁后 0 次；F 300 次 SIGKILL 中 **7 次**留下残留锁；且代码中无任何 `GIT_OPTIONAL_LOCKS` / `index.lock` 处理
+  - 用例：`use-case/FIX-617/FIX-617-UC-0001.md`（10 条）
+  - 分支：**FIX-617**（基于 main），版本 v0.102.1
+  - 进度：**待用户确认测试（已实现并本地验证）**。落地：`web/server.go` 的 `gitStatusMap()` 命令行改为 `git --no-optional-locks status --porcelain -z`（并在函数注释中记录动机）；其余 4 处只读 git 调用（diff/log/rev-parse）未动；新增 `web/fix617_test.go`（A-001 命令行开关 + A-002 其余调用未被改动）。
+  - 验证：`go test ./web/ -run 'Fix617|GitStatusMap'` 全通过（含 `TestGitStatusMapNonRepo` / `Clean` / `Timeout`(3s) 回归）。实测对照探针（真实仓库，0.2ms 采样）：连跑 20 次——旧命令 `index.lock` 出现 **20 次**，新命令 **0 次**；两者 porcelain 输出**逐字节一致**（272 B）。 [BUILD-1255]
+
+---
+
 ## v0.102.0 — 消息指示器 hover 定位：划过竖线即跳转到对应信息块（FEATURE-616）
 
 > **版本**: v0.102.0
