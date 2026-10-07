@@ -8,7 +8,7 @@
 
 > **版本**: v0.102.2
 
-> **状态**: 🚧 进行中（分支 FIX-618）
+> **状态**: ✅ 已完成（已合并 main，标签 v0.102.2）
 > **里程碑**: 修复消息流中出现「空 SYS 块」。根因：`interaction_request` / `interaction_resolved`（FEATURE-542 的交互生命周期事件，`ChannelSystem` + **空文本**，且会被**持久化**）被无条件送进 `renderEvent`（`app.js:776`，无白名单），而 renderEvent 不认识这两个类型 → 落到通用分支按 `CHAN_LABEL["system"]="SYS"` 建出一个空文本的 SYS 块；**一次交互产生 2 个事件 → 正好 2 个空 SYS 块**（因事件持久化，重载回放后会再次画出）。FIX-615 拦的是 `pushText` 的 `ui_text`（固定 `ChannelREPL="repl"` → 渲染为 REPL 块），与本路径无关，属**归因错误**。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,12 +21,12 @@
 
 ### 任务详情
 
-- [ ] **FIX-618 交互控制事件不再产生空 SYS 块**
+- [x] **FIX-618 交互控制事件不再产生空 SYS 块**
   - 需求：用户确认——采用**方案 A+B**（A 精准忽略 `interaction_*`；B 通用「无文本不建块」兜底）；版本归属=新建 v0.102.2（FIX 走 patch 递增）
   - 根因（已受控复现）：`web/session.go:1349 emitInteractionEvent()` 以 `ChannelSystem`+空文本下发并持久化两个事件（常量在 58-59）；`app.js:768-776` 对每个事件无条件调用 `renderEvent`；早退分支未覆盖这两个类型 → `app.js:2855` 通用分支建出空 SYS 块。实测（真实 `renderEvent` 注入两事件）：`blocksAdded: 2`，均为 `ev system level-info` / label `SYS` / `bodyLen: 0`
   - 用例：`use-case/FIX-618/FIX-618-UC-0001.md`
   - 分支：**FIX-618**（基于 main），版本 v0.102.2
-  - 进度：**待用户确认测试（已实现并本地验证）**。落地：`web/static/app.js` 两处——① `renderEvent` 早退区显式忽略 `interaction_request` / `interaction_resolved`（已由 `handleInteractionEvent` 处理）；② 通用分支在 `makeBlock` 之前加「无文本则不建块」守卫并改用局部 `text`。新增 `web/fix618_test.go`（A-001/A-002 静态断言）。
+  - 进度：**已完成并合并 main（用户确认）**。落地：`web/static/app.js` 两处——① `renderEvent` 早退区显式忽略 `interaction_request` / `interaction_resolved`（已由 `handleInteractionEvent` 处理）；② 通用分支在 `makeBlock` 之前加「无文本则不建块」守卫并改用局部 `text`。新增 `web/fix618_test.go`（A-001/A-002 静态断言）。
   - 验证：`node --check` 通过；`go test ./web/ -run Fix618` 通过。静态实例 + 调试浏览器（真实 `renderEvent`）对照：注入 `interaction_request`+`interaction_resolved` → **建块 0**（改动前为 2 个空 SYS 块）；未知 type + 空文本 → 0 块；非空文本未知事件 → 1 个 `SYS` 块（正文 `hi`）；`ui_text(repl)`×2 → 仍合并 1 个 `REPL` 块（`a\na`）；`content_chunk` → 1 个 `LLM` 块；`handleInteractionEvent` 未抛错且对话框正常弹出。 [BUILD-1256]
 
 ---
