@@ -53,7 +53,7 @@ import (
 // co-shell release they ship with (same version/build numbering).
 const (
 	hubVersion = "0.101.1"
-	hubBuild   = "1252"
+	hubBuild   = "1253"
 )
 
 // Default listen ports for the hub. When neither the command line nor the

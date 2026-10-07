@@ -1478,6 +1478,14 @@ func (w *WebIO) currentSource() string {
 // channel) and sends it to the browser, so REPL builtin command output
 // (:set, :mcp, ...) renders as a REPL block in the event stream.
 func (w *WebIO) pushText(text string) {
+	// FIX-615: agent code prints bare blank lines for terminal readability
+	// (io.Println() with no arguments -> "\n"). Over the Web UI each of those
+	// became an empty "SYS" block, so whitespace-only text is dropped here.
+	// Only the browser event stream is filtered — the CLI/terminal renderer
+	// keeps its blank lines (they are real layout there).
+	if strings.TrimSpace(text) == "" {
+		return
+	}
 	w.srv.sendEvent(agent.NewStreamEvent("ui_text", agent.ChannelREPL, agent.LevelInfo, text))
 }
 
