@@ -4,6 +4,32 @@
 
 ---
 
+## v0.101.0 — hub agent 列表拖动排序：FEATURE-613
+
+> **版本**: v0.101.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.101.0）
+> **里程碑**: hub 聚合页左侧的 agent 列表支持**拖动排序**——按住卡片上下拖动即可调整 agent 的展示顺序（左右滑仍为删除），松手后顺序**持久化到 hub-agents.json**，重启 hub 或更换浏览器后保持一致。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-613 | 0.101.0 | P1 | hub agent 列表拖动排序：`Manager` 新增 `Reorder(ids)`（按给定 id 顺序重排 registry 并落盘 hub-agents.json）；新增 `PUT /api/agents/order` 接口（传有序 id 数组，校验后重排）；前端 `#agentList` 卡片**长按约 300ms** 后上下拖动排序（普通拖动仍用于滚动、左滑仍为删除），拖动中暂停 3s 轮询重建，松手后上报新顺序并在失败时回退 |
+
+> 当前 BUILD: 1251
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-613 hub agent 列表拖动排序**
+  - 需求：用户确认——① 持久化到 `hub-agents.json`（新增后端排序 API，重启 hub 后保持、多端一致）；② **长按约 300ms 后**拖动排序，未长按的普通拖动仍用于滚动列表、水平左滑仍为删除；③ 版本归属=新建 v0.101.0（FEATURE 走 minor 递增）
+  - 用例：`use-case/FEATURE-613/FEATURE-613-UC-0001.md`（23 条）
+  - 分支：**FEATURE-613**（基于 main），版本 v0.101.0
+  - 进度：**已完成并合并 main（用户确认，build 1251）**。落地：① `hub/gateway/manager.go` 新增 `Reorder(ids)`——按 id 列表重排 registry 并落盘，id 比较大小写不敏感（与 `findAgentLocked` 一致），列表必须不重不漏覆盖全部 agent（否则 `ErrInvalidAgentOrder`，返回错误前不改动内存顺序）；② `hub/gateway/webui.go` 新增 `PUT /api/agents/order`（body `{"ids":[...]}`，成功 200、非法 400），`agentErrorStatus` 将该错误映射为 400；路由为字面量模式，优先级高于 `PUT /api/agents/{id}`；③ `hub/gateway/webui_static.go` 前端：`.agent-wrap` 记 `data-id`，在既有 `attachSwipe` 手势状态机内新增长按排序——`SORT_HOLD_MS=300`/`SORT_HOLD_PX=8`，长按到时进入排序（行浮起跟随指针、跨过邻居中点即 `insertBefore` 实时重排、translateY 由布局位置反算保证跟手），长按期间移动超阈值或提前抬起即取消长按（保留滚动/左滑）；`listSorting` 标志让 3s 轮询在拖动期间跳过 `renderList()`；松手后 `saveOrder()` 以乐观顺序上报，失败则回滚重建；仅实际发生过交换才上报；④ 新增 `hub/gateway/feature613_test.go`（14 项：Reorder 落盘/重载/四类非法列表拒绝且不改动/大小写不敏感、API 200 与 400、路由优先级、webui 路由存在、前端 6 组静态断言）
+  - 验证：`go build ./... && go vet ./...`（hub 与根模块）全绿；`go test ./...`（hub）全绿；内嵌 JS `node --check` 通过。运行时（隔离 hub 实例 :28399 + 独立 registry + 调试浏览器）：C-001 长按拖动后列表由 a,b,c 变为 b,a,c；C-002 刷新后保持；C-003 重启 hub 后仍为 b,a,c（registry 文件同步）；C-004 左滑仍露出删除按钮（`translateX(-63px)`）且不触发排序；C-005 点击仍切换 agent（active 转移）；C-006 长按后跨越 3s 轮询，拖动行 DOM 未被重建（`sameElement=true`）；C-007 删除 agent-a 后剩余 b,c 相对顺序保持；C-008 长按不移动即松手顺序不变且无多余上报（日志 PUT 计数=1）。
+
+---
+
 ## v0.100.1 — 动态感知暴露面板（任务进展栏滑动开关）：FEATURE-612
 
 > **版本**: v0.100.1

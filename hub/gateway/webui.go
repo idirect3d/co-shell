@@ -79,6 +79,7 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	mux.HandleFunc("GET /api/agents", w.handleListAgents)
 	mux.HandleFunc("POST /api/agents", w.handleCreateAgent)
 	mux.HandleFunc("POST /api/agents/external", w.handleAddExternal)
+	mux.HandleFunc("PUT /api/agents/order", w.handleReorderAgents)
 	mux.HandleFunc("PUT /api/agents/{id}", w.handleUpdateAgent)
 	mux.HandleFunc("POST /api/agents/{id}/start", w.handleStartAgent)
 	mux.HandleFunc("POST /api/agents/{id}/stop", w.handleStopAgent)
@@ -309,7 +310,7 @@ func agentErrorStatus(err error) int {
 	switch {
 	case errors.Is(err, ErrAgentNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, ErrInvalidAgentID), errors.Is(err, ErrInvalidAgent):
+	case errors.Is(err, ErrInvalidAgentID), errors.Is(err, ErrInvalidAgent), errors.Is(err, ErrInvalidAgentOrder):
 		return http.StatusBadRequest
 	case errors.Is(err, ErrAgentExists):
 		return http.StatusConflict
@@ -460,6 +461,29 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(rw, http.StatusOK, spec)
+}
+
+// reorderAgentsRequest is the PUT /api/agents/order body (FEATURE-613).
+type reorderAgentsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// handleReorderAgents rewrites the agent registry order to match the given id
+// list (FEATURE-613) and persists it, so a drag in the agent list survives a
+// hub restart and reaches every other browser. The list must cover every
+// registered agent exactly once; anything else is a 400 and leaves the registry
+// untouched (Manager.Reorder stays atomic).
+func (w *WebUI) handleReorderAgents(rw http.ResponseWriter, r *http.Request) {
+	var req reorderAgentsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "bad request"})
+		return
+	}
+	if err := w.manager.Reorder(req.IDs); err != nil {
+		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(rw, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // agentIdentityView is the JSON shape of GET /api/agents/{id}/identity.
