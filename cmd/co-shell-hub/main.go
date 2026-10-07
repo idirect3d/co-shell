@@ -52,8 +52,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.103.0"
-	hubBuild   = "1260"
+	hubVersion = "0.104.0"
+	hubBuild   = "1261"
 )
 
 // Default listen ports for the hub. When neither the command line nor the

@@ -872,7 +872,11 @@ function wsConnect() {
       // stream, not by direct ask/interaction frames, so several tabs stay in
       // sync and a reconnect replays whatever is still unanswered.
       handleInteractionEvent(msg.event);
-      renderEvent(msg.event);
+      // FEATURE-621: mark this render as a live update so applyPanels may pull
+      // the view back to 任务进展; history replays (connect / reconnect / session
+      // switch) leave the flag alone and therefore never pull it back.
+      liveTaskEvent = true;
+      try { renderEvent(msg.event); } finally { liveTaskEvent = false; }
     }
     else if (msg.kind === "state") {
       // FEATURE-542: this connection's source label ("端 N"), used to tag our
@@ -3138,6 +3142,15 @@ const panelPrefs = (() => {
   try { return JSON.parse(localStorage.getItem("co-shell-panels")) || {}; } catch { return {}; }
 })();
 let lastPlan = null;
+// FEATURE-621: task-side emptiness (plan / sub-agents / loaded skills) on the
+// previous applyPanels pass, used to spot the moment it goes from nothing to
+// something.
+let prevPlanContent = false;
+// FEATURE-621: true only while a live event-stream message is being rendered.
+// Connect / reconnect / session switches replay the same events through the
+// history path, which must stay a baseline so they never pull the view back and
+// a refresh keeps the remembered 任务进展 / 动态信息 choice.
+let liveTaskEvent = false;
 
 function savePanelPrefs() {
   localStorage.setItem("co-shell-panels", JSON.stringify(panelPrefs));
@@ -3162,6 +3175,17 @@ function applyPanels() {
     planSwitch.classList.add("dyn");
     planSwitch.setAttribute("aria-checked", "true");
   }
+  // FEATURE-621: the mirror image of the rule above — when the task side goes
+  // from nothing to something (a plan, a running sub-agent or a loaded skill
+  // just appeared) on a live update, pull the view back from the 动态信息
+  // timeline to 任务进展 so the new content is visible. Non-persisted, and only
+  // the live stream counts (replayed history is a baseline, not a transition).
+  if (liveTaskEvent && hasPlanContent && !prevPlanContent && planView === "dyn") {
+    planView = "plan";
+    planSwitch.classList.remove("dyn");
+    planSwitch.setAttribute("aria-checked", "false");
+  }
+  prevPlanContent = hasPlanContent;
   planPanel.classList.toggle("hidden", !showPlan);
   layout.classList.toggle("no-plan", !showPlan);
   miPlanCheck.classList.toggle("on", panelPrefs.plan !== false);
