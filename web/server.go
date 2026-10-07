@@ -1289,13 +1289,22 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 // unaffected. The git command is bounded by a 3s timeout so a hung git
 // process (e.g. a repo whose status blocks) never stalls the file-tree API.
 // Argument-array exec (no shell) — no injection surface.
+//
+// FIX-617: --no-optional-locks keeps `git status` from refreshing and writing
+// the index back, so it never takes .git/index.lock. Without it every tree
+// request (GET /api/tree calls this per request, and one workspace refresh
+// fetches 1+N levels) held the lock for ~7ms — about 45% of the command's
+// runtime — so concurrent git writes (git add/commit/merge/tag, from a tool
+// call or the user) frequently died with "Unable to create '.git/index.lock':
+// File exists". The status output is unaffected; only the optional index
+// refresh is skipped.
 func gitStatusMap(root string) map[string]string {
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "status", "--porcelain", "-z")
+	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "status", "--porcelain", "-z")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
