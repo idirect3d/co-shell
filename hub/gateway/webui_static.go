@@ -209,6 +209,14 @@ const webIndexHTML = `<!DOCTYPE html>
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
   .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; background:var(--panel); }
+  /* FEATURE-613: a card that has been held long enough to enter sort mode lifts
+     up and follows the pointer. The wrapper itself carries the transform (never
+     the card), so the wrapper's own overflow:hidden keeps covering the delete
+     button underneath. */
+  .agent-wrap.sorting { z-index:5; box-shadow:0 6px 18px rgba(0,0,0,.45); }
+  .agent-wrap.sorting .agent { background:var(--elev); color:var(--fg); }
+  #agentList.sorting { cursor:grabbing; }
+  body.sorting-lock { user-select:none; -webkit-user-select:none; }
   /* FIX-560: keep the button invisible at rest — otherwise the card's
      anti-aliased 8px corners let a red hairline show through — and fade it in
      with the drag (see DELETE_FADE_PX / setDelOpacity in the script). 84px is
@@ -688,6 +696,7 @@ var HUB_LANG = "__HUB_LANG__";
     msgSaved: 'Saved.',
     alertStartFailed: 'Start failed: %s',
     alertStopFailed: 'Stop failed: %s',
+    alertOrderFailed: 'Failed to save the new order: %s',
     alertDeleteFailed: 'Delete failed: %s',
     settingsNeedsKey: 'An access key is required to view the settings',
     phKeySet: 'set (leave empty to keep it)',
@@ -943,7 +952,10 @@ var HUB_LANG = "__HUB_LANG__";
       // FIX-594: only rebuild the (innerHTML-based) list when something it
       // paints actually changed; the 3s poll used to rebuild it every tick.
       var sig = agentsSignature(agents, current);
-      if (sig !== lastAgentsSig){ lastAgentsSig = sig; renderList(); }
+      // FEATURE-613: leave the list alone while a reorder drag is in progress —
+      // a mid-drag rebuild would tear the dragged row out from under the
+      // pointer and snap the rows back to the order stored on the hub.
+      if (sig !== lastAgentsSig && !listSorting){ lastAgentsSig = sig; renderList(); }
       ensureFrame(current);
       // FEATURE-530: keep the Chat pane in sync while it is expanded.
       if (!chatBody.classList.contains('collapsed')) loadBoard();
@@ -1181,6 +1193,9 @@ var HUB_LANG = "__HUB_LANG__";
   // (including the active agent), so refresh() can skip the DOM rebuild when a
   // poll returns an unchanged list.
   var lastAgentsSig = '';
+  // FEATURE-613: true while a long-press reorder drag owns the list. The 3s
+  // poll must not rebuild the DOM while it is set.
+  var listSorting = false;
   function agentsSignature(list, cur){
     return (list || []).map(function(a){
       return [a.id, a.name, a.connected, a.running, a.busy, a.type, a.board_state].join('\u0001');
@@ -1199,6 +1214,7 @@ var HUB_LANG = "__HUB_LANG__";
       // Swipe container: delete button behind the card, revealed by swiping left.
       var wrap = document.createElement('div');
       wrap.className = 'agent-wrap';
+      wrap.dataset.id = a.id;
       var del = document.createElement('button');
       del.className = 'agent-del';
       del.textContent = t('btnDelete', '删除');
@@ -1459,6 +1475,11 @@ var HUB_LANG = "__HUB_LANG__";
   // FIX-560: distance the card must travel before the delete button is fully
   // opaque; the button fades in gradually over this drag distance.
   var DELETE_FADE_PX = 16;
+  // FEATURE-613: how long a card must be held before the drag reorders the list
+  // instead of swiping it, and how far the pointer may drift during that hold
+  // before the hold is abandoned (a normal drag/scroll).
+  var SORT_HOLD_MS = 300;
+  var SORT_HOLD_PX = 8;
   // setDelOpacity drives the delete button's fade: v is the target opacity
   // (0..1), 0 while the card rests and 1 once the swipe passed DELETE_FADE_PX.
   function setDelOpacity(card, v){
@@ -1476,9 +1497,14 @@ var HUB_LANG = "__HUB_LANG__";
     else if (openCard === card) openCard = null;
   }
   // attachSwipe wires mouse-drag and touch-swipe so a card can be swiped left
-  // to reveal its delete button.
+  // to reveal its delete button, and a long press (FEATURE-613) so it can be
+  // held and dragged up/down to reorder the list instead.
   function attachSwipe(card){
     var startX = 0, startY = 0, dx = 0, dragging = false, listening = false;
+    // FEATURE-613 sort state: holdTimer fires once the card has been held long
+    // enough to switch from "swipe/scroll" to "reorder"; sorting stays true from
+    // that moment until the pointer is released.
+    var holdTimer = null, sorting = false, trans = 0, grab = 0, swapped = false;
     // FIX-597: the window-level drag listeners live only while a mouse drag is
     // in progress. They used to be registered by every attachSwipe() call —
     // that is, twice per agent card on every list rebuild — and never undone,
@@ -1500,14 +1526,78 @@ var HUB_LANG = "__HUB_LANG__";
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', end);
     }
+    function cancelHold(){
+      if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+    }
+    // startSort (FEATURE-613) lifts the row once the hold has elapsed: from now
+    // on the pointer drags the row up/down instead of swiping it, and the 3s
+    // list poll stands down (listSorting) so a rebuild cannot yank the row out
+    // from under the pointer.
+    function startSort(){
+      holdTimer = null;
+      sorting = true;
+      listSorting = true;
+      card._moved = true; // swallow the click the release would otherwise fire
+      var wrap = card.parentNode;
+      grab = startY - wrap.getBoundingClientRect().top;
+      trans = 0; swapped = false;
+      wrap.classList.add('sorting');
+      listEl.classList.add('sorting');
+      document.body.classList.add('sorting-lock');
+      if (openCard) setSwipe(openCard, false);
+    }
+    // sortMove keeps the row under the pointer and swaps it with a neighbour as
+    // soon as the pointer crosses that neighbour's midpoint.
+    function sortMove(y){
+      var wrap = card.parentNode;
+      for (;;){
+        var prev = wrap.previousElementSibling;
+        if (prev){
+          var pr = prev.getBoundingClientRect();
+          if (y < pr.top + pr.height / 2){ listEl.insertBefore(wrap, prev); swapped = true; continue; }
+        }
+        var next = wrap.nextElementSibling;
+        if (next){
+          var nr = next.getBoundingClientRect();
+          if (y > nr.top + nr.height / 2){ listEl.insertBefore(wrap, next.nextElementSibling); swapped = true; continue; }
+        }
+        break;
+      }
+      // The row is positioned by transform, so its layout slot stays put: the
+      // wanted translation is "pointer-relative top" minus the current layout
+      // top (rect.top already includes the translation applied so far).
+      var layoutTop = wrap.getBoundingClientRect().top - trans;
+      trans = (y - grab) - layoutTop;
+      wrap.style.transform = 'translateY(' + trans + 'px)';
+    }
+    // finishSort clears the sort look and persists the new order — but only
+    // when a neighbour was actually swapped, so merely holding a card never
+    // fires a pointless request.
+    function finishSort(){
+      sorting = false;
+      listSorting = false;
+      var wrap = card.parentNode;
+      wrap.classList.remove('sorting');
+      listEl.classList.remove('sorting');
+      document.body.classList.remove('sorting-lock');
+      wrap.style.transform = '';
+      trans = 0;
+      if (swapped) saveOrder();
+    }
     function begin(x, y){
       startX = x; startY = y; dx = 0; dragging = true; card._moved = false;
       card.style.transition = 'none';
       if (card._del) card._del.style.transition = 'none'; // follow the drag, no lag
+      cancelHold();
+      holdTimer = setTimeout(startSort, SORT_HOLD_MS);
     }
     function move(x, y){
       if (!dragging) return;
       var mx = x - startX, my = y - startY;
+      if (sorting){ sortMove(y); return; }
+      // Any real movement before the hold fires means the user wants to swipe or
+      // scroll, not to reorder: drop the pending hold.
+      if (Math.abs(mx) > SORT_HOLD_PX || Math.abs(my) > SORT_HOLD_PX) cancelHold();
       if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ // vertical scroll
         dragging = false;
         unlisten();
@@ -1521,6 +1611,8 @@ var HUB_LANG = "__HUB_LANG__";
     }
     function end(){
       unlisten();
+      cancelHold();
+      if (sorting){ finishSort(); return; }
       if (!dragging) return;
       dragging = false;
       setSwipe(card, dx < -32);
@@ -1529,6 +1621,31 @@ var HUB_LANG = "__HUB_LANG__";
     card.addEventListener('touchstart', function(e){ var t = e.touches[0]; begin(t.clientX, t.clientY); }, {passive:true});
     card.addEventListener('touchmove', function(e){ var t = e.touches[0]; move(t.clientX, t.clientY); }, {passive:true});
     card.addEventListener('touchend', end);
+    card.addEventListener('touchcancel', end);
+  }
+
+  // saveOrder (FEATURE-613) persists the order the user just dragged into place.
+  // The local array is reordered first so the next poll's signature matches the
+  // DOM (no rebuild snaps the rows back); if the request fails the previous
+  // order is restored and the list rebuilt, so the UI never keeps an order the
+  // hub rejected.
+  function saveOrder(){
+    var order = [];
+    Array.prototype.forEach.call(listEl.children, function(el){
+      if (el.dataset && el.dataset.id) order.push(el.dataset.id);
+    });
+    if (order.length !== agents.length) return; // never send a partial list
+    var prev = agents.slice();
+    agents.sort(function(a, b){ return order.indexOf(a.id) - order.indexOf(b.id); });
+    lastAgentsSig = agentsSignature(agents, current);
+    api('PUT', '/api/agents/order', { ids: order }, function(st, j){
+      if (st >= 400){
+        agents = prev;
+        lastAgentsSig = agentsSignature(agents, current);
+        renderList();
+        alert(t('alertOrderFailed', '排序保存失败: %s').replace('%s', (j && j.error) || st));
+      }
+    });
   }
 
   // Clicking empty space in the list closes any swipe-open card.

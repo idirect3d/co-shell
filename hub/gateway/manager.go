@@ -136,6 +136,40 @@ func (m *Manager) Agents() []AgentSpec {
 	return out
 }
 
+// Reorder rewrites the registry order to match ids and persists it
+// (FEATURE-613). The list must cover every registered agent exactly once —
+// compared case-insensitively and trimmed, like findAgentLocked — so a stale
+// or partial list from another browser can never drop a row. Any missing,
+// unknown or duplicated id is rejected before the in-memory order changes,
+// leaving the registry untouched.
+func (m *Manager) Reorder(ids []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(ids) != len(m.agents) {
+		return fmt.Errorf("%w: got %d ids for %d agents", ErrInvalidAgentOrder, len(ids), len(m.agents))
+	}
+	byID := make(map[string]AgentSpec, len(m.agents))
+	for _, a := range m.agents {
+		byID[strings.ToLower(a.ID)] = a
+	}
+	ordered := make([]AgentSpec, 0, len(ids))
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		key := strings.ToLower(strings.TrimSpace(id))
+		if seen[key] {
+			return fmt.Errorf("%w: duplicate id %q", ErrInvalidAgentOrder, id)
+		}
+		a, ok := byID[key]
+		if !ok {
+			return fmt.Errorf("%w: unknown id %q", ErrInvalidAgentOrder, id)
+		}
+		seen[key] = true
+		ordered = append(ordered, a)
+	}
+	m.agents = ordered
+	return m.save()
+}
+
 // ID validation errors (FEATURE-538). Callers map ErrAgentExists to 409 and
 // ErrInvalidAgentID to 400.
 var (
@@ -143,6 +177,9 @@ var (
 	ErrAgentExists = errors.New("agent already exists")
 	// ErrInvalidAgentID marks a create/add rejected because the ID is unusable.
 	ErrInvalidAgentID = errors.New("invalid agent id")
+	// ErrInvalidAgentOrder marks a reorder request whose id list does not
+	// describe the registry exactly (FEATURE-613).
+	ErrInvalidAgentOrder = errors.New("invalid agent order")
 )
 
 // idForbiddenChars are the characters an agent ID may not contain: they break
