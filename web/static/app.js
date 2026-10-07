@@ -2792,7 +2792,14 @@ function renderEvent(ev) {
     } else {
       // result / tool error: append into the same block
       if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
-      if (ev.type === "error") curTool.body.parentElement.classList.add("level-error");
+      if (ev.type === "error") {
+        // FIX-614: the indicator line for this block was painted when the
+        // iteration's token_iter arrived, i.e. before the failure was known —
+        // repaint it now so live and replay agree on the colour.
+        const errBox = curTool.body.parentElement;
+        errBox.classList.add("level-error");
+        msgVizRecolor(errBox);
+      }
       const t = (ev.text || "").replace(/^\s*Result:\n/, "");
       curTool.raw += (curTool.raw ? "\n\n" : "") + t;
       curTool.hasResult = true;
@@ -3269,10 +3276,15 @@ function msgVizColor(cls, box) {
 // percentage (FEATURE-487).
 function msgVizTip(cls, box, ratio) {
   const en = currentLang === "en";
+  // FIX-614: read the live classes too, exactly like msgVizColor — a failed tool
+  // call is marked with level-error only when its result arrives, i.e. after the
+  // line was drawn, so a cls-only check would keep saying "Tool" on a red line.
+  const bcls = box ? box.className : "";
+  const hasLevel = (re) => re.test(cls) || re.test(bcls);
   let type = "";
-  if (/level-error/.test(cls)) type = en ? "Failed" : "失败";
-  else if (/level-success/.test(cls)) type = en ? "Success" : "成功";
-  else if (/level-warning/.test(cls)) type = en ? "Warning" : "警告";
+  if (hasLevel(/level-error/)) type = en ? "Failed" : "失败";
+  else if (hasLevel(/level-success/)) type = en ? "Success" : "成功";
+  else if (hasLevel(/level-warning/)) type = en ? "Warning" : "警告";
   else if (/user-msg/.test(cls)) type = en ? "User" : "用户";
   else if (/llm/.test(cls)) type = en ? "LLM" : "LLM";
   else if (/tool/.test(cls)) type = en ? "Tool" : "工具";
@@ -3317,6 +3329,7 @@ function msgVizFlush() {
     line.style.setProperty("--line-color", col);
     line._box = p.box; // for click-to-locate in initMsgViz
     line._cls = p.cls; // for the hover tooltip
+    line._ratio = ratio; // FIX-614: kept so msgVizRecolor can rebuild the tooltip
     const dot = document.createElement("div");
     dot.className = "msgviz-dot";
     dot.style.top = top + "px";
@@ -3337,6 +3350,20 @@ function msgVizFlush() {
     else msgVizTrack.appendChild(line);
   }
   msgVizApplyPan();
+}
+
+// FIX-614: msgVizRecolor repaints the line of a block whose status class changed
+// AFTER that line was drawn. A failed tool call is only marked (level-error) when
+// its result event arrives, which is later than the msgVizFlush() that painted
+// the line in the plain tool colour — so the chart stayed yellow until the page
+// was reloaded (a history replay paints the block and its error in one pass).
+// Called from the tool-result path; a no-op while the line does not exist yet.
+function msgVizRecolor(box) {
+  if (!msgVizTrack || !box) return;
+  const line = Array.from(msgVizTrack.children).find((l) => l._box === box);
+  if (!line) return;
+  line.style.setProperty("--line-color", msgVizColor(line._cls, box));
+  line.title = msgVizTip(line._cls, box, line._ratio || 0);
 }
 
 // msgVizApplyPan clamps and applies the horizontal pan offset to the track.
