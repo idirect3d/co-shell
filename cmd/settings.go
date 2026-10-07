@@ -223,8 +223,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "env-include-details", subcommand == "env-include-current-dir",
 		subcommand == "env-include-tools", subcommand == "env-include-research",
 		subcommand == "env-include-user-dynamic",
-		subcommand == "env-history-prune", subcommand == "env-history-full-keep",
-		subcommand == "env-history-lite-keep", subcommand == "env-tool-batch-single",
+		subcommand == "env-history-prune", subcommand == "env-tool-batch-single",
 		subcommand == "env-board-roster-brief", subcommand == "env-dir-change-detect",
 		subcommand == "env-runtime-info-once", subcommand == "tool-desc-compact",
 		subcommand == "ui-enabled", subcommand == "ui-context-prune",
@@ -1005,8 +1004,6 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("ui-context-prune", boolStr(cfg.UIContextPrune), i18n.T(i18n.KeyCol3UIContextPrune)),
 		// FEATURE-579: token-optimization switches (env rendering / tool schema).
 		makeLine("env-history-prune", boolStr(cfg.LLM.EnvHistoryPrune), i18n.T(i18n.KeyCol3EnvHistoryPrune)),
-		makeLine("env-history-full-keep", fmt.Sprintf("%d", cfg.LLM.EnvHistoryFullKeep), i18n.T(i18n.KeyCol3EnvHistoryFullKeep)),
-		makeLine("env-history-lite-keep", fmt.Sprintf("%d", cfg.LLM.EnvHistoryLiteKeep), i18n.T(i18n.KeyCol3EnvHistoryLiteKeep)),
 		makeLine("env-tool-batch-single", boolStr(cfg.LLM.EnvToolBatchSingle), i18n.T(i18n.KeyCol3EnvToolBatchSingle)),
 		makeLine("env-board-roster-brief", boolStr(cfg.LLM.EnvBoardRosterBrief), i18n.T(i18n.KeyCol3EnvBoardRosterBrief)),
 		makeLine("env-dir-change-detect", boolStr(cfg.LLM.EnvDirChangeDetect), i18n.T(i18n.KeyCol3EnvDirChangeDetect)),

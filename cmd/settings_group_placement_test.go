@@ -1,9 +1,9 @@
 // Author: L.Shuang
 // Created: 2026-10-02
 //
-// MIT License - Copyright (c) 2026 L.Shuang
+// # MIT License - Copyright (c) 2026 L.Shuang
 //
-// FEATURE-579 follow-up: the ten token-optimization / UI rendering switches
+// FEATURE-579 follow-up: the token-optimization / UI rendering switches
 // (FEATURE-579 + FEATURE-524) were moved from the "Agent Settings" group to the
 // "Memory & Context" group in both the Web settings panel and the TUI :set list.
 // These tests print evidence lines (SETTINGS/...) so a reviewer can verify the
@@ -20,12 +20,11 @@ import (
 // movedSettingsKeys are the switches relocated to the Memory & Context group:
 // the FEATURE-524 UI context pruning switch followed by the FEATURE-579 token
 // optimization switches (same order as the group definition). ui-enabled was put
-// back to the Agent Settings group.
+// back to the Agent Settings group. The two keep-count entries were removed by
+// FEATURE-622 (the history trim is driven by a single switch now).
 var movedSettingsKeys = []string{
 	"ui-context-prune",
 	"env-history-prune",
-	"env-history-full-keep",
-	"env-history-lite-keep",
 	"env-tool-batch-single",
 	"env-board-roster-brief",
 	"env-dir-change-detect",
@@ -33,7 +32,7 @@ var movedSettingsKeys = []string{
 	"tool-desc-compact",
 }
 
-// TestMovedSettingsGroupPlacement verifies the ten switches belong to the
+// TestMovedSettingsGroupPlacement verifies the relocated switches belong to the
 // "Memory & Context" group in the Web settings panel (SettingsJSON) and appear
 // inside that group's section of the TUI :set output (showSettingsHelp).
 func TestMovedSettingsGroupPlacement(t *testing.T) {

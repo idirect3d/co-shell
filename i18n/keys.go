@@ -2767,16 +2767,13 @@ const (
 
 	// FEATURE-579: token-optimization switches (env rendering degradation +
 	// tool-schema compaction) and their validation errors.
-	KeyCol3EnvHistoryPrune       = "col3_env_history_prune"
-	KeyCol3EnvHistoryFullKeep    = "col3_env_history_full_keep"
-	KeyCol3EnvHistoryLiteKeep    = "col3_env_history_lite_keep"
-	KeyCol3EnvToolBatchSingle    = "col3_env_tool_batch_single"
-	KeyCol3EnvBoardRosterBrief   = "col3_env_board_roster_brief"
-	KeyCol3EnvDirChangeDetect    = "col3_env_dir_change_detect"
-	KeyCol3EnvRuntimeInfoOnce    = "col3_env_runtime_info_once"
-	KeyCol3ToolDescCompact       = "col3_tool_desc_compact"
-	KeySettingEnvKeepNonNegative = "setting_env_keep_non_negative"
-	KeySettingEnvBoolInvalid     = "setting_env_bool_invalid"
+	KeyCol3EnvHistoryPrune     = "col3_env_history_prune"
+	KeyCol3EnvToolBatchSingle  = "col3_env_tool_batch_single"
+	KeyCol3EnvBoardRosterBrief = "col3_env_board_roster_brief"
+	KeyCol3EnvDirChangeDetect  = "col3_env_dir_change_detect"
+	KeyCol3EnvRuntimeInfoOnce  = "col3_env_runtime_info_once"
+	KeyCol3ToolDescCompact     = "col3_tool_desc_compact"
+	KeySettingEnvBoolInvalid   = "setting_env_bool_invalid"
 
 	// CLI Help - Session ID (FEATURE-290)
 	KeyCLIHelpSessionID = "cli_help_session_id"

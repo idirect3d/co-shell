@@ -253,18 +253,16 @@ func TestFeature611UserMessageModeAccessor(t *testing.T) {
 func TestFeature611ReplayIndependentOfPruning(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.LLM.EnvHistoryPrune = true
-	cfg.LLM.EnvHistoryFullKeep = 1
-	cfg.LLM.EnvHistoryLiteKeep = 0
 	a := &Agent{cfg: cfg}
 
 	a.AddDynamicEvent(DynamicUserMessage, "关键补充")
 	first := a.consumeDynamicEvents(true)
 
-	// The first envelope is now an old message; degrade it like the history
-	// prune does and make sure the lite level drops the dynamic block.
-	lite := buildEnvBlock("<environment_details>\n<time>t</time>\n"+strings.TrimSpace(first)+"\n</environment_details>", envLevelLite)
-	if strings.Contains(lite, "user_dynamic_events") {
-		t.Fatalf("lite level is expected to drop the dynamic block:\n%s", lite)
+	// The first envelope is now an old message; trim it exactly like the history
+	// prune does and make sure the dynamic block is dropped.
+	trimmed := buildMinimalEnvBlock("<environment_details>\n<time>t</time>\n" + strings.TrimSpace(first) + "\n</environment_details>")
+	if strings.Contains(trimmed, "user_dynamic_events") {
+		t.Fatalf("trimmed envelope is expected to drop the dynamic block:\n%s", trimmed)
 	}
 
 	// The event is still delivered: it is replayed in the newest envelope.

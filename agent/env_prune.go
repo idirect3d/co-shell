@@ -1,17 +1,21 @@
-// Package agent - three-level degradation of historical <environment_details>
-// blocks (FEATURE-579, plan A).
+// Package agent - trimming of historical <environment_details> envelopes
+// (FEATURE-622, superseding the three-level degradation of FEATURE-579 plan A).
 //
 // Every user/tool message carries a frozen <environment_details> envelope, so a
 // long session re-sends dozens of full envelopes (each ~5KB with the file/tool
-// listings) on every LLM call. pruneEnvContext rewrites the envelopes of the
-// *copy* handed to the provider:
+// listings) on every LLM call. With env_history_prune on, pruneEnvContext
+// rewrites the envelopes of the *copy* handed to the provider:
 //
-//	L0 full   → the newest env_history_full_keep messages keep everything
-//	L1 lite   → the next env_history_lite_keep messages keep the dynamic parts
-//	L2 minimal→ everything older keeps only <time> and <message_no>
+//	newest carrier → kept exactly as frozen (the only complete envelope)
+//	everything else → <time> + <message_no> only
 //
-// 0 means "unlimited": full_keep=0 keeps every message at L0 (degradation off),
-// lite_keep=0 turns every non-L0 message into L1 (no L2 level).
+// The newest carrier is the last user/tool message that still carries an
+// envelope (not necessarily the last element of the slice). Because the older
+// envelopes lose their listings, the generator must never put cross-message
+// references (<unchanged since msg#N/> or <unchanged/>) into that newest
+// envelope — see env_slim.go, which bypasses the three slim-down sub-switches
+// while this switch is on. With env_history_prune off nothing is rewritten and
+// the sub-switches apply as before.
 //
 // The persisted history (a.messages) must never be touched: the slice is cloned
 // before any ContentPart is replaced (same pattern as pruneUIContext).
@@ -29,60 +33,20 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 )
 
-// Environment degradation levels.
-const (
-	envLevelFull    = 0 // L0: unchanged envelope
-	envLevelLite    = 1 // L1: dynamic parts only
-	envLevelMinimal = 2 // L2: <time> + <message_no> only
-)
-
 // envDirForceFullEvery forces a full <current_dir>/<tools>/<research> block
 // every N envelopes so the LLM can always recover the file listing (plan C).
+// It only matters while env_history_prune is off: with the trim on, the newest
+// envelope always carries the full listings (FEATURE-622).
 const envDirForceFullEvery = 20
 
-// envLiteTags are kept at L1; envMinimalTags are kept at L2. Anything else
-// (current_dir, tools, research, board_agents, runtime_info, user_dynamic_events)
-// is dropped because it is either static, bulky or one-shot.
-var (
-	envLiteTags = map[string]bool{
-		"time":             true,
-		"message_no":       true,
-		"context_window":   true,
-		"cwd":              true,
-		"current_mode":     true,
-		"result_mode":      true,
-		"no_tool_action":   true,
-		"session_title":    true,
-		"task_plan":        true,
-		"opened_resources": true,
-		"sub_agents":       true,
-		"board_replies":    true,
-	}
-	envMinimalTags = map[string]bool{
-		"time":       true,
-		"message_no": true,
-	}
-)
-
-// envLevelOf returns the degradation level for a message whose distance from
-// the newest message is dist (0 = newest).
-func envLevelOf(dist, fullKeep, liteKeep int) int {
-	if dist <= 0 {
-		return envLevelFull // the last message is never degraded
-	}
-	if fullKeep == 0 {
-		return envLevelFull // 0 = unlimited: everything stays L0
-	}
-	if dist < fullKeep {
-		return envLevelFull
-	}
-	if liteKeep == 0 {
-		return envLevelLite // 0 = unlimited: no L2 level
-	}
-	if dist < fullKeep+liteKeep {
-		return envLevelLite
-	}
-	return envLevelMinimal
+// envMinimalTags are the only elements kept in a trimmed envelope. Everything
+// else (cwd, context_window, current_mode, current_dir, tools, research,
+// board_agents, runtime_info, task_plan, opened_resources, user_dynamic_events)
+// is dropped because it is bulky, static or one-shot — the newest envelope
+// always carries the current values (FEATURE-622).
+var envMinimalTags = map[string]bool{
+	"time":       true,
+	"message_no": true,
 }
 
 // envPartIndex returns the index of the ContentPart carrying the
@@ -166,27 +130,13 @@ func splitEnvBlocks(envText string) []envBlock {
 	return blocks
 }
 
-// hasEnvTag reports whether the envelope contains the given top-level element.
-func hasEnvTag(envText, name string) bool {
-	for _, b := range splitEnvBlocks(envText) {
-		if b.name == name {
-			return true
-		}
-	}
-	return false
-}
-
-// buildEnvBlock rebuilds an envelope keeping only the elements allowed at the
-// given level. When nothing but the time tag is kept the block stays valid.
-func buildEnvBlock(envText string, level int) string {
-	keep := envMinimalTags
-	if level == envLevelLite {
-		keep = envLiteTags
-	}
+// buildMinimalEnvBlock rebuilds an envelope keeping only <time> and
+// <message_no>, so a long history stays cheap (FEATURE-622).
+func buildMinimalEnvBlock(envText string) string {
 	var sb strings.Builder
 	sb.WriteString("<environment_details>")
 	for _, b := range splitEnvBlocks(envText) {
-		if !keep[b.name] {
+		if !envMinimalTags[b.name] {
 			continue
 		}
 		sb.WriteString("\n")
@@ -226,8 +176,10 @@ func itoa(n int) string {
 	return string(buf[i:])
 }
 
-// pruneEnvContext degrades the envelopes of historical messages in msgs (the
-// per-call copy). It returns msgs unchanged when the switch is off.
+// pruneEnvContext trims the envelopes of historical messages in msgs (the
+// per-call copy): only the newest user/tool message carrying an envelope keeps
+// its full envelope, every older one collapses to <time> + <message_no>. It
+// returns msgs unchanged when the switch is off (FEATURE-622).
 func (a *Agent) pruneEnvContext(msgs []llm.Message) []llm.Message {
 	if a.cfg == nil || !a.cfg.LLM.EnvHistoryPrune {
 		return msgs
@@ -236,42 +188,37 @@ func (a *Agent) pruneEnvContext(msgs []llm.Message) []llm.Message {
 	if n == 0 {
 		return msgs
 	}
-	fullKeep := a.cfg.LLM.EnvHistoryFullKeep
-	liteKeep := a.cfg.LLM.EnvHistoryLiteKeep
 
-	levels := make([]int, n)
-	for i := 0; i < n; i++ {
-		levels[i] = envLevelOf(n-1-i, fullKeep, liteKeep)
-	}
-
-	// Fallback: keep <task_plan> visible. When the newest message has no plan
-	// (skipTaskPlan for track_task_progress/view_task_plan/attempt_completion),
-	// the most recent message that carries one stays at least at L1.
-	if !hasEnvTag(envTextAt(&msgs[n-1]), "task_plan") {
-		for i := n - 1; i >= 0; i-- {
-			if hasEnvTag(envTextAt(&msgs[i]), "task_plan") {
-				if levels[i] > envLevelLite {
-					levels[i] = envLevelLite
-				}
-				break
-			}
+	// Find the newest envelope carrier (the last user/tool message with an
+	// envelope): it is the single full envelope of the request.
+	keep := -1
+	for i := n - 1; i >= 0; i-- {
+		if msgs[i].Role != "user" && msgs[i].Role != "tool" {
+			continue
+		}
+		if envPartIndex(&msgs[i]) >= 0 {
+			keep = i
+			break
 		}
 	}
+	if keep < 0 {
+		return msgs
+	}
 
 	for i := 0; i < n; i++ {
-		if levels[i] == envLevelFull {
+		if i == keep {
 			continue
 		}
 		idx := envPartIndex(&msgs[i])
 		if idx < 0 {
 			continue
 		}
-		pruned := buildEnvBlock(msgs[i].ContentParts[idx].Text, levels[i])
+		trimmed := buildMinimalEnvBlock(msgs[i].ContentParts[idx].Text)
 		// Clone before writing so the persistent history keeps its envelope
 		// (the elements share the ContentParts backing array with a.messages).
 		parts := make([]llm.ContentPart, len(msgs[i].ContentParts))
 		copy(parts, msgs[i].ContentParts)
-		parts[idx].Text = pruned
+		parts[idx].Text = trimmed
 		msgs[i].ContentParts = parts
 	}
 	return msgs

@@ -42,8 +42,6 @@ func TestTokenOptSettings(t *testing.T) {
 		newValue string // value written through the setter
 	}{
 		{"env-history-prune", "env_history_prune", i18n.KeyCol3EnvHistoryPrune, "bool", "off"},
-		{"env-history-full-keep", "env_history_full_keep", i18n.KeyCol3EnvHistoryFullKeep, "int", "3"},
-		{"env-history-lite-keep", "env_history_lite_keep", i18n.KeyCol3EnvHistoryLiteKeep, "int", "2"},
 		{"env-tool-batch-single", "env_tool_batch_single", i18n.KeyCol3EnvToolBatchSingle, "bool", "off"},
 		{"env-board-roster-brief", "env_board_roster_brief", i18n.KeyCol3EnvBoardRosterBrief, "bool", "off"},
 		{"env-dir-change-detect", "env_dir_change_detect", i18n.KeyCol3EnvDirChangeDetect, "bool", "off"},
@@ -110,19 +108,6 @@ func TestTokenOptSettings(t *testing.T) {
 		})
 	}
 
-	// ---- negative keep values are rejected and leave the old value intact ----
-	for _, key := range []string{"env-history-full-keep", "env-history-lite-keep"} {
-		before := readTokenOptValue(t, cfg, key, "int")
-		if _, err := h.Handle([]string{key, "-1"}); err == nil {
-			t.Errorf("NEG|%s|expected rejection for -1", key)
-			continue
-		}
-		after := readTokenOptValue(t, cfg, key, "int")
-		if after != before {
-			t.Errorf("NEG|%s|value changed after rejection: %q -> %q", key, before, after)
-		}
-		fmt.Printf("NEG|%s|rejected|value=%s\n", key, after)
-	}
 }
 
 // defaultString renders a decoded DefaultConfig JSON value as the registry does.
@@ -163,12 +148,6 @@ func readTokenOptValue(t *testing.T, cfg *config.Config, key, kind string) strin
 		}
 		return boolStr(b)
 	}
-	switch key {
-	case "env-history-full-keep":
-		return fmt.Sprintf("%d", llm.EnvHistoryFullKeep)
-	case "env-history-lite-keep":
-		return fmt.Sprintf("%d", llm.EnvHistoryLiteKeep)
-	}
-	t.Fatalf("unknown int setting %q", key)
+	t.Fatalf("unsupported setting kind %q for %q", kind, key)
 	return ""
 }

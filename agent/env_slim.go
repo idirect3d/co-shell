@@ -8,6 +8,12 @@
 // All three sub-switches default to on; when a switch is off the original full
 // rendering is produced exactly as before.
 //
+// FEATURE-622: these slimmers emit cross-message references, which only stay
+// resolvable while every historical envelope is kept in the request. With the
+// history trim on (env_history_prune) all older envelopes collapse to <time> +
+// <message_no>, so the three sub-switches are bypassed and the newest envelope
+// is rendered self-contained (full listings, brief roster, runtime_info).
+//
 // Author: L.Shuang
 // Created: 2026-10-02
 // MIT License - Copyright (c) 2026 L.Shuang
@@ -36,6 +42,13 @@ type envAgentState struct {
 	// runtime_info (C-3)
 	runtimeInfo     string
 	runtimeInfoSent bool
+}
+
+// envHistoryTrimOn reports whether historical envelopes are trimmed
+// (FEATURE-622). While it is on, the newest envelope is the only complete one,
+// so the slimmers below must not emit cross-message references at all.
+func (a *Agent) envHistoryTrimOn() bool {
+	return a.cfg != nil && a.cfg.LLM.EnvHistoryPrune
 }
 
 // fnvHash returns a stable hash of the given strings.
@@ -73,7 +86,7 @@ func (a *Agent) envStaticBlocks(msgNo int, files, binFiles, researchFiles string
 		return sb.String()
 	}
 
-	if a.cfg == nil || !a.cfg.LLM.EnvDirChangeDetect || !incDir {
+	if a.cfg == nil || !a.cfg.LLM.EnvDirChangeDetect || !incDir || a.envHistoryTrimOn() {
 		return full()
 	}
 
@@ -164,6 +177,12 @@ func (a *Agent) boardRosterBlockSlim() string {
 	if a.cfg == nil || !a.cfg.LLM.EnvBoardRosterBrief {
 		return full
 	}
+	// FEATURE-622: with the history trim on the newest envelope must stay
+	// self-contained, so the roster is rendered every time — still in its brief
+	// form (id | name | status), which is what this switch asks for anyway.
+	if a.envHistoryTrimOn() {
+		return briefBoardRoster(full)
+	}
 	rev := boardRosterRev(full)
 	st := &a.envState
 	if st.rosterSent && rev != "" && rev == st.rosterRev {
@@ -181,7 +200,7 @@ func (a *Agent) runtimeInfoBlockSlim() string {
 	if ri == "" {
 		return ""
 	}
-	if a.cfg == nil || !a.cfg.LLM.EnvRuntimeInfoOnce {
+	if a.cfg == nil || !a.cfg.LLM.EnvRuntimeInfoOnce || a.envHistoryTrimOn() {
 		return ri
 	}
 	st := &a.envState

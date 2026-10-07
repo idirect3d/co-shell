@@ -4,6 +4,54 @@
 
 ---
 
+## v0.105.0 — env_details 机制优化：历史裁剪收敛为「唯一全量信封」（FEATURE-622）
+
+> **版本**: v0.105.0
+
+> **状态**: ✅ 已完成并合并 main（v0.105.0 / BUILD-1263，2026-10-07；用户确认测试通过）
+> **里程碑**: FEATURE-579 引入的两套 env 瘦身机制互相冲突——生成端变化检测（plan C）发出的 `<unchanged since msg#N/>` 是**跨消息引用**，而发送端历史降级（plan A）会把 msg#N 的信封裁成只剩 `<time>`+`<message_no>`，引用因此悬空：实测连续多轮请求中 `<current_dir>`/`<tools>`/`<research>` 三块恒为 `unchanged since msg#1`、`<board_agents rev="771"><unchanged/>`，而 msg#1 早已被裁掉，LLM 在这些请求里**完全拿不到文件树与工具列表**（唯一兜底是每 20 个信封强制全量一次）。本次收敛为「唯一全量信封」：裁剪开启时只有最后一条带信封的 user/tool 消息保留全量、其余一律只剩 `<time>`+`<message_no>`（取消 L1 中间层与 task_plan 回退），同时让该信封**自足**——三列表、公告板名册、runtime_info 一律实发，不再产生任何跨消息引用；并把两级保留条数配置精简为「是否裁剪历史」单一开关。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-622 | 0.105.0 | P1 | env_details 机制优化：历史裁剪改为「唯一全量信封」+ 取消跨消息引用（三列表/名册/runtime_info 实发）+ 精简为单一开关 + 取消 L1 与 task_plan 回退 |
+
+> 当前 BUILD: 1263
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-622 env_details 机制优化（唯一全量信封）**
+  - 需求（用户 2026-10-07 22:35~22:36 确认）：① 方向 = 方案 C：最新信封自足全量、历史只留 `<time>`+`<message_no>`；② 配置精简：删除 `env_history_full_keep`/`env_history_lite_keep` 两个条数，只保留 `env_history_prune` 一个开关（开 = 历史裁剪，关 = 完全按原策略）；③ 取消 L1：除最后一条外全部只留 `<time>`+`<message_no>`；④ `<task_plan>` 不做特殊回退（最新信封因 track_task_progress/view_task_plan/attempt_completion 跳过计划时，接受该轮看不到计划，工具结果里已有内容）；⑤ `<board_agents>` 每轮实发明细（id|name|status，上下文里只有最后一个 env_details 才有明细）；⑥ 裁剪开启时最后信封「完整自足」——`env_dir_change_detect`/`env_board_roster_brief`/`env_runtime_info_once` 三个瘦身子开关被旁路，仅在裁剪关闭时生效。
+  - 用例：`use-case/FEATURE-622/`（待生成并确认）
+  - 分支：**FEATURE-622**（基于 main），版本 v0.105.0
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `config/config.go` | 删除 `EnvHistoryFullKeep`/`EnvHistoryLiteKeep` 及默认值，重写 `EnvHistoryPrune` 注释为唯一开关 |
+    | `config.json` | 删除 `env_history_full_keep`/`env_history_lite_keep` 两键 |
+    | `cmd/settings.go`/`cmd/settings_agent.go`/`cmd/settings_web.go` | 删除两项的设置行、解析分支与 Web 表单项 |
+    | `i18n/keys.go`/`i18n/zh.go`/`i18n/en.go` | 删除两项文案，改写 `env_history_prune` 说明 |
+    | `agent/env_prune.go` | 降级改为「最后一条带信封的 user/tool 消息全量 + 其余仅 time+message_no」；删除 `task_plan` 回退；全量载体由结尾向前查找 |
+    | `agent/env_slim.go` | 裁剪开启时三列表/名册/runtime_info 一律实发（不产占位符） |
+    | `agent/env_prune_test.go` 等 | 更新分级/回退/配置断言，新增本任务单测 |
+
+  - 实施（BUILD-1262）：
+    ① `config/config.go`：删除 `EnvHistoryFullKeep`/`EnvHistoryLiteKeep` 与默认值，`EnvHistoryPrune` 注释改写为唯一开关；三个瘦身子开关注释标注「裁剪开启时被旁路」；
+    ② `config.json` + `cmd/settings.go` / `settings_agent.go` / `settings_web.go` + `i18n/{keys,zh,en}.go`：删除两个条数项（含 Web 表单项、`:set` 清单与解析分支、i18n key 与失效的 `setting_env_keep_non_negative`），主开关与子开关文案按新语义改写；
+    ③ `agent/env_prune.go`：三级降级重写为「唯一全量信封」——由末尾向前找第一条带信封的 user/tool 消息作为唯一全量载体，其余重建为 `<time>`+`<message_no>`（新增 `buildMinimalEnvBlock`）；删除 L1 标签集、`envLevelOf`、`hasEnvTag` 与 `task_plan` 回退；
+    ④ `agent/env_slim.go`：新增 `envHistoryTrimOn()`；裁剪开启时三列表与 runtime_info 一律实发、名册发 brief 明细（不再返回 `<unchanged/>`）；裁剪关闭时三个子开关行为不变。
+  - 验证（BUILD-1262）：
+    `go build ./... && go vet ./...` 通过；`agent/env_prune_test.go` 重写并新增测试全绿（`TestEnvPruneOnlyNewestFull` 582B→111B×3、`TestEnvPruneNewestCarrierFromTail`、`TestEnvPruneNoTaskPlanFallback`、`TestEnvStaticBlocksSelfContainedWithTrim`、`TestEnvRuntimeInfoSelfContainedWithTrim`、`TestBoardRosterSelfContainedWithTrim`、`TestFIX586BuildContextMessagesPrunesEnv` 等）；
+    基线对照：`agent` 3 项 / `cmd` 2 项 / `i18n` 5 项失败在 `main` 上同样存在（预存失败，与本次改动无关）；
+    隔离实例实测（`work/co-shell-0.105.0.darwin.arm64 -w tmp/feat622-ws -s feat622`）：同一会话第 3 轮问询返回 `CURRENT_DIR=FULL`（最后一条信封为真实文件列表，无占位符）与 `OLDER_WITH_DIR=0`（较早消息 msg#1/#3/#5 只剩 time+message_no）。
+  - 产物：`work/co-shell-0.105.0.darwin.arm64`、`work/co-shell-hub-0.105.0.darwin.arm64`。
+  - 追加排查（2026-10-07，BUILD-1262 后）：co-shell-tester 报告「看不到裁剪效果」，经请求侧日志复核确认裁剪已生效——`work/log/llm-interaction-2026-10-07.log` 最后一条请求（22:51:41，messages=8）中历史 user/tool 消息均为 114~115B（仅 `<time>`+`<message_no>`），仅最新一条 14325B 为全量且三列表/名册实发；tester 观察的 `:context full` / 持久历史 / Web 回放按设计永远全量（`cmd/context.go:90,110,149` 读持久历史，裁剪仅作用于 `buildContextMessages()` 交给 provider 的副本），非缺陷。
+  - 状态：✅ 已完成并合并 main（v0.105.0，2026-10-07；用户确认测试通过后按 /merge 流程合并并打标签 v0.105.0）。[BUILD-1263]
+
+---
+
 ## v0.104.0 — 任务进展栏显示策略优化：任务进展「从无到有」时自动切回任务进展视图（FEATURE-621）
 
 > **版本**: v0.104.0
