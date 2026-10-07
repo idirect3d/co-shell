@@ -256,7 +256,19 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 		}
 	}
 	sb.WriteString("</environment_details>")
-	return sb.String()
+	env := sb.String()
+	// FEATURE-612: cache the envelope so the Web UI's dynamic-info panel can
+	// mirror exactly what the agent last perceived.
+	a.mu.Lock()
+	a.lastEnvDetails = env
+	hook := a.envBuiltHook
+	a.mu.Unlock()
+	// The hook runs OUTSIDE the lock: it re-reads the cached envelope through
+	// LastEnvDetails/EnvBlocks, which take the same lock (FEATURE-612).
+	if hook != nil {
+		hook()
+	}
+	return env
 }
 
 // envIncludeFlags returns the five per-block inclusion switches for
@@ -911,4 +923,47 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 	})
 	a.mu.Unlock()
 	return count
+}
+
+// LastEnvDetails returns the most recently assembled <environment_details>
+// text, i.e. exactly what the agent put in front of the LLM last (FEATURE-612).
+// It is empty until the first envelope has been built.
+func (a *Agent) LastEnvDetails() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastEnvDetails
+}
+
+// EnvBlock is one top-level element of the last <environment_details>.
+type EnvBlock struct {
+	// Tag is the element name without angle brackets, e.g. "runtime_info".
+	Tag string `json:"tag"`
+	// Text is the raw element text, including its own tags.
+	Text string `json:"text"`
+}
+
+// EnvBlocks splits the most recent <environment_details> into its top-level
+// elements, in their original order (FEATURE-612). It returns nil until the
+// first envelope has been built.
+func (a *Agent) EnvBlocks() []EnvBlock {
+	env := a.LastEnvDetails()
+	if env == "" {
+		return nil
+	}
+	blocks := splitEnvBlocks(env)
+	out := make([]EnvBlock, 0, len(blocks))
+	for _, b := range blocks {
+		out = append(out, EnvBlock{Tag: b.name, Text: b.raw})
+	}
+	return out
+}
+
+// SetEnvBuiltHook installs the callback that runs after every fresh
+// <environment_details> has been assembled and cached (FEATURE-612). It is
+// optional; nil clears it. The hook is invoked with the agent lock released,
+// so it may safely re-read the envelope through EnvBlocks/LastEnvDetails.
+func (a *Agent) SetEnvBuiltHook(fn func()) {
+	a.mu.Lock()
+	a.envBuiltHook = fn
+	a.mu.Unlock()
 }

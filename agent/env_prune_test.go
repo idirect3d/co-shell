@@ -307,3 +307,40 @@ func TestFIX586BuildContextMessagesKeepsFullEnvWhenSwitchedOff(t *testing.T) {
 	}
 	t.Logf("FIX586_WIRING_OFF|levels=L0,L0,L0,L0")
 }
+
+// TestSplitEnvBlocksTagNames is the FEATURE-612 regression guard for the panel's
+// environment blocks: a top-level element name must never carry its attributes
+// (the panel renders the name as the block title), and a block must stop at its
+// own closing tag instead of swallowing everything that follows.
+func TestSplitEnvBlocksTagNames(t *testing.T) {
+	env := "<environment_details>\n" +
+		"<time>2026-10-07 00:00:00 Tuesday</time>\n" +
+		"<board_agents rev=\"703\">\n" +
+		"  <agent id=\"a1\" name=\"work\" status=\"online\"/>\n" +
+		"</board_agents>\n" +
+		"<sub_agents max=\"5\">\n" +
+		"</sub_agents>\n" +
+		"<tools>\nbin/tool.sh 2026-07-30 05:43:15 1.4KB\n</tools>\n" +
+		"</environment_details>"
+
+	want := map[string]string{
+		"time":         "<time>2026-10-07 00:00:00 Tuesday</time>",
+		"board_agents": "<board_agents rev=\"703\">\n  <agent id=\"a1\" name=\"work\" status=\"online\"/>\n</board_agents>",
+		"sub_agents":   "<sub_agents max=\"5\">\n</sub_agents>",
+		"tools":        "<tools>\nbin/tool.sh 2026-07-30 05:43:15 1.4KB\n</tools>",
+	}
+
+	blocks := splitEnvBlocks(env)
+	if len(blocks) != len(want) {
+		t.Fatalf("got %d blocks, want %d: %+v", len(blocks), len(want), blocks)
+	}
+	for _, b := range blocks {
+		raw, ok := want[b.name]
+		if !ok {
+			t.Fatalf("unexpected block name %q (attributes must not be part of it)", b.name)
+		}
+		if b.raw != raw {
+			t.Fatalf("block %q raw = %q, want %q", b.name, b.raw, raw)
+		}
+	}
+}

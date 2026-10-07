@@ -96,6 +96,14 @@ func readServerMsg(t *testing.T, c *wsTestClient) serverMessage {
 		if msg.Kind == "event" && msg.Event != nil && msg.Event.Type == "sub_agents" && msg.Event.Meta["sub_agents"] == "[]" {
 			continue
 		}
+		// FEATURE-612: the dynamic-perception snapshot is a wallpaper frame —
+		// only the panel's dynamic-info view renders it, and it is pushed on
+		// several unrelated lifecycle hooks. Skip it for the same reason as the
+		// empty sub-agent snapshot above, so the harness keeps "the frame under
+		// test" deterministic.
+		if msg.Kind == "dyninfo" {
+			continue
+		}
 		return msg
 	}
 }

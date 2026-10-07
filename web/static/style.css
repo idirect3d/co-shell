@@ -4515,3 +4515,340 @@ select,
      them as "background" decoration. */
   .ui-print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ---------- FEATURE-612: panel view switch (任务进展 ⇄ 动态信息) ---------- */
+
+/* The panel head hosts the switch instead of a plain label. Its vertical
+   padding is 1px tighter than the shared .panel-head padding (5px vs 6px), so
+   this strip sits 2px shorter overall; the switch's own geometry (24px track,
+   18px knob, 12px centre offset) stays exactly as it was. */
+.plan-head { padding: 5px 8px; }
+
+.panel-switch {
+  --ps-p: 0; /* 0 = 任务进展, 1 = 动态信息 */
+  position: relative;
+  /* One third of the head's content box: the track reads as a small control
+     instead of a full-width bar. The knob travel is a percentage of this box,
+     so it scales with the width on its own. */
+  flex: 0 0 auto;
+  width: 33.3333%;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* Recessed ("sunken") frame: an inner shadow plus a slightly darker fill
+     make the track read as a groove carved into the panel. */
+  background: rgba(127, 127, 127, 0.10);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+/* The 动态信息 position: the thumb parks at the LEFT end and the two labels
+   swap places. Driving both off --ps-p keeps the drag and the click in sync. */
+.panel-switch.dyn { --ps-p: 1; }
+
+.panel-switch:focus-visible {
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--accent-dim);
+}
+/* While dragging, the thumb must follow the pointer exactly: no easing. */
+.panel-switch.dragging,
+.panel-switch.dragging .ps-label,
+.panel-switch.dragging .ps-thumb { transition: none; }
+
+.ps-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.ps-label-plan {
+  justify-content: flex-start;
+  padding-left: 4px;
+  transform: translateX(calc(var(--ps-p) * -100%));
+  opacity: calc(1 - var(--ps-p));
+}
+.ps-label-dyn {
+  justify-content: flex-end;
+  padding-right: 4px;
+  transform: translateX(calc((1 - var(--ps-p)) * 100%));
+  opacity: var(--ps-p);
+}
+/* Both labels share ONE colour in both states, and that colour is the panel
+   head's own title colour (--fg-dim): 「任务进展」/「动态信息」 should read exactly
+   like the 「工作区」 title sitting in the same strip. An earlier revision
+   brightened only the 动态信息 state, which also made the two labels differ. */
+.panel-switch .ps-label { color: var(--fg-dim); }
+
+/* The handle (扳手) that slides across the track. It parks at the right end for
+   任务进展 and travels left for 动态信息.
+
+   It is drawn as a ROUND metal knob: an off-centre radial gradient fakes the
+   convex volume (bright specular hotspot up-left, falling off to a dark
+   lower-right rim), a hairline border keeps the edge crisp, and the drop
+   shadow lifts it off the recessed track. It is 18px inside a 22px content
+   box, so it stays clear of both ends by 2px. */
+.ps-thumb {
+  position: absolute;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  left: calc(2px + (100% - 22px) * (1 - var(--ps-p)));
+  border: 1px solid rgba(14, 16, 20, 0.6);
+  border-radius: 50%;
+  background-image:
+    radial-gradient(circle at 34% 30%,
+      #ffffff 0%,
+      #f2f5f8 14%,
+      #cdd4db 34%,
+      #9aa2ab 55%,
+      #6d747d 74%,
+      #494e56 90%,
+      #33373d 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    inset 0 -2px 3px -1px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 0 5px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  transition: left 0.22s ease;
+}
+
+/* Attention counter: queued plus injected-but-unacknowledged events. */
+.ps-badge {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #d08a00;
+  color: #14100a;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+  letter-spacing: 0;
+}
+.ps-badge.hidden { display: none; }
+/* FEATURE-612: the task-progress fraction is a plain read-out, not an alert. */
+.ps-badge.plan {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--fg-dim);
+}
+
+/* ---------- FEATURE-612: dynamic-info body ---------- */
+
+/* One scroll box for the whole view: the timeline, then the environment
+   blocks of the last <environment_details> the agent perceived. */
+.dyn-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px 10px;
+  font-size: 12px;
+}
+.dyn-body.hidden { display: none; }
+
+/* FEATURE-612: every perception event is a card — type chip, status flag and
+   clock on the first line, the message body on the second. */
+.dyn-row {
+  display: block;
+  padding: 5px 7px;
+  margin-bottom: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.dyn-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Queued / unacknowledged entries are the ones that still need attention. */
+.dyn-row.flag-pending,
+.dyn-row.flag-unacked { background: rgba(208, 138, 0, 0.12); }
+
+.dyn-tag {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+.dyn-tag.k-clip-object,
+.dyn-tag.k-upload-file { color: #35a1d8; }
+.dyn-tag.k-open-file,
+.dyn-tag.k-view-file { color: #4caf7d; }
+.dyn-tag.k-user-message { color: #c58af9; }
+.dyn-tag.k-board-message,
+.dyn-tag.k-board-timeout { color: #e0922f; }
+.dyn-tag.k-sub-agent-done { color: #d4699b; }
+.dyn-tag.k-ui-action { color: #6fc3df; }
+
+.dyn-flag {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #d08a00;
+  color: #14100a;
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+.dyn-text {
+  margin-top: 3px;
+  color: var(--fg);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dyn-time {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg-dim);
+  font-size: 10px;
+  opacity: 0.75;
+}
+.dyn-empty {
+  padding: 10px 2px;
+  color: var(--fg-dim);
+}
+
+.dyn-env-sep {
+  margin: 10px 0 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.dyn-env-block { margin: 6px 0; }
+.dyn-env-title {
+  color: var(--fg);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+/* One readable row per value. No fold control: a long block just makes the panel
+   scroll, which is what the view is for. */
+.dyn-env-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* FEATURE-612: environment rows read as "name (left) / value (right)". */
+.dyn-env-name { flex: none; }
+.dyn-env-val { flex: 1; min-width: 0; text-align: right; }
+/* FEATURE-612: the online/offline badge sits at the row's right edge. */
+.dyn-env-badge {
+  display: inline-block;
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 15px;
+  vertical-align: 1px;
+}
+.dyn-env-badge.on { background: rgba(76, 175, 125, 0.16); color: #4caf7d; }
+.dyn-env-badge.off { background: rgba(255, 255, 255, 0.07); color: var(--fg-dim); }
+
+/* FEATURE-612: the opened-resources block reads as one group per category — its
+   title on the left and its icon at the right end, like a field row — with one
+   card per resource below it. An empty category keeps its title and shows
+   "none", so all five kinds always read the same way. */
+.dyn-res-body { margin-top: 2px; }
+.dyn-res-group { margin-bottom: 7px; }
+.dyn-res-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+.dyn-res-title-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dyn-res-ico { margin-left: auto; color: var(--fg-faint); width: 13px; height: 13px; }
+.dyn-res-card {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+/* Only a UI-window card is clickable (it switches to that window); every other
+   card stays a plain, non-interactive box. */
+button.dyn-res-card { cursor: pointer; }
+button.dyn-res-card:hover { border-color: var(--accent); }
+/* The current window uses the shared highlight: accent border + accent fill. */
+.dyn-res-card.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.dyn-res-card.active .dyn-res-name { color: var(--accent); }
+.dyn-res-head { display: flex; align-items: center; gap: 6px; }
+.dyn-res-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dyn-res-active {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+/* One field per line: the name on the left, the value on the right (truncated
+   with the full text on hover). */
+.dyn-res-field { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; font-size: 11px; }
+.dyn-res-k { flex: none; color: var(--fg-dim); }
+.dyn-res-v {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dyn-res-empty { color: var(--fg-faint); font-size: 11px; padding: 0 2px; }

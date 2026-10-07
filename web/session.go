@@ -202,6 +202,9 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	sess.wio.pushSessionList = sess.pushSessionList	// FEATURE-566: let the agent start a turn for a sub-agent that finished on
 	// its own while the agent was idle.
 	sess.wio.startSubAgentTurn = sess.startSubAgentCompletionTurn
+	// FEATURE-612: let WebIO refresh the panel's dynamic-info view whenever it
+	// pushes a task-plan or sub-agent update (i.e. on tool-call completion).
+	sess.wio.pushDyn = sess.pushDynInfo
 	// FEATURE-542 (GAP-1): interactive requests travel through the persisted
 	// event stream. WebIO asks the session to write and fan out the events.
 	sess.wio.emit = sess.emitInteractionEvent
@@ -233,6 +236,14 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	// nobody may be behind it (design §9.2).
 	deps.Ag.SetUserPresenceProvider(srv.HasClient)
 	srv.SetPlanProvider(sess.currentPlanJSON)
+	// FEATURE-612: the panel's dynamic-info view needs the same snapshot, so a
+	// connect or a reconnect paints it without waiting for the next event.
+	srv.SetDynProvider(sess.dynInfoJSON)
+	// FEATURE-612: refresh the snapshot the moment a fresh <environment_details> is
+	// assembled. The connect-time snapshot is built before the first LLM call of a
+	// process, so without this the panel stayed empty after every restart until an
+	// unrelated lifecycle hook happened to fire.
+	deps.Ag.SetEnvBuiltHook(sess.pushDynInfo)
 	// FEATURE-564: the sub-agent list below the task plan needs the same
 	// snapshot, otherwise a page load or reconnect shows the plan but no
 	// sub-agents until the next sub-agent event.
@@ -284,6 +295,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 				log.Warn("session: blocking ui_action %q/%q has no parked wait; injected into the running turn", msg.UIID, msg.UIActionID)
 			}
 			s.ag.AddDynamicEvent(agent.DynamicUIAction, agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload))
+			// FEATURE-612: surface the in-turn interaction on the dynamic-info view.
+			s.pushDynInfo()
 			return
 		}
 		s.inputQ.push(clientMessage{
@@ -316,9 +329,13 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 			return
 		}
 		s.ag.AddDynamicEvent(kind, msg.Value)
+		// FEATURE-612: surface the new event on the panel's dynamic-info view.
+		s.pushDynInfo()
 	case "board_registered", "board_roster", "board_sent", "board_message", "board_timeout":
 		// FEATURE-530: flat board frames pushed by the hub.
 		s.handleBoardFrame(msg)
+		// FEATURE-612: board traffic shows up on the dynamic-info timeline.
+		s.pushDynInfo()
 	case "answer":
 		// FEATURE-542: the answering端 is recorded in the resolution event.
 		s.wio.resolve(msg.ID, msg.Value, msg.Source)
@@ -1104,6 +1121,9 @@ func (s *WebSession) switchSession(id string) {
 	// the previous session's blocks and replays this one's recorded stream — the
 	// record is per session, so the visible stream must follow the switch.
 	s.srv.sendJSON(serverMessage{Kind: "session_switched", Message: id})
+	// FEATURE-612: the dynamic-perception snapshot belongs to a session, so
+	// repaint the panel's dynamic-info view for the session we just entered.
+	s.pushDynInfo()
 }
 
 // newSession creates a new empty session and switches to it (FEATURE-401),
@@ -1155,6 +1175,9 @@ func (s *WebSession) newSession() {
 	// the previous session's blocks and replays this (empty) session's record —
 	// the same reload signal switchSession pushes.
 	s.srv.sendJSON(serverMessage{Kind: "session_switched", Message: sessionID})
+	// FEATURE-612: a brand new session starts with an empty dynamic snapshot,
+	// so clear the panel instead of leaving the previous session's rows.
+	s.pushDynInfo()
 }
 
 // nextDefaultSessionTitle returns the next default placeholder title
@@ -1387,6 +1410,10 @@ type WebIO struct {
 	// newWebSession to WebSession.pushSessionList (FEATURE-387).
 	pushSessionList func()
 
+	// pushDyn refreshes the panel's dynamic-info view (FEATURE-612). Set by
+	// newWebSession to WebSession.pushDynInfo.
+	pushDyn func()
+
 	// startSubAgentTurn delivers a finished sub-agent's completion notice as a
 	// formal user message that starts a new turn (FEATURE-566). Set by
 	// newWebSession to WebSession.startSubAgentCompletionTurn.
@@ -1460,6 +1487,11 @@ func (w *WebIO) pushText(text string) {
 // plan snapshot as JSON ("" when archived/cleared).
 func (w *WebIO) PushTaskPlan(planJSON string) {
 	w.srv.sendEvent(agent.TaskPlanEvent(planJSON))
+	// FEATURE-612: a plan update means a tool call just finished, so refresh the
+	// panel's dynamic-info view in the same breath.
+	if w.pushDyn != nil {
+		w.pushDyn()
+	}
 }
 
 // PushSubAgents implements agent.SubAgentsPusher: it pushes a sub_agents event
@@ -1468,6 +1500,10 @@ func (w *WebIO) PushTaskPlan(planJSON string) {
 // sub-agents belong to; agentsJSON is the list as a JSON array.
 func (w *WebIO) PushSubAgents(sessionID, agentsJSON string) {
 	w.srv.sendEvent(agent.SubAgentsEvent(sessionID, agentsJSON))
+	// FEATURE-612: keep the dynamic-info view in step with the sub-agent list.
+	if w.pushDyn != nil {
+		w.pushDyn()
+	}
 }
 
 // PushSessionList implements agent.SessionListPusher: it refreshes the

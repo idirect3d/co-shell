@@ -214,6 +214,9 @@ type serverMessage struct {
 	// same source label the event stream records.
 	Client   string          `json:"client,omitempty"`
 	Sessions []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
+	// FEATURE-612: kind=dyninfo carries the dynamic-perception snapshot rendered
+	// by the task-plan panel's dynamic-info view (timeline + environment blocks).
+	Dyn json.RawMessage `json:"dyn,omitempty"`
 	Settings json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
 	Identity json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
 	OK       bool            `json:"ok,omitempty"`       // kind=settings_result: success flag
@@ -349,6 +352,11 @@ type Server struct {
 	// planFn returns the current task plan as a JSON string ("" when none),
 	// pushed to the browser on connect as a state message.
 	planFn func() string
+
+	// dynFn returns the dynamic-perception snapshot (FEATURE-612) as JSON, sent
+	// to a freshly connected client so the panel's dynamic-info view is
+	// populated right away.
+	dynFn func() string
 
 	// subAgentsFn returns the current session's ID and its sub-agent status
 	// list as JSON (FEATURE-564), so a freshly connected client can restore the
@@ -493,6 +501,15 @@ func (s *Server) SetConnectHook(fn func()) {
 func (s *Server) SetPlanProvider(fn func() string) {
 	s.mu.Lock()
 	s.planFn = fn
+	s.mu.Unlock()
+}
+
+// SetDynProvider installs the dynamic-perception snapshot provider
+// (FEATURE-612). It returns the snapshot JSON the task-plan panel's
+// dynamic-info view renders.
+func (s *Server) SetDynProvider(fn func() string) {
+	s.mu.Lock()
+	s.dynFn = fn
 	s.mu.Unlock()
 }
 
@@ -727,6 +744,7 @@ func (s *Server) sendState(c *wsConn, label string) {
 	fn := s.planFn
 	busyFn := s.busyFn
 	saFn := s.subAgentsFn
+	dynFn := s.dynFn
 	s.mu.Unlock()
 	plan := json.RawMessage("null")
 	if fn != nil {
@@ -742,7 +760,16 @@ func (s *Server) sendState(c *wsConn, label string) {
 	if busyFn != nil {
 		busy = busyFn()
 	}
-	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan, Busy: &busy, Client: label})
+	// FEATURE-612: the dynamic-perception snapshot rides along with the state
+	// frame instead of a frame of its own, so the connect sequence keeps exactly
+	// one kind-bearing message per concern.
+	var dyn json.RawMessage
+	if dynFn != nil {
+		if raw := dynFn(); raw != "" {
+			dyn = json.RawMessage(raw)
+		}
+	}
+	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan, Busy: &busy, Client: label, Dyn: dyn})
 	if err != nil {
 		return
 	}

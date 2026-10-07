@@ -145,6 +145,16 @@ func (q *dynamicEventQueue) add(ev DynamicEvent) {
 	q.events = append(q.events, ev)
 }
 
+// snapshot returns copies of the pending and retained event lists without
+// touching either one (FEATURE-612).
+func (q *dynamicEventQueue) snapshot() (pending, retained []DynamicEvent) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	pending = append([]DynamicEvent(nil), q.events...)
+	retained = append([]DynamicEvent(nil), q.retained...)
+	return pending, retained
+}
+
 // drain removes and returns all buffered events in FIFO order.
 func (q *dynamicEventQueue) drain() []DynamicEvent {
 	q.mu.Lock()
@@ -525,4 +535,63 @@ func (a *Agent) PendingUserMessages() []string {
 		out = append(out, ev.Text)
 	}
 	return out
+}
+
+// DynEventView is the browser-facing view of one dynamic perception event
+// (FEATURE-612). It feeds the Web UI's dynamic-info panel.
+type DynEventView struct {
+	// ID is the stable event id ("ev-<n>"), the very value meta.ack uses.
+	ID string `json:"id"`
+	// Kind is the DynamicEventKind (clip_object, user_message, board_message…).
+	Kind string `json:"kind"`
+	// Path is the workspace-relative path of a path event.
+	Path string `json:"path,omitempty"`
+	// Text is the payload of a text event (user message, board notice…).
+	Text string `json:"text,omitempty"`
+	// Ts is the event time in Unix milliseconds.
+	Ts int64 `json:"ts"`
+	// Pending marks an event that is still queued, i.e. never injected into an
+	// <environment_details> envelope yet.
+	Pending bool `json:"pending,omitempty"`
+	// Unacked marks an injected event the LLM has not confirmed through
+	// meta.ack yet (FEATURE-611); such events are replayed until acknowledged.
+	Unacked bool `json:"unacked,omitempty"`
+}
+
+// DynEventsSnapshot returns the events the panel may still show, newest first:
+// the ones queued for their first injection (pending) plus the ones already
+// injected but not yet acknowledged (unacked, FEATURE-611). Nothing else — an
+// event leaves the snapshot for good once it is consumed: a transient file
+// event right after its single injection, a retainable one once the LLM acks
+// it ("read once, then gone"). Read-only, nothing is consumed.
+//
+// The two lists are merged by walking both backwards instead of sorting: every
+// queued event is newer than every retained one, because an event only reaches
+// the retained set by being taken out of the queue during an injection.
+func (a *Agent) DynEventsSnapshot() []DynEventView {
+	q := a.dynamicEventQueue()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	out := make([]DynEventView, 0, len(q.events)+len(q.retained))
+	for i := len(q.events) - 1; i >= 0; i-- {
+		out = append(out, dynEventView(q.events[i], true, false))
+	}
+	for i := len(q.retained) - 1; i >= 0; i-- {
+		out = append(out, dynEventView(q.retained[i], false, true))
+	}
+	return out
+}
+
+// dynEventView projects one queued event onto its browser-facing view, tagged
+// with the set it currently lives in.
+func dynEventView(ev DynamicEvent, pending, unacked bool) DynEventView {
+	return DynEventView{
+		ID:      ev.ID,
+		Kind:    string(ev.Kind),
+		Path:    ev.Path,
+		Text:    ev.Text,
+		Ts:      ev.Time.UnixMilli(),
+		Pending: pending,
+		Unacked: unacked,
+	}
 }

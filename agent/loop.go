@@ -182,6 +182,18 @@ type Agent struct {
 	// configuration (FEATURE-481), injected once at startup via SetRuntimeInfo.
 	runtimeInfo RuntimeInfo
 
+	// lastEnvDetails caches the most recent <environment_details> text the
+	// agent assembled for the LLM (FEATURE-612). Guarded by mu. It backs the Web
+	// UI's dynamic-info panel, which mirrors exactly what the agent last
+	// perceived; the panel never re-renders a block the LLM did not receive.
+	lastEnvDetails string
+	// envBuiltHook, when set, runs right after a fresh <environment_details> is
+	// cached (FEATURE-612). The web session uses it to refresh the panel's
+	// dynamic-info snapshot exactly when the perception data changes, instead of
+	// waiting for an unrelated lifecycle hook (which left the snapshot empty
+	// whenever the process had just started). Guarded by mu.
+	envBuiltHook func()
+
 	// dynEvents is the dynamic perception queue (FEATURE-471): user-action
 	// events (clip/upload/message/open) buffered while a task runs and drained
 	// into <environment_details> on each user/tool message injection.

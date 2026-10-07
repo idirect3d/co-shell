@@ -479,8 +479,27 @@
   </section>
 
   <aside id="plan-panel" class="hidden">
-    <div class="panel-head"><span data-i18n="taskPlan">任务进展</span></div>
+    <div class="panel-head plan-head">
+      <!-- FEATURE-612: the panel head is a sliding switch. It shows
+           「任务进展」 with a thin vertical thumb on its right by default;
+           clicking the label or dragging the thumb left slides that label
+           out and slides 「动态信息」 in from the right, which swaps the body
+           below from the task plan to the dynamic-perception timeline. -->
+      <div class="panel-switch" id="planSwitch" role="switch" tabindex="0" aria-checked="false" data-i18n-title="planSwitchTitle">
+        <span class="ps-label ps-label-plan" data-i18n="taskPlan">任务进展</span>
+        <span class="ps-label ps-label-dyn" data-i18n="dynInfo">动态信息</span>
+        <span class="ps-thumb" aria-hidden="true"></span>
+      </div>
+      <!-- FEATURE-612: the attention counter lives OUTSIDE the track. At one
+           third width the track is too narrow to hold the label, the knob and
+           the counter at once without the knob covering the text. -->
+      <span class="ps-badge hidden" id="planSwitchBadge"></span>
+    </div>
     <div id="planBody" class="plan-body"></div>
+    <!-- FEATURE-612: the dynamic-perception timeline. Rendered instead of the
+         task plan while the head switch is on 动态信息; shares the panel's
+         single scrollbar with the environment blocks below the timeline. -->
+    <div id="dynBody" class="dyn-body hidden"></div>
     <!-- FEATURE-564: the current session's sub-agent list, aligned straight
          below the task plan (one line per sub-agent: id, instruction,
          progress). Hidden while the session has no sub-agent. -->

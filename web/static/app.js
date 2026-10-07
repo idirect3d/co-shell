@@ -14,6 +14,35 @@ const I18N = {
   zh: {
     workspace: "工作区", refresh: "刷新",
     taskPlan: "任务进展", reply: "回复", interrupt: "打断", send: "发送",
+    // FEATURE-612: dynamic-info panel (the task-plan panel's second view).
+    dynInfo: "动态信息", planSwitchTitle: "点击或向左拖动主手：任务进展 / 动态信息切换",
+    dynEmpty: "暂未捕获任何动态感知事件", dynEnv: "环境块",
+    dynPending: "待确认", dynUnacked: "未确认",
+    dynKindClip: "粘贴图片", dynKindUpload: "上传文件", dynKindUserMessage: "补充消息",
+    dynKindOpen: "打开文件", dynKindView: "预览文件", dynKindBoard: "公告板",
+    dynKindBoardTimeout: "公告超时", dynKindUIAction: "界面交互", dynKindSubAgent: "子代理",
+    // FEATURE-612: readable labels for the environment blocks shown below the
+    // timeline (the raw <environment_details> tags are never shown).
+    dynEnvLabels: {
+      time: "环境时间", message_no: "消息序号", context_window: "上下文占用", cwd: "当前目录",
+      current_mode: "工作模式", result_mode: "输出风格", no_tool_action: "无工具调用时", user_presence: "用户在线状态",
+      session_title: "会话标题", runtime_info: "运行环境", tools: "可用工具", board_agents: "公告板",
+      board_replies: "待回复公告", sub_agents: "子代理", opened_resources: "已打开资源", skills: "技能",
+      user_dynamic_events: "动态事件", pid: "进程号", version: "版本", build: "构建号",
+      model_name: "模型", service_mode: "服务模式", channel: "接入通道", viewport: "视口",
+      serve_port: "服务端口", serve_bind: "监听地址", serve_whitelist: "访问白名单",
+      browser: "浏览器", excel: "Excel", word: "Word", shell: "终端", ui_windows: "界面窗口",
+    },
+    dynEnvValues: { online: "在线", offline: "离线", none: "无", running: "运行中", idle: "空闲" },
+    // FEATURE-612: the opened-resources cards (category groups + one card per
+    // resource).
+    dynResSurface: "形态", dynResFloat: "浮窗", dynResPanel: "面板",
+    dynResActive: "当前活动", dynResTitle: "标题", dynResSummary: "内容摘要",
+    dynResActivate: "切换到该窗口",
+    dynEnvUnchanged: "（与上次相同，无变化）",
+    dynEnvNone: "无",
+    dynEnvTokens: "已用 {used} / {total} tokens（{pct}）",
+    dynAttrLabels: { id: "ID", name: "名称", status: "状态", role: "职责", desc: "描述", description: "描述", from: "来自", conv: "会话", reply_to: "回复", agent_id: "代理" },
     inputHint: "输入指令，Enter 发送，Shift+Enter 换行，↑↓ 历史",
     connected: "已连接", disconnected: "已断开",
     askLine: "代理请求一行输入：", askKey: "代理请求按键确认：",
@@ -125,6 +154,35 @@ const I18N = {
   en: {
     workspace: "Workspace", refresh: "Refresh",
     taskPlan: "Task Plan", reply: "Reply", interrupt: "Interrupt", send: "Send",
+    // FEATURE-612: dynamic-info panel (the task-plan panel's second view).
+    dynInfo: "Dynamic Info", planSwitchTitle: "Click or drag the handle left to switch Task Plan / Dynamic Info",
+    dynEmpty: "No dynamic-perception event captured yet", dynEnv: "Environment blocks",
+    dynPending: "queued", dynUnacked: "unacked",
+    dynKindClip: "Pasted image", dynKindUpload: "Uploaded file", dynKindUserMessage: "User message",
+    dynKindOpen: "Opened file", dynKindView: "Previewed file", dynKindBoard: "Board",
+    dynKindBoardTimeout: "Board timeout", dynKindUIAction: "UI action", dynKindSubAgent: "Sub-agent",
+    // FEATURE-612: readable labels for the environment blocks shown below the
+    // timeline (the raw <environment_details> tags are never shown).
+    dynEnvLabels: {
+      time: "Time", message_no: "Message no.", context_window: "Context usage", cwd: "Working dir",
+      current_mode: "Work mode", result_mode: "Result mode", no_tool_action: "When no tool is called", user_presence: "User presence",
+      session_title: "Session title", runtime_info: "Runtime", tools: "Available tools", board_agents: "Board",
+      board_replies: "Pending board replies", sub_agents: "Sub-agents", opened_resources: "Opened resources", skills: "Skills",
+      user_dynamic_events: "Dynamic events", pid: "PID", version: "Version", build: "Build",
+      model_name: "Model", service_mode: "Service mode", channel: "Channel", viewport: "Viewport",
+      serve_port: "Serve port", serve_bind: "Bind address", serve_whitelist: "IP whitelist",
+      browser: "Browser", excel: "Excel", word: "Word", shell: "Shell", ui_windows: "UI windows",
+    },
+    dynEnvValues: { online: "online", offline: "offline", none: "none", running: "running", idle: "idle" },
+    // FEATURE-612: the opened-resources cards (category groups + one card per
+    // resource).
+    dynResSurface: "Surface", dynResFloat: "Float", dynResPanel: "Panel",
+    dynResActive: "Active", dynResTitle: "Title", dynResSummary: "Summary",
+    dynResActivate: "Switch to this window",
+    dynEnvUnchanged: "(unchanged since last time)",
+    dynEnvNone: "none",
+    dynEnvTokens: "used {used} / {total} tokens ({pct})",
+    dynAttrLabels: { id: "ID", name: "Name", status: "Status", role: "Role", desc: "Description", description: "Description", from: "From", conv: "Conversation", reply_to: "Reply to", agent_id: "Agent" },
     inputHint: "Type a command — Enter to send, Shift+Enter for newline, ↑↓ history",
     connected: "connected", disconnected: "disconnected",
     askLine: "The agent asks for a line of input:", askKey: "The agent asks for a key:",
@@ -413,6 +471,18 @@ const blockNavTop = document.getElementById("blockNavTop");
 const blockNavBottom = document.getElementById("blockNavBottom");
 const planPanel = document.getElementById("plan-panel");
 const planBody = document.getElementById("planBody");
+// FEATURE-612: the panel head is a sliding switch (任务进展 ⇄ 动态信息) and the
+// dynamic-perception timeline lives in its own body below the task plan.
+const planSwitch = document.getElementById("planSwitch");
+const planSwitchBadge = document.getElementById("planSwitchBadge");
+const dynBody = document.getElementById("dynBody");
+// lastDyn is the latest dynamic-perception snapshot; planView is the view the
+// switch currently shows ("plan" = 任务进展, "dyn" = 动态信息).
+let lastDyn = null;
+// FEATURE-612: the board roster parsed from the last detailed <board_agents>
+// block, kept so its <unchanged/> form can keep showing the same rows.
+let lastBoardAgents = [];
+let planView = "plan";
 // FEATURE-564: sub-agent status list, rendered below the task plan.
 const subAgentHead = document.getElementById("subAgentHead");
 const subAgentBody = document.getElementById("subAgentBody");
@@ -709,6 +779,9 @@ function wsConnect() {
       // FEATURE-542: this connection's source label ("端 N"), used to tag our
       // own YOU blocks the same way the event stream does.
       if (typeof msg.client === "string") myLabel = msg.client;
+      // FEATURE-612: the connect-time state frame also carries the
+      // dynamic-perception snapshot, so a refresh paints that view too.
+      if (msg.dyn) renderDyn(msg.dyn);
       // FIX-511: the connect-time snapshot carries the agent's running state, so
       // a refreshed or reconnected page restores the running indicators (logo
       // breathing, red ⏸ button, session-title highlight dot) instead of staying
@@ -757,6 +830,9 @@ function wsConnect() {
     }
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
     else if (msg.kind === "dynamic_backfill") backfillInput(msg.backfill || []);
+    // FEATURE-612: the dynamic-perception snapshot behind the panel's
+    // dynamic-info view.
+    else if (msg.kind === "dyninfo") renderDyn(msg.dyn || null);
     else if (msg.kind === "history") renderHistory(msg);
     // FEATURE-548: the backend accepted a session switch. The message area still
     // holds the PREVIOUS session's blocks (the record is per session), so drop
@@ -769,6 +845,8 @@ function wsConnect() {
       // before the history replay re-renders the windows.
       if (window.UIWin && typeof UIWin.setSession === "function") UIWin.setSession(msg.message || "");
       resetStreamView();
+      // FEATURE-612: the board roster belongs to the session being left.
+      lastBoardAgents = [];
       // FEATURE-583: the pinned skills belong to the session being left, so
       // rebuild the skills panel for the newly current session.
       refreshSkills();
@@ -2950,10 +3028,50 @@ function applyPanels() {
   const showWs = panelPrefs.ws !== false;
   layout.classList.toggle("no-ws", !showWs);
   miWsCheck.classList.toggle("on", showWs);
-  const showPlan = panelPrefs.plan !== false && (!!lastPlan || lastSubAgents.length > 0 || lastSkills.length > 0);
+  // FEATURE-612: while the dynamic-info view is on, the snapshot itself keeps
+  // the panel alive even when there is no task plan to show.
+  const hasPlanContent = !!lastPlan || lastSubAgents.length > 0 || lastSkills.length > 0;
+  // FEATURE-612: while the switch is on 动态信息 the panel must stay put even
+  // with an empty snapshot — otherwise the whole strip (and with it the switch)
+  // would disappear and the user could not switch back.
+  const showPlan = panelPrefs.plan !== false &&
+    (hasPlanContent || hasDynContent() || planView === "dyn");
+  // FEATURE-612: with nothing but perception data to show, the dynamic view is
+  // the only meaningful one, so pick it without waiting for a click.
+  if (!hasPlanContent && hasDynContent() && planView === "plan") {
+    planView = "dyn";
+    planSwitch.classList.add("dyn");
+    planSwitch.setAttribute("aria-checked", "true");
+  }
   planPanel.classList.toggle("hidden", !showPlan);
   layout.classList.toggle("no-plan", !showPlan);
   miPlanCheck.classList.toggle("on", panelPrefs.plan !== false);
+  applyPlanViewBody();
+  updatePlanSwitchBadge();
+}
+
+// updatePlanSwitchBadge refreshes the counter beside the head switch: the task
+// progress fraction (completed + in progress / total) while 任务进展 is on, and
+// the pending/unacknowledged perception count while 动态信息 is on. A view with
+// nothing to report hides the counter.
+function updatePlanSwitchBadge() {
+  if (!planSwitchBadge) return;
+  let text = "";
+  if (planView === "dyn") {
+    const counts = (lastDyn && lastDyn.counts) || {};
+    const n = (counts.pending || 0) + (counts.unacked || 0);
+    text = n > 99 ? "99+" : n > 0 ? String(n) : "";
+  } else if (lastPlan && Array.isArray(lastPlan.steps) && lastPlan.steps.length > 0) {
+    let done = 0;
+    for (const st of lastPlan.steps) {
+      const s = normStatus(st.status);
+      if (s === "completed" || s === "in_progress") done++;
+    }
+    text = done + "/" + lastPlan.steps.length;
+  }
+  planSwitchBadge.textContent = text;
+  planSwitchBadge.classList.toggle("hidden", text === "");
+  planSwitchBadge.classList.toggle("plan", planView !== "dyn");
 }
 
 miWs.onclick = () => {
@@ -3696,7 +3814,7 @@ function renderSubAgents(rows) {
   // hand-crafted payload can never leave a finished sub-agent on the panel.
   lastSubAgents = (Array.isArray(rows) ? rows : []).filter((row) => row && row.status === 'running');
   subAgentBody.textContent = '';
-  const show = lastSubAgents.length > 0;
+  const show = lastSubAgents.length > 0 && planView !== "dyn";
   // The markup ships both blocks with class="hidden", so the toggle must go
   // through the class list: setting the hidden *attribute* left the class in
   // place (display:none) and the whole list stayed invisible.
@@ -3740,7 +3858,7 @@ function truncateInstruction(text) {
 function renderSkills(loaded) {
   lastSkills = Array.isArray(loaded) ? loaded.filter((s) => s && s.name) : [];
   skillBody.textContent = "";
-  const show = lastSkills.length > 0;
+  const show = lastSkills.length > 0 && planView !== "dyn";
   skillHead.classList.toggle("hidden", !show);
   skillBody.classList.toggle("hidden", !show);
   for (const s of lastSkills) {
@@ -9170,4 +9288,503 @@ document.addEventListener("click", (e) => {
 const settingsBackBtn = document.getElementById("settingsBack");
 if (settingsBackBtn) {
   settingsBackBtn.addEventListener("click", () => settingsShowList());
+}
+
+/* ---------- FEATURE-612: task-plan panel view switch (任务进展 ⇄ 动态信息) ---------- */
+
+// PLAN_VIEW_KEY remembers the chosen view across reloads (this browser only).
+const PLAN_VIEW_KEY = "co-shell.planView";
+
+// DYN_KIND_KEYS maps a dynamic event kind onto its localized type label.
+const DYN_KIND_KEYS = {
+  clip_object: "dynKindClip",
+  upload_file: "dynKindUpload",
+  user_message: "dynKindUserMessage",
+  open_file: "dynKindOpen",
+  view_file: "dynKindView",
+  board_message: "dynKindBoard",
+  board_timeout: "dynKindBoardTimeout",
+  ui_action: "dynKindUIAction",
+  sub_agent_done: "dynKindSubAgent",
+};
+
+// dynKindLabel returns the localized label of one event kind. Unknown kinds
+// fall back to the raw kind so nothing is ever silently dropped.
+function dynKindLabel(kind) {
+  const key = DYN_KIND_KEYS[kind];
+  return (key && T[key]) || kind || "";
+}
+
+// fmtClock renders an epoch-millisecond stamp as HH:MM:SS.
+function fmtClock(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+}
+
+// hasDynContent reports whether the last snapshot has anything to show. It
+// keeps the panel alive in the dynamic view even without a task plan.
+function hasDynContent() {
+  if (!lastDyn) return false;
+  return (lastDyn.items || []).length > 0 || (lastDyn.env || []).length > 0;
+}
+
+// applyPlanViewBody shows exactly one of the two panel bodies and hides the
+// sub-agent / loaded-skill sections while the timeline is on screen.
+function applyPlanViewBody() {
+  if (!dynBody || !planBody) return;
+  const dyn = planView === "dyn";
+  dynBody.classList.toggle("hidden", !dyn);
+  planBody.classList.toggle("hidden", dyn);
+  const sub = !dyn && lastSubAgents.length > 0;
+  subAgentHead.classList.toggle("hidden", !sub);
+  subAgentBody.classList.toggle("hidden", !sub);
+  const sk = !dyn && lastSkills.length > 0;
+  skillHead.classList.toggle("hidden", !sk);
+  skillBody.classList.toggle("hidden", !sk);
+}
+
+// setPlanView switches the panel between the task plan and the dynamic-info
+// timeline. persist=true remembers the choice for the next reload.
+function setPlanView(v, persist) {
+  planView = v === "dyn" ? "dyn" : "plan";
+  if (planSwitch) {
+    planSwitch.style.removeProperty("--ps-p");
+    planSwitch.classList.toggle("dyn", planView === "dyn");
+    planSwitch.setAttribute("aria-checked", planView === "dyn" ? "true" : "false");
+  }
+  if (persist) {
+    try { localStorage.setItem(PLAN_VIEW_KEY, planView); } catch (e) { /* private mode */ }
+  }
+  applyPanels();
+}
+
+// psProgress maps a pointer position onto the switch travel: 0 = 任务进展,
+// 1 = 动态信息. The knob is an 18px circle sitting 2px inside the 22px content
+// box, so its centre stays 12px from either edge of the border box: that is the
+// travel pad used below.
+function psProgress(clientX, rect) {
+  const pad = 12;
+  const span = Math.max(1, rect.width - pad * 2);
+  const p = (rect.right - pad - clientX) / span;
+  return p < 0 ? 0 : p > 1 ? 1 : p;
+}
+
+let psDrag = null;
+let psSuppressClick = false;
+
+function onPlanSwitchDown(e) {
+  if (e.button !== 0) return;
+  psDrag = { id: e.pointerId, rect: planSwitch.getBoundingClientRect(), startX: e.clientX, moved: false };
+  psSuppressClick = false;
+  planSwitch.classList.add("dragging");
+  try { planSwitch.setPointerCapture(e.pointerId); } catch (err) { /* optional API */ }
+}
+
+function onPlanSwitchMove(e) {
+  if (!psDrag || e.pointerId !== psDrag.id) return;
+  if (!psDrag.moved && Math.abs(e.clientX - psDrag.startX) < 4) return;
+  psDrag.moved = true;
+  planSwitch.style.setProperty("--ps-p", String(psProgress(e.clientX, psDrag.rect)));
+}
+
+function onPlanSwitchUp(e) {
+  if (!psDrag || e.pointerId !== psDrag.id) return;
+  const drag = psDrag;
+  psDrag = null;
+  planSwitch.classList.remove("dragging");
+  if (!drag.moved) return; // a plain click: the click handler toggles instead
+  psSuppressClick = true;
+  setPlanView(psProgress(e.clientX, drag.rect) >= 0.5 ? "dyn" : "plan", true);
+  setTimeout(() => { psSuppressClick = false; }, 0);
+}
+
+if (planSwitch) {
+  planSwitch.addEventListener("pointerdown", onPlanSwitchDown);
+  planSwitch.addEventListener("pointermove", onPlanSwitchMove);
+  planSwitch.addEventListener("pointerup", onPlanSwitchUp);
+  planSwitch.addEventListener("pointercancel", onPlanSwitchUp);
+  planSwitch.addEventListener("click", (e) => {
+    if (psSuppressClick) { e.preventDefault(); return; }
+    setPlanView(planView === "dyn" ? "plan" : "dyn", true);
+  });
+  planSwitch.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    setPlanView(planView === "dyn" ? "plan" : "dyn", true);
+  });
+  // Restore the remembered view once every top-level declaration has run.
+  window.addEventListener("load", () => {
+    let saved = "";
+    try { saved = localStorage.getItem(PLAN_VIEW_KEY) || ""; } catch (e) { /* private mode */ }
+    setPlanView(saved === "dyn" ? "dyn" : "plan", false);
+  });
+}
+
+// renderDyn paints the dynamic-perception snapshot: one timeline (newest first,
+// every row led by a coloured type chip) followed by the environment blocks of
+// the last <environment_details>. Both live in the panel's single scroll box.
+function renderDyn(info) {
+  lastDyn = info && typeof info === "object" ? info : { items: [], env: [], counts: {} };
+  if (!dynBody) return;
+  dynBody.textContent = "";
+  const items = Array.isArray(lastDyn.items) ? lastDyn.items : [];
+  const env = (Array.isArray(lastDyn.env) ? lastDyn.env : []).slice();
+  if (items.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "dyn-empty";
+    empty.textContent = T.dynEmpty || "";
+    dynBody.appendChild(empty);
+  } else {
+    for (const it of items) dynBody.appendChild(dynRow(it));
+  }
+  if (env.length > 0) {
+    // <tools> is pinned to the very bottom; everything else keeps its order.
+    env.sort((a, b) => (a.tag === "tools" ? 1 : 0) - (b.tag === "tools" ? 1 : 0));
+    const sep = document.createElement("div");
+    sep.className = "dyn-env-sep";
+    sep.textContent = T.dynEnv || "";
+    dynBody.appendChild(sep);
+    for (const b of env) dynBody.appendChild(dynBlockEl(b));
+  }
+  applyPanels();
+}
+
+// dynRow renders one perception event as a card: the first line carries the
+// type chip and its status flag, the clock sits at the right edge; the second
+// line is the message body, truncated with an ellipsis when it is too long.
+function dynRow(it) {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  if (it.flag) row.classList.add("flag-" + it.flag);
+  const head = document.createElement("div");
+  head.className = "dyn-row-head";
+  const kind = String(it.kind || "");
+  const tag = document.createElement("span");
+  tag.className = "dyn-tag k-" + kind.replace(/_/g, "-");
+  tag.textContent = dynKindLabel(kind);
+  head.appendChild(tag);
+  if (it.flag) {
+    const flag = document.createElement("span");
+    flag.className = "dyn-flag";
+    flag.textContent = it.flag === "pending" ? (T.dynPending || "") : (T.dynUnacked || "");
+    head.appendChild(flag);
+  }
+  const time = document.createElement("span");
+  time.className = "dyn-time";
+  time.textContent = fmtClock(it.ts);
+  head.appendChild(time);
+  row.appendChild(head);
+  const text = document.createElement("div");
+  text.className = "dyn-text";
+  text.textContent = it.text || "";
+  row.appendChild(text);
+  return row;
+}
+
+// dynAttrs parses one tag's attributes into a plain object. The board roster and
+// the board notices carry the agent NAME in attributes, so dropping tags (which
+// the readable view otherwise does) would drop exactly what the user needs.
+function dynAttrs(tag) {
+  const out = {};
+  const re = /([A-Za-z_][\w:-]*)\s*=\s*"([^"]*)"/g;
+  let m;
+  while ((m = re.exec(String(tag))) !== null) out[m[1]] = m[2];
+  return out;
+}
+
+// dynAttrLabel returns the readable name of one attribute (raw name when
+// unmapped).
+function dynAttrLabel(key) {
+  const map = T.dynAttrLabels || {};
+  return map[key] || key;
+}
+
+// dynAgentLine renders one <agent …> roster element as "name（attr：value；…）".
+// The id is deliberately NOT listed: it is noise next to the name, and only
+// serves as a last-resort title when the roster carries no name at all.
+function dynAgentLine(tag) {
+  const a = dynAttrs(tag);
+  const title = a.name || a.id || T.dynEnvNone || "none";
+  const rest = Object.keys(a)
+    .filter((k) => k !== "name" && k !== "id" && a[k] !== "")
+    .map((k) => dynAttrLabel(k) + "：" + dynEnvValue(a[k]));
+  return title + (rest.length ? "（" + rest.join("；") + "）" : "");
+}
+
+// dynEnvLabel returns the readable name of one <environment_details> element.
+function dynEnvLabel(tag) {
+  const map = T.dynEnvLabels || {};
+  return map[tag] || tag;
+}
+
+// dynEnvValue turns one element's raw value into something a non-technical
+// reader can follow: tags are dropped, the token-usage sentence is rewritten and
+// the few enum values that always mean the same thing are translated.
+function dynEnvValue(raw) {
+  const v = String(raw || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const enums = T.dynEnvValues || {};
+  if (Object.prototype.hasOwnProperty.call(enums, v)) return enums[v];
+  const tok = v.match(/^([\d,]+)\s*\/\s*(\S+)\s*tokens(?:\s*used)?\s*\(([^)]*)\)$/i);
+  if (tok) {
+    return String(T.dynEnvTokens || "{used} / {total} tokens ({pct})")
+      .replace("{used}", tok[1]).replace("{total}", tok[2]).replace("{pct}", tok[3]);
+  }
+  return v;
+}
+
+// dynEnvPath keeps only the path of one directory-listing line, dropping the
+// "date time size" columns the environment block appends to it.
+function dynEnvPath(line) {
+  const m = String(line).match(/^(\S+)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\s+\S+)?$/);
+  return m ? m[1] : line;
+}
+
+// dynBoardAgents turns a <board_agents> block into one row per agent: the agent
+// name followed by its online/offline badge. The name is carried in `name` only
+// (`value` would render a second, right-aligned copy of it), and `text`/`value`
+// are deliberately not set. A block in its <unchanged/> form carries no roster,
+// so the rows parsed from the previous detail are reused.
+function dynBoardAgents(inner) {
+  if (/<unchanged\s*\/>/.test(inner)) return lastBoardAgents.slice();
+  const re = /<agent\b([^>]*)>/g;
+  const rows = [];
+  let m;
+  while ((m = re.exec(inner)) !== null) {
+    const attrs = m[1];
+    const name = ((attrs.match(/name="([^"]*)"/) || [])[1] || (attrs.match(/id="([^"]*)"/) || [])[1] || "").trim();
+    if (!name) continue;
+    rows.push({ name: name, badge: (attrs.match(/status="([^"]*)"/) || [])[1] || "" });
+  }
+  if (rows.length > 0) lastBoardAgents = rows;
+  return rows;
+}
+
+// dynEnvLines turns one block into readable rows. Child elements become
+// "label：value" rows; a block without children (tool list, skill list) keeps its
+// own lines. Raw XML is never shown.
+function dynEnvLines(tag, raw) {
+  const inner = String(raw || "").replace(/^<[^>]*>/, "").replace(/<\/[^>]*>\s*$/, "");
+  if (tag === "board_agents") {
+    const agents = dynBoardAgents(inner);
+    return agents.length ? agents : [{ value: T.dynEnvNone || "none" }];
+  }
+  if (/<unchanged\s*\/>/.test(inner)) return [{ value: T.dynEnvUnchanged || "unchanged" }];
+  // Roster blocks list one <agent …> element per agent; render them from their
+  // attributes instead of stripping the tags.
+  const agents = inner.match(/<agent\b[^>]*>/g);
+  if (agents && agents.length) return agents.map(dynAgentLine);
+  const re = /<([a-zA-Z_][\w-]*)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+  const rows = [];
+  let m;
+  while ((m = re.exec(inner)) !== null) {
+    const v = dynEnvValue(m[2]);
+    if (v) rows.push({ name: dynEnvLabel(m[1]), value: v });
+  }
+  if (rows.length === 0) {
+    for (const line of inner.split("\n")) {
+      const t = line.trim();
+      // FEATURE-612: the tool list only needs the path, not its size and date.
+      if (t) rows.push({ value: tag === "tools" ? dynEnvPath(t) : dynEnvValue(t) });
+    }
+  }
+  return rows.length ? rows : [{ value: T.dynEnvNone || "none" }];
+}
+
+/* ---------- FEATURE-612: opened resources (category groups + cards) ---------- */
+
+// DYN_RES_ICONS maps each <opened_resources> child onto the sprite icon shown at
+// the right end of its category title (all of them are existing #i-* symbols).
+const DYN_RES_ICONS = {
+  browser: "i-display",
+  excel: "i-file",
+  word: "i-memory",
+  shell: "i-devtools",
+  ui_windows: "i-expand",
+};
+
+// dynResWindowCard turns one <window> line ("name | surface | active | title |
+// content summary") into a card. Only the first four separators are split, so a
+// content summary that itself contains " | " stays intact.
+function dynResWindowCard(text) {
+  const parts = String(text).trim().split(" | ");
+  const name = (parts[0] || "").trim();
+  const surface = (parts[1] || "").trim().toLowerCase();
+  const fields = [];
+  if (surface === "panel") {
+    fields.push({ k: T.dynResSurface, v: T.dynResPanel });
+  } else if (surface) {
+    fields.push({ k: T.dynResSurface, v: T.dynResFloat });
+  }
+  const title = parts.length > 3 ? parts[3].trim() : "";
+  if (title) fields.push({ k: T.dynResTitle, v: title });
+  const summary = parts.length > 4 ? parts.slice(4).join(" | ").trim() : "";
+  if (summary) fields.push({ k: T.dynResSummary, v: summary });
+  return {
+    name: name || (T.dynEnvNone || "none"),
+    active: (parts[2] || "").trim().toLowerCase() === "active",
+    activate: name,
+    fields: fields,
+  };
+}
+
+// dynResCards turns one category's inner text into its cards: the window list
+// gets one card per <window>, the session lists one per <session>, and a
+// single-value category (browser / shell) one status card. An empty category
+// yields no card at all — the caller renders the "none" line instead.
+function dynResCards(key, inner) {
+  const cards = [];
+  let m;
+  if (key === "ui_windows") {
+    const re = /<window\b[^>]*>([\s\S]*?)<\/window>/g;
+    while ((m = re.exec(inner)) !== null) cards.push(dynResWindowCard(m[1]));
+    return cards;
+  }
+  if (key === "excel" || key === "word") {
+    const re = /<session\b[^>]*>([\s\S]*?)<\/session>/g;
+    while ((m = re.exec(inner)) !== null) {
+      const v = m[1].trim();
+      if (v) cards.push({ name: v, fields: [] });
+    }
+    return cards;
+  }
+  const raw = String(inner).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (raw && raw.toLowerCase() !== "none") cards.push({ name: dynEnvValue(raw), fields: [] });
+  return cards;
+}
+
+// dynResCardEl builds one resource card. The first line carries the resource's
+// main identifier plus the "active" chip for a UI window; every other attribute
+// becomes a field row whose value is truncated in the panel with the full text
+// on hover. A UI-window card is a <button> because clicking it switches to that
+// window; every other card is a plain <div>, so nothing that is not clickable
+// looks clickable.
+function dynResCardEl(card) {
+  const clickable = !!card.activate && !!window.UIWin && typeof window.UIWin.activate === "function";
+  const el = document.createElement(clickable ? "button" : "div");
+  el.className = "dyn-res-card";
+  if (card.active) el.classList.add("active");
+  if (clickable) {
+    el.type = "button";
+    el.classList.add("clickable");
+    el.title = T.dynResActivate || "";
+    el.addEventListener("click", function () { window.UIWin.activate(card.activate); });
+  }
+  const head = document.createElement("span");
+  head.className = "dyn-res-head";
+  const name = document.createElement("span");
+  name.className = "dyn-res-name";
+  name.textContent = card.name;
+  name.title = card.name;
+  head.appendChild(name);
+  if (card.active) {
+    const chip = document.createElement("span");
+    chip.className = "dyn-res-active";
+    chip.textContent = T.dynResActive || "";
+    head.appendChild(chip);
+  }
+  el.appendChild(head);
+  for (const f of card.fields) {
+    const row = document.createElement("span");
+    row.className = "dyn-res-field";
+    const k = document.createElement("span");
+    k.className = "dyn-res-k";
+    k.textContent = f.k;
+    row.appendChild(k);
+    const v = document.createElement("span");
+    v.className = "dyn-res-v";
+    v.textContent = f.v;
+    v.title = f.v;
+    row.appendChild(v);
+    el.appendChild(row);
+  }
+  return el;
+}
+
+// dynOpenResBody renders the whole <opened_resources> block: one group per
+// category — its title on the left and its icon on the right — followed by that
+// category's cards, or a single "none" line when it holds no resource. An empty
+// category keeps its title so all five kinds always read the same way.
+function dynOpenResBody(raw) {
+  const inner = String(raw || "").replace(/^<[^>]*>/, "").replace(/<\/[^>]*>\s*$/, "");
+  const box = document.createElement("div");
+  box.className = "dyn-res-body";
+  const re = /<([a-zA-Z_][\w-]*)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+  let m;
+  while ((m = re.exec(inner)) !== null) {
+    const key = m[1];
+    const grp = document.createElement("div");
+    grp.className = "dyn-res-group";
+    const title = document.createElement("div");
+    title.className = "dyn-res-title";
+    const label = document.createElement("span");
+    label.className = "dyn-res-title-text";
+    label.textContent = dynEnvLabel(key);
+    title.appendChild(label);
+    if (DYN_RES_ICONS[key]) title.appendChild(mkIcon(DYN_RES_ICONS[key], "dyn-res-ico"));
+    grp.appendChild(title);
+    const cards = dynResCards(key, m[2]);
+    if (cards.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "dyn-res-empty";
+      empty.textContent = T.dynEnvNone || "none";
+      grp.appendChild(empty);
+    } else {
+      for (const c of cards) grp.appendChild(dynResCardEl(c));
+    }
+    box.appendChild(grp);
+  }
+  return box;
+}
+
+// dynBlockEl renders one environment block as a plainly titled list. No XML and
+// no fold control: the panel's own scrollbar handles a long block.
+function dynBlockEl(b) {
+  const box = document.createElement("div");
+  box.className = "dyn-env-block";
+  const title = document.createElement("div");
+  title.className = "dyn-env-title";
+  title.textContent = dynEnvLabel(b.tag);
+  box.appendChild(title);
+  // FEATURE-612: opened resources get their own layout — one group per
+  // category with one card per resource — instead of the generic row list.
+  if (b.tag === "opened_resources") {
+    box.appendChild(dynOpenResBody(b.text));
+    return box;
+  }
+  const body = document.createElement("div");
+  body.className = "dyn-env-text";
+  for (const line of dynEnvLines(b.tag, b.text)) {
+    const row = document.createElement("div");
+    row.className = "dyn-env-line";
+    const isObj = typeof line !== "string";
+    const name = isObj ? (line.name || "") : "";
+    const value = isObj ? (line.value || "") : line;
+    const badge = isObj ? (line.badge || "") : "";
+    if (name) {
+      const label = document.createElement("span");
+      label.className = "dyn-env-name";
+      label.textContent = name;
+      row.appendChild(label);
+    }
+    if (!name && !badge) {
+      // Plain value row (a tool path or a placeholder): full width, left aligned.
+      row.textContent = value;
+    } else if (value) {
+      const val = document.createElement("span");
+      val.className = "dyn-env-val";
+      val.textContent = value;
+      row.appendChild(val);
+    }
+    if (badge) {
+      const chip = document.createElement("span");
+      chip.className = "dyn-env-badge " + (badge === "online" ? "on" : "off");
+      chip.textContent = badge;
+      row.appendChild(chip);
+    }
+    body.appendChild(row);
+  }
+  box.appendChild(body);
+  return box;
 }

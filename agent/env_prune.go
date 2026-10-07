@@ -115,7 +115,8 @@ type envBlock struct {
 	raw  string
 }
 
-// tagNameOf returns the element name of a trimmed "<foo>…" line, or "".
+// tagNameOf returns the element name of a trimmed "<foo>…" line, or "". Any
+// attribute is dropped, so `<board_agents rev="7">` yields "board_agents".
 func tagNameOf(line string) string {
 	if !strings.HasPrefix(line, "<") || strings.HasPrefix(line, "</") {
 		return ""
@@ -124,7 +125,11 @@ func tagNameOf(line string) string {
 	if end <= 1 {
 		return ""
 	}
-	return line[1:end]
+	name := line[1:end]
+	if i := strings.IndexAny(name, " \t"); i >= 0 {
+		name = name[:i]
+	}
+	return name
 }
 
 // splitEnvBlocks splits an envelope into its top-level elements, preserving
