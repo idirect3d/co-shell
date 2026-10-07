@@ -2305,6 +2305,12 @@ function renderEvent(ev) {
   }
   if (ev.type === "await_input") { setRunning(false); clearStreamingMarks(); return; }
   if (ev.type === "turn_start") { setRunning(true); return; }
+  // FIX-618: interaction_request / interaction_resolved are control events
+  // (ChannelSystem + empty text) that handleInteractionEvent already turns into
+  // a dialog / closes it. They used to fall through to the generic block at the
+  // bottom of renderEvent, which painted an empty "SYS" block for each — so one
+  // interaction left TWO of them at the end of the stream. Keep them out.
+  if (ev.type === "interaction_request" || ev.type === "interaction_resolved") return;
   if (ev.type === "task_plan") {
     let plan = null;
     try { if (ev.meta && ev.meta.plan) plan = JSON.parse(ev.meta.plan); } catch { /* keep null */ }
@@ -2853,12 +2859,18 @@ function renderEvent(ev) {
     }
   }
   const blockLabel = ev.type === "ui_text" ? "SYS" : label;
+  // FIX-618: an event this stream does not know and that carries no text has
+  // nothing to show — the generic path used to paint an empty block for it
+  // (e.g. the interaction control events skipped above). Skip it instead, so a
+  // future control event cannot leave an empty block behind either.
+  const text = ev.text || "";
+  if (!text) return;
   const body = makeBlock(eventClass(ev), blockLabel, msgIndex);
   if (ev.type === "content" || ev.type === "thinking") {
     body.classList.add("md");
-    mdRender(body, ev.text || "");
+    mdRender(body, text);
   } else {
-    body.textContent = ev.text || "";
+    body.textContent = text;
   }
 }
 
