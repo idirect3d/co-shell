@@ -60,6 +60,13 @@ type ModelTemplate struct {
 	CustomEndpoint       string   `json:"custom_endpoint,omitempty"`
 	CustomModels         []string `json:"custom_models,omitempty"`
 	OverrideCapabilities *bool    `json:"override_capabilities,omitempty"`
+	// FEATURE-620 model-behaviour hints carried over to models created from
+	// this template. They describe how the engine reports thinking and tool
+	// calls (see ModelConfig for the meaning of each value).
+	ThinkingProtocol string   `json:"thinking_protocol,omitempty"`
+	ReasoningField   string   `json:"reasoning_field,omitempty"`
+	ToolCallStyle    string   `json:"tool_call_style,omitempty"`
+	ReasoningTags    []string `json:"reasoning_tags,omitempty"`
 	// DefaultMaxModelLen is the default maximum context length (in tokens) for models
 	// created from this template. Used as a fallback when the API doesn't return this value.
 	// 0 means unknown.
@@ -117,6 +124,26 @@ type ModelConfig struct {
 	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
 	ThinkingEnabled   *bool    `json:"thinking_enabled,omitempty"`
 	ReasoningEffort   *string  `json:"reasoning_effort,omitempty"`
+
+	// ReasoningField selects which response field carries this model's thinking
+	// output (FEATURE-620). Empty means auto: the client reads
+	// "reasoning_content" and falls back to "reasoning", which covers both the
+	// legacy and the current vLLM naming. Other accepted values are
+	// "reasoning_content", "reasoning", "inline" and "none".
+	ReasoningField string `json:"reasoning_field,omitempty"`
+	// ThinkingProtocol names the request-side thinking protocol explicitly
+	// (FEATURE-620), reusing the thinking adapter registry keys: deepseek,
+	// qwen, zhipu, minimax, kimi, openai-compatible. Empty keeps the legacy
+	// behaviour of deriving it from Provider, which is unreliable for
+	// self-hosted endpoints where one engine serves any model.
+	ThinkingProtocol string `json:"thinking_protocol,omitempty"`
+	// ToolCallStyle records how the model returns tool calls (FEATURE-620):
+	// "native" (tool_calls), "text" (parsed from content) or "none".
+	ToolCallStyle string `json:"tool_call_style,omitempty"`
+	// ReasoningTags lists the tags that wrap inline chain-of-thought inside
+	// content (e.g. ["thinking", "reasoning"]). Only used when
+	// ReasoningField is "inline"; empty means inline stripping is off.
+	ReasoningTags []string `json:"reasoning_tags,omitempty"`
 }
 
 // ModelManager manages model templates and configurations.
@@ -316,6 +343,22 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Description:  i18n.T(i18n.KeySettingCmd_772),
 			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
 		},
+		{
+			// FEATURE-620: a dedicated entry for a self-hosted inference engine
+			// (vLLM and friends). A provider name cannot describe such an
+			// endpoint — one engine serves any model — so the wizard probes the
+			// endpoint instead of trusting a vendor name.
+			ID:           "vllm-self-hosted",
+			Name:         i18n.T(i18n.KeySettingCmdVLLMSelfHosted),
+			Provider:     "openai-compatible",
+			Endpoint:     "",
+			DefaultModel: "",
+			Models:       []string{},
+			APIKeyURL:    "",
+			Priority:     58,
+			Description:  i18n.T(i18n.KeySettingCmdVLLMSelfHostedDesc),
+			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
+		},
 	}
 
 	for i := range templates {
@@ -345,6 +388,7 @@ func (m *ModelManager) GetAllTemplates() []*ModelTemplate {
 		"openai-official",
 		"lmstudio-local",
 		"ollama-local",
+		"vllm-self-hosted",
 		"custom-openai-compatible",
 	}
 
@@ -665,6 +709,12 @@ func (m *ModelManager) CreateModelFromTemplate(templateID string, modelID string
 		Enabled:      false,
 		TemplateID:   templateID,
 		CustomParams: customParams,
+		// FEATURE-620: carry the template's engine-behaviour hints to the model
+		// so they only have to be probed or declared once.
+		ThinkingProtocol: template.ThinkingProtocol,
+		ReasoningField:   template.ReasoningField,
+		ToolCallStyle:    template.ToolCallStyle,
+		ReasoningTags:    template.ReasoningTags,
 	}
 
 	if err := m.AddModel(modelConfig); err != nil {

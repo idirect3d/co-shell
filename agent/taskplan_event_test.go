@@ -107,6 +107,8 @@ func (f *scriptedPlanClient) TestToolCallSupport(ctx context.Context) bool { ret
 func (f *scriptedPlanClient) TestThinkingSupport(ctx context.Context) bool { return false }
 func (f *scriptedPlanClient) SetThinkingEnabled(enabled bool)              {}
 func (f *scriptedPlanClient) SetReasoningEffort(effort string)             {}
+func (f *scriptedPlanClient) SetReasoningField(field string)               {}
+func (f *scriptedPlanClient) SetReasoningTags(tags []string)               {}
 func (f *scriptedPlanClient) SetTopP(topP float64)                         {}
 func (f *scriptedPlanClient) SetTopK(topK int)                             {}
 func (f *scriptedPlanClient) SetRepetitionPenalty(penalty float64)         {}

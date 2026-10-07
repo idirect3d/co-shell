@@ -54,6 +54,8 @@ func (f *fakeLLMClient) TestToolCallSupport(ctx context.Context) bool { return f
 func (f *fakeLLMClient) TestThinkingSupport(ctx context.Context) bool { return false }
 func (f *fakeLLMClient) SetThinkingEnabled(enabled bool)              {}
 func (f *fakeLLMClient) SetReasoningEffort(effort string)             {}
+func (f *fakeLLMClient) SetReasoningField(field string)               {}
+func (f *fakeLLMClient) SetReasoningTags(tags []string)               {}
 func (f *fakeLLMClient) SetTopP(topP float64)                         {}
 func (f *fakeLLMClient) SetTopK(topK int)                             {}
 func (f *fakeLLMClient) SetRepetitionPenalty(penalty float64)         {}

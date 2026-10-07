@@ -14,6 +14,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -54,11 +56,11 @@ var webWizardSteps = []WebWizardStep{
 
 // WebWizardField describes one form field in a step.
 type WebWizardField struct {
-	Key      string   `json:"key"`                // field key, e.g. "template", "endpoint"
-	Type     string   `json:"type"`               // "select" | "text" | "password" | "number" | "checkbox" | "switch"
-	Label    string   `json:"label"`              // human-readable label
-	Value    string   `json:"value"`              // current/default value
-	Options  []string `json:"options,omitempty"`  // for select
+	Key      string   `json:"key"`               // field key, e.g. "template", "endpoint"
+	Type     string   `json:"type"`              // "select" | "text" | "password" | "number" | "checkbox" | "switch"
+	Label    string   `json:"label"`             // human-readable label
+	Value    string   `json:"value"`             // current/default value
+	Options  []string `json:"options,omitempty"` // for select
 	Required bool     `json:"required"`
 	Hint     string   `json:"hint,omitempty"`
 }
@@ -85,31 +87,35 @@ type WebWizardStepData struct {
 	// template's provider (FEATURE-467). Empty when the provider has no
 	// reasoning_effort concept.
 	ReasoningEffortOptions []string `json:"reasoning_effort_options,omitempty"`
+	// Detected carries the capability-probe report for the capabilities step
+	// (FEATURE-620) so the frontend can show a "detected value" column beside
+	// each configurable row.
+	Detected *llm.DetectedProfile `json:"detected,omitempty"`
 }
 
 // WebWizardData holds all filled fields across steps. It is owned by the
 // browser and sent back on each next/prev/submit call, so the backend stays
 // stateless.
 type WebWizardData struct {
-	Mode        string `json:"mode"` // "add" | "edit"
-	EditID      string `json:"edit_id,omitempty"`
-	TemplateID  string `json:"template_id,omitempty"`
-	Endpoint    string `json:"endpoint,omitempty"`
-	APIKey      string `json:"api_key,omitempty"`
-	ModelName   string `json:"model_name,omitempty"`
-	Vision      bool   `json:"vision"`
-	ToolCall    bool   `json:"tool_call"`
-	Thinking    bool   `json:"thinking"`
+	Mode       string `json:"mode"` // "add" | "edit"
+	EditID     string `json:"edit_id,omitempty"`
+	TemplateID string `json:"template_id,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	APIKey     string `json:"api_key,omitempty"`
+	ModelName  string `json:"model_name,omitempty"`
+	Vision     bool   `json:"vision"`
+	ToolCall   bool   `json:"tool_call"`
+	Thinking   bool   `json:"thinking"`
 	// ReasoningEffort is the reasoning depth for the model (FEATURE-467).
 	// Empty means "use the provider/template default".
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	// APIType is the API protocol for the model (FEATURE-468).
 	// Empty or "chat" = Chat Completions (/v1/chat/completions);
 	// "responses" = Responses API (/v1/responses, reasoning.effort control).
-	APIType string `json:"api_type,omitempty"`
-	ModelID         string `json:"model_id,omitempty"`
-	Priority        int    `json:"priority"`
-	MaxModelLen     int    `json:"max_model_len"`
+	APIType     string `json:"api_type,omitempty"`
+	ModelID     string `json:"model_id,omitempty"`
+	Priority    int    `json:"priority"`
+	MaxModelLen int    `json:"max_model_len"`
 	// ModelMaxLen is the max context length (in tokens) reported by the API for
 	// the currently selected model. Recorded on the model_name step and used to
 	// pre-fill / hint the max_model_len step (FEATURE-429).
@@ -120,6 +126,19 @@ type WebWizardData struct {
 	// wizard). The backend resets it to false after detection so it does not
 	// keep forcing detection on later renders.
 	Detect bool `json:"detect,omitempty"`
+	// FEATURE-620 capability choices. Empty ReasoningField means auto (accept
+	// both known namings) and empty ThinkingProtocol means "derive from the
+	// provider", so an untouched wizard keeps the legacy behaviour.
+	ReasoningField   string   `json:"reasoning_field,omitempty"`
+	ThinkingProtocol string   `json:"thinking_protocol,omitempty"`
+	ToolCallStyle    string   `json:"tool_call_style,omitempty"`
+	ReasoningTags    []string `json:"reasoning_tags,omitempty"`
+	// ProbeLevel selects how much the capability probe does: "off", "light"
+	// (the default) or "full" (FEATURE-620).
+	ProbeLevel string `json:"probe_level,omitempty"`
+	// Detected keeps the last probe report across steps so re-rendering the
+	// table does not probe again (FEATURE-620).
+	Detected *llm.DetectedProfile `json:"detected,omitempty"`
 }
 
 // WebWizardStart begins a new add/edit wizard and returns the first step's
@@ -151,6 +170,11 @@ func (h *ModelHandler) WebWizardStart(mode, id string) (*WebWizardStepData, *Web
 		data.Priority = model.Priority
 		data.MaxModelLen = model.MaxModelLen
 		data.Enabled = model.Enabled
+		// FEATURE-620: pre-fill the capability choices on edit.
+		data.ReasoningField = model.ReasoningField
+		data.ThinkingProtocol = model.ThinkingProtocol
+		data.ToolCallStyle = model.ToolCallStyle
+		data.ReasoningTags = model.ReasoningTags
 	}
 	step, err := h.webWizardStepData(data, WebWizardTemplate)
 	return step, data, err
@@ -227,6 +251,17 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 		// empty so the config stays minimal (empty == chat, the default).
 		model.APIType = normalizeAPIType(data.APIType)
 		model.Enabled = data.Enabled
+		// FEATURE-620: persist the capability choices. Inline tags are only kept
+		// together with an explicit "inline" field, so stripping inline
+		// chain-of-thought always stays an explicit user decision.
+		model.ReasoningField = data.ReasoningField
+		model.ThinkingProtocol = data.ThinkingProtocol
+		model.ToolCallStyle = data.ToolCallStyle
+		if data.ReasoningField == llm.ReasoningFieldInline {
+			model.ReasoningTags = data.ReasoningTags
+		} else {
+			model.ReasoningTags = nil
+		}
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 		}
@@ -248,15 +283,15 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 	}
 
 	modelConfig := &config.ModelConfig{
-		ID:           data.ModelID,
-		Name:         fmt.Sprintf("%s (%s)", template.Name, data.ModelName),
-		Provider:     template.Provider,
-		Endpoint:     data.Endpoint,
-		Model:        data.ModelName,
-		APIKey:       data.APIKey,
-		Priority:     data.Priority,
-		Enabled:      data.Enabled,
-		TemplateID:   template.ID,
+		ID:         data.ModelID,
+		Name:       fmt.Sprintf("%s (%s)", template.Name, data.ModelName),
+		Provider:   template.Provider,
+		Endpoint:   data.Endpoint,
+		Model:      data.ModelName,
+		APIKey:     data.APIKey,
+		Priority:   data.Priority,
+		Enabled:    data.Enabled,
+		TemplateID: template.ID,
 		Capabilities: config.ModelCapability{
 			Vision:   data.Vision,
 			ToolCall: data.ToolCall,
@@ -266,6 +301,13 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 		// FEATURE-468: the API type chosen on the template step (chat or responses;
 		// "chat" is normalized to empty so the config stays minimal).
 		APIType: normalizeAPIType(data.APIType),
+		// FEATURE-620: the capability choices confirmed on the probe step.
+		ReasoningField:   data.ReasoningField,
+		ThinkingProtocol: data.ThinkingProtocol,
+		ToolCallStyle:    data.ToolCallStyle,
+	}
+	if data.ReasoningField == llm.ReasoningFieldInline {
+		modelConfig.ReasoningTags = data.ReasoningTags
 	}
 	// FEATURE-467: persist the model-level thinking settings chosen on the
 	// template step.
@@ -403,17 +445,54 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 		// way the result is written back into data (so the persisted values and
 		// the rendered switches agree) and Detect is reset so it does not keep
 		// forcing detection on later renders.
-		if data.Detect || caps == (config.ModelCapability{}) {
+		detect := data.Detect || caps == (config.ModelCapability{})
+		if detect {
 			caps = h.detectModelCapabilities(data.Endpoint, data.APIKey, data.ModelName)
 			data.Vision = caps.Vision
 			data.ToolCall = caps.ToolCall
 			data.Thinking = caps.Thinking
 		}
+		// FEATURE-620: probe how this engine actually reports thinking and tool
+		// calls. Every probe item is bounded and degrades on its own, so a slow
+		// or half-broken endpoint can never block the wizard; probe_level=off
+		// keeps everything manual.
+		if detect || data.Detected == nil {
+			profile := llm.ProbeReasoning(context.Background(), data.Endpoint, data.APIKey,
+				data.ModelName, probeLevelOf(data.ProbeLevel))
+			data.Detected = profile
+			// An explicit choice always wins over a probe result, so only fill
+			// what is still unset.
+			if data.ThinkingProtocol == "" {
+				data.ThinkingProtocol = profile.ThinkingProtocol
+			}
+			if data.ToolCallStyle == "" {
+				data.ToolCallStyle = profile.ToolCallStyle
+			}
+			if len(data.ReasoningTags) == 0 {
+				data.ReasoningTags = profile.ReasoningTags
+			}
+			// The response field deliberately stays "auto" unless the user picks
+			// one: auto already accepts both known namings, which is more robust
+			// than pinning whatever one probe happened to observe.
+		}
 		data.Detect = false
+		sd.Detected = data.Detected
+		probeLevel := data.ProbeLevel
+		if probeLevel == "" {
+			probeLevel = string(llm.ProbeLight)
+		}
 		sd.Fields = []WebWizardField{
 			{Key: "vision", Type: "checkbox", Label: i18n.T(i18n.KeyCmdMig_376), Value: webWizardBoolStr(caps.Vision)},
 			{Key: "tool_call", Type: "checkbox", Label: i18n.T(i18n.KeyCmdMig_380), Value: webWizardBoolStr(caps.ToolCall)},
 			{Key: "thinking", Type: "checkbox", Label: i18n.T(i18n.KeyCmdMig_378), Value: webWizardBoolStr(caps.Thinking)},
+			{Key: "reasoning_field", Type: "select", Label: i18n.T(i18n.KeyCmdMigProbeReasoningField),
+				Value: data.ReasoningField, Options: reasoningFieldOptions(), Hint: i18n.T(i18n.KeyCmdMigProbeAutoHint)},
+			{Key: "thinking_protocol", Type: "select", Label: i18n.T(i18n.KeyCmdMigProbeThinkingProtocol),
+				Value: data.ThinkingProtocol, Options: llm.ThinkingProtocolCandidates()},
+			{Key: "tool_call_style", Type: "select", Label: i18n.T(i18n.KeyCmdMigProbeToolCallStyle),
+				Value: data.ToolCallStyle, Options: []string{"", llm.ToolCallStyleNative, llm.ToolCallStyleText, llm.ToolCallStyleNone}},
+			{Key: "probe_level", Type: "select", Label: i18n.T(i18n.KeyCmdMigProbeLevel),
+				Value: probeLevel, Options: []string{string(llm.ProbeLight), string(llm.ProbeFull), string(llm.ProbeOff)}},
 		}
 
 	case WebWizardModelID:
@@ -523,6 +602,31 @@ func webWizardBoolStr(b bool) string {
 	return "false"
 }
 
+// probeLevelOf maps the wizard's probe-level value to an llm.ProbeLevel,
+// defaulting to the lightweight probe (FEATURE-620).
+func probeLevelOf(level string) llm.ProbeLevel {
+	switch llm.ProbeLevel(level) {
+	case llm.ProbeOff:
+		return llm.ProbeOff
+	case llm.ProbeFull:
+		return llm.ProbeFull
+	default:
+		return llm.ProbeLight
+	}
+}
+
+// reasoningFieldOptions lists the response-field choices with "auto" first
+// (FEATURE-620). The empty value is rendered as "(default)" by the frontend.
+func reasoningFieldOptions() []string {
+	return []string{
+		llm.ReasoningFieldAuto,
+		llm.ReasoningFieldContent,
+		llm.ReasoningFieldReasoning,
+		llm.ReasoningFieldInline,
+		llm.ReasoningFieldNone,
+	}
+}
+
 // normalizeAPIType normalizes a wizard api_type value for persistence
 // (FEATURE-468). Empty or "chat" both mean the default Chat Completions API and
 // are stored as empty so the config stays minimal; only "responses" is kept.
@@ -550,4 +654,3 @@ func reasoningEffortOptions(provider string) []string {
 		return []string{""}
 	}
 }
-

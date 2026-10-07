@@ -31,7 +31,7 @@ func TestFeature583UC0019RequestStripsPinned(t *testing.T) {
 		},
 	}
 
-	built := buildMessages(msgs)
+	built := buildMessages(msgs, ReasoningFieldAuto)
 	data, err := json.Marshal(built)
 	if err != nil {
 		t.Fatalf("marshal request messages: %v", err)

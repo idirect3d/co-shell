@@ -225,14 +225,20 @@ func TestWebWizardCapabilitiesStep(t *testing.T) {
 	if step.Step != WebWizardCapabilities {
 		t.Fatalf("step = %q, want capabilities", step.Step)
 	}
-	if len(step.Fields) != 3 {
-		t.Fatalf("capabilities fields = %d, want 3", len(step.Fields))
+	// FEATURE-620: the step now also carries the probe report and the four
+	// overridable rows, so it has 7 fields instead of the original 3.
+	if len(step.Fields) != 7 {
+		t.Fatalf("capabilities fields = %d, want 7", len(step.Fields))
 	}
 	keys := map[string]bool{}
 	for _, f := range step.Fields {
 		keys[f.Key] = true
 	}
-	for _, k := range []string{"vision", "tool_call", "thinking"} {
+	want := []string{
+		"vision", "tool_call", "thinking",
+		"reasoning_field", "thinking_protocol", "tool_call_style", "probe_level",
+	}
+	for _, k := range want {
 		if !keys[k] {
 			t.Errorf("capabilities field %q missing", k)
 		}
@@ -596,11 +602,16 @@ func TestWebWizardDetect(t *testing.T) {
 	if step.Step != WebWizardCapabilities {
 		t.Fatalf("step = %q, want capabilities", step.Step)
 	}
-	if len(step.Fields) != 3 {
-		t.Fatalf("capabilities fields = %d, want 3", len(step.Fields))
+	if len(step.Fields) != 7 {
+		t.Fatalf("capabilities fields = %d, want 7", len(step.Fields))
 	}
 	if data.Detect {
 		t.Error("Detect must be reset to false after detection")
+	}
+	// FEATURE-620: a forced detection also runs the capability probe and hands
+	// its report to the frontend.
+	if step.Detected == nil {
+		t.Error("step.Detected is nil: the probe report must reach the frontend")
 	}
 }
 

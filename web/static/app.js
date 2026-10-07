@@ -128,6 +128,7 @@ const I18N = {
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "chat（默认）",
     wizardDetect: "手动检测", wizardDetecting: "检测中...", wizardCapSupported: "支持", wizardCapUnsupported: "不支持",
+    wizardDetected: "探测值", wizardProbeAuto: "自动（默认）",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认", modelAutoSelect: "自动选择", modelAutoSelectHint: "LLM 调用失败时按优先级自动降级到后续模型",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
@@ -268,6 +269,7 @@ const I18N = {
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "chat (default)",
     wizardDetect: "Run detection", wizardDetecting: "Detecting...", wizardCapSupported: "supported", wizardCapUnsupported: "not supported",
+    wizardDetected: "Detected", wizardProbeAuto: "auto (default)",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default", modelAutoSelect: "Auto select", modelAutoSelectHint: "Degrade to the next lower-priority model when an LLM call fails",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
@@ -8333,6 +8335,9 @@ function renderWizardStep(step) {
   // Remember each model's max context length (reported by the API) so the
   // selected model's max length can be recorded for the max_model_len step.
   wizardModelMaxLens = step.model_max_lens || {};
+  // FEATURE-620: the probe-and-capabilities step reports what the probe
+  // observed, so each row can show the detected value beside its own control.
+  const detected = step.detected || {};
   // Left navigation.
   modelWizardNav.textContent = "";
   const order = ["template", "endpoint", "api_key", "model_name", "capabilities", "model_id", "priority", "max_model_len", "enabled"];
@@ -8368,7 +8373,7 @@ function renderWizardStep(step) {
     modelWizardBody.appendChild(msg);
   }
   for (const f of (step.fields || [])) {
-    modelWizardBody.appendChild(renderWizardField(f));
+    modelWizardBody.appendChild(renderWizardField(f, detected));
   }
   // FEATURE-467: on the template step, wire up the thinking switch to show/hide
   // the reasoning_effort select, and render the collapsible template-JSON viewer.
@@ -8501,8 +8506,10 @@ function setCapDetectStatus(msg) {
   el.className = "wizard-cap-status " + (msg.ok ? "ok" : "err");
 }
 
-// renderWizardField builds a form control for one field.
-function renderWizardField(f) {
+// renderWizardField builds a form control for one field. detected, when given,
+// carries the capability-probe report so a row can display the value the probe
+// observed next to its own control (FEATURE-620).
+function renderWizardField(f, detected) {
   const wrap = document.createElement("div");
   // FEATURE-467: tag the wrapper with the field key so the wizard can locate
   // and show/hide conditional fields (e.g. reasoning_effort under thinking).
@@ -8532,7 +8539,16 @@ function renderWizardField(f) {
       // FEATURE-468: the api_type "chat" option is the default API; its label
       // carries a "(default)" suffix (the option itself is selected by default).
       let optLabel = opt;
-      if (opt === "") optLabel = (T.reasoningEffortNone || "不设置");
+      if (opt === "") {
+        // FEATURE-620: on the probe rows an empty value means "auto" (let the
+        // client decide), not "do not send"; the reasoning_effort row keeps
+        // its original "not set" wording.
+        if (f.key === "reasoning_field" || f.key === "thinking_protocol" || f.key === "tool_call_style") {
+          optLabel = T.wizardProbeAuto || "自动（默认）";
+        } else {
+          optLabel = (T.reasoningEffortNone || "不设置");
+        }
+      }
       else if (f.key === "api_type" && opt === "chat") optLabel = T.apiTypeChatDefault || "chat (默认)";
       o.textContent = optLabel;
       ctl.appendChild(o);
@@ -8737,7 +8753,30 @@ function renderWizardField(f) {
     hint.textContent = f.hint;
     wrap.appendChild(hint);
   }
+  // FEATURE-620: show what the probe observed for this row so the user can
+  // compare it with the value they are about to save.
+  const observed = wizardDetectedText(f.key, detected);
+  if (observed) {
+    const det = document.createElement("div");
+    det.className = "wizard-detected";
+    det.textContent = (T.wizardDetected || "探测值") + ": " + observed;
+    wrap.appendChild(det);
+  }
   return wrap;
+}
+
+// wizardDetectedText returns the value the capability probe observed for a
+// probe-and-capabilities row (FEATURE-620). Empty when the probe reported
+// nothing for that row.
+function wizardDetectedText(key, detected) {
+  if (!detected) return "";
+  switch (key) {
+    case "reasoning_field": return detected.reasoning_field || "";
+    case "thinking_protocol": return detected.thinking_protocol || "";
+    case "tool_call_style": return detected.tool_call_style || "";
+    case "thinking": return detected.reasoning_default || "";
+    default: return "";
+  }
 }
 
 // collectWizardFields reads the current form's values into wizardData.

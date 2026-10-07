@@ -239,6 +239,17 @@ type Client interface {
 	// Valid values: "low", "medium", "high" (model-dependent).
 	SetReasoningEffort(effort string)
 
+	// SetReasoningField selects which response field carries the model's
+	// thinking output (FEATURE-620). See the ReasoningField* constants; the
+	// empty value (auto) reads "reasoning_content" and falls back to
+	// "reasoning", covering both the legacy and the current vLLM naming.
+	SetReasoningField(field string)
+
+	// SetReasoningTags lists the tags that wrap inline chain-of-thought inside
+	// content (FEATURE-620). They are only used when SetReasoningField was
+	// given ReasoningFieldInline; an empty list turns stripping off.
+	SetReasoningTags(tags []string)
+
 	// SetTopP sets the top-p sampling parameter (-1 = don't send).
 	SetTopP(topP float64)
 
@@ -330,6 +341,10 @@ type chatMessageJSON struct {
 	ToolCallID       string         `json:"tool_call_id,omitempty"`
 	ToolCalls        []toolCallJSON `json:"tool_calls,omitempty"`
 	ReasoningContent *string        `json:"reasoning_content,omitempty"`
+	// Reasoning carries the same thinking under the field name used by
+	// current vLLM. At most one of ReasoningContent / Reasoning is set,
+	// chosen by the client's ReasoningField (FEATURE-620).
+	Reasoning *string `json:"reasoning,omitempty"`
 }
 
 // toolCallJSON is the JSON structure for a tool call in messages.
@@ -437,6 +452,7 @@ type responseMessageJSON struct {
 	Role             string         `json:"role"`
 	Content          string         `json:"content"`
 	ReasoningContent string         `json:"reasoning_content,omitempty"`
+	Reasoning        string         `json:"reasoning,omitempty"`
 	ToolCalls        []toolCallJSON `json:"tool_calls,omitempty"`
 }
 
@@ -486,6 +502,8 @@ type openAIClient struct {
 	repetitionPenalty float64           // repetition penalty (-1 = don't send)
 	thinkingEnabled   bool              // whether to enable thinking/reasoning mode in API requests
 	reasoningEffort   string            // reasoning effort level: "low", "medium", "high"
+	reasoningField    string            // response thinking field ("" = auto, FEATURE-620)
+	reasoningTags     []string          // inline CoT tags (only used for ReasoningFieldInline)
 	tokenUsage        string            // token usage display mode: "on", "off", "none"
 	bodyAdditions     map[string]string // custom JSON properties to add to the LLM request body
 }
@@ -530,15 +548,25 @@ func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens in
 }
 
 // buildMessages converts our Message type to the JSON-serializable format.
-func buildMessages(messages []Message) []chatMessageJSON {
+// reasoningField selects the JSON key used to echo an assistant message's
+// thinking back to the API (FEATURE-620): only an explicit "reasoning"
+// switches the key, every other value (including auto) keeps the legacy
+// "reasoning_content" key, and "none" sends no thinking at all.
+func buildMessages(messages []Message, reasoningField string) []chatMessageJSON {
 	result := make([]chatMessageJSON, 0, len(messages))
+	echoField := ReasoningEchoField(reasoningField)
 	for _, msg := range messages {
-		// DeepSeek thinking mode requires reasoning_content to be passed back
-		// for assistant messages. Use a pointer so we can distinguish between
-		// "empty string" (include in JSON as "") and "not set" (omit from JSON).
-		var rc *string
-		if msg.ReasoningContent != "" || msg.Role == "assistant" {
-			rc = &msg.ReasoningContent
+		// Thinking must be passed back for assistant messages. Use a pointer so
+		// we can distinguish between "empty string" (include in JSON as "") and
+		// "not set" (omit from JSON). The key follows the engine naming: legacy
+		// engines expect "reasoning_content", current vLLM "reasoning".
+		var rc, rs *string
+		if reasoningField != ReasoningFieldNone && (msg.ReasoningContent != "" || msg.Role == "assistant") {
+			if echoField == ReasoningFieldReasoning {
+				rs = &msg.ReasoningContent
+			} else {
+				rc = &msg.ReasoningContent
+			}
 		}
 
 		// Determine content: if multimodal, use array of ContentPart;
@@ -561,6 +589,7 @@ func buildMessages(messages []Message) []chatMessageJSON {
 			Content:          content,
 			ToolCallID:       msg.ToolCallID,
 			ReasoningContent: rc,
+			Reasoning:        rs,
 		}
 
 		// Map ToolCalls if present
@@ -608,7 +637,9 @@ func buildTools(tools []Tool) []toolJSON {
 }
 
 // parseResponseChoices extracts tool calls and content from the response.
-func parseResponseChoices(choices []choiceJSON) (string, string, []ToolCall) {
+// reasoningField selects which response field carries the thinking (FEATURE-620);
+// the empty value is the auto union fallback.
+func parseResponseChoices(choices []choiceJSON, reasoningField string) (string, string, []ToolCall) {
 	var content, reasoningContent string
 	var toolCalls []ToolCall
 
@@ -618,7 +649,7 @@ func parseResponseChoices(choices []choiceJSON) (string, string, []ToolCall) {
 
 	choice := choices[0]
 	content = choice.Message.Content
-	reasoningContent = choice.Message.ReasoningContent
+	reasoningContent = PickReasoning(reasoningField, choice.Message.ReasoningContent, choice.Message.Reasoning)
 
 	if choice.Message.ToolCalls != nil {
 		for _, tc := range choice.Message.ToolCalls {
@@ -691,7 +722,7 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Build request body
 	reqBody := chatRequestJSON{
 		Model:    c.model,
-		Messages: buildMessages(messages),
+		Messages: buildMessages(messages, c.reasoningField),
 	}
 
 	// Only set temperature if configured (-1 means don't send)
@@ -819,7 +850,18 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 
 	// Parse response content and tool calls
-	content, reasoningContent, toolCalls := parseResponseChoices(chatResp.Choices)
+	content, reasoningContent, toolCalls := parseResponseChoices(chatResp.Choices, c.reasoningField)
+
+	// FEATURE-620: a model that inlines its chain-of-thought needs it split out
+	// of the answer text. Inline stripping is opt-in (ReasoningFieldInline plus
+	// a tag list), so this is a no-op for every other configuration.
+	if c.reasoningField == ReasoningFieldInline && len(c.reasoningTags) > 0 {
+		stripper := NewInlineCoTStripper(c.reasoningTags)
+		answer, thinking := stripper.Write(content)
+		tailAnswer, tailThinking := stripper.Flush()
+		content = answer + tailAnswer
+		reasoningContent = thinking + tailThinking
+	}
 
 	// Extract token usage from API response
 	var usage *TokenUsage
@@ -858,7 +900,7 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	// Build request body
 	reqBody := chatRequestJSON{
 		Model:    c.model,
-		Messages: buildMessages(messages),
+		Messages: buildMessages(messages, c.reasoningField),
 		Stream:   true,
 	}
 
@@ -1025,6 +1067,24 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		// handleEvent routes one fully-parsed SSE event into the interaction
 		// log and the event channel (FIX-348 refactor: shared by single-line
 		// frames and reassembled cross-line frames).
+		// FEATURE-620: when the model inlines its chain-of-thought, split it
+		// out of the content stream as it arrives.
+		var inlineStripper *InlineCoTStripper
+		if c.reasoningField == ReasoningFieldInline && len(c.reasoningTags) > 0 {
+			inlineStripper = NewInlineCoTStripper(c.reasoningTags)
+			// Defers unwind LIFO, so this runs before close(eventCh): text the
+			// stripper still holds back is emitted instead of being lost.
+			defer func() {
+				tailAnswer, tailThinking := inlineStripper.Flush()
+				if tailThinking != "" {
+					sendEvent(StreamEvent{Type: StreamEventReasoning, Content: tailThinking})
+				}
+				if tailAnswer != "" {
+					sendEvent(StreamEvent{Type: StreamEventContent, Content: tailAnswer})
+				}
+			}()
+		}
+
 		handleEvent := func(event *streamEventJSON) {
 			// Real-time RESP content logging: first chunk gets [RESP][assistant] header,
 			// subsequent chunks directly append to the same line.
@@ -1040,10 +1100,12 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 				finalUsage = event.Usage
 			}
 
-			if event.ReasoningContent != "" {
+			// FEATURE-620: pick the thinking out of whichever field the engine
+			// uses - "reasoning_content" (legacy) or "reasoning" (current vLLM).
+			if reasoningChunk := PickReasoning(c.reasoningField, event.ReasoningContent, event.Reasoning); reasoningChunk != "" {
 				sendEvent(StreamEvent{
 					Type:    StreamEventReasoning,
-					Content: event.ReasoningContent,
+					Content: reasoningChunk,
 				})
 			}
 
@@ -1051,10 +1113,23 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 				// FIX-348/FEATURE-347: raw chunk logging already carries the
 				// complete original data line including this content, so no
 				// prefix-less content echo is emitted here.
-				sendEvent(StreamEvent{
-					Type:    StreamEventContent,
-					Content: event.Content,
-				})
+				answer := event.Content
+				if inlineStripper != nil {
+					var thinking string
+					answer, thinking = inlineStripper.Write(event.Content)
+					if thinking != "" {
+						sendEvent(StreamEvent{
+							Type:    StreamEventReasoning,
+							Content: thinking,
+						})
+					}
+				}
+				if answer != "" {
+					sendEvent(StreamEvent{
+						Type:    StreamEventContent,
+						Content: answer,
+					})
+				}
 			}
 
 			if len(event.ToolCalls) > 0 {
@@ -1278,6 +1353,7 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 type streamEventJSON struct {
 	Content          string     `json:"content,omitempty"`
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	Reasoning        string     `json:"reasoning,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 	FinishReason     string     `json:"finish_reason,omitempty"`
 	Usage            *usageJSON `json:"usage,omitempty"`
@@ -1309,6 +1385,7 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 			Delta struct {
 				Content          string `json:"content,omitempty"`
 				ReasoningContent string `json:"reasoning_content,omitempty"`
+				Reasoning        string `json:"reasoning,omitempty"`
 				ToolCalls        []struct {
 					Index    *int   `json:"index,omitempty"`
 					ID       string `json:"id,omitempty"`
@@ -1339,6 +1416,7 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 		delta := choice.Delta
 		event.Content = delta.Content
 		event.ReasoningContent = delta.ReasoningContent
+		event.Reasoning = delta.Reasoning
 		event.FinishReason = choice.FinishReason
 
 		if delta.ToolCalls != nil {
@@ -1661,6 +1739,16 @@ func (c *openAIClient) SetThinkingEnabled(enabled bool) {
 
 func (c *openAIClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
+}
+
+// SetReasoningField selects the response field that carries thinking output.
+func (c *openAIClient) SetReasoningField(field string) {
+	c.reasoningField = field
+}
+
+// SetReasoningTags lists the inline chain-of-thought tags to strip.
+func (c *openAIClient) SetReasoningTags(tags []string) {
+	c.reasoningTags = tags
 }
 
 // SetHTTPClient replaces the HTTP client used for API calls.

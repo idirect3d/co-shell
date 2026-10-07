@@ -72,6 +72,8 @@ func (f *fix552Client) TestToolCallSupport(ctx context.Context) bool            
 func (f *fix552Client) TestThinkingSupport(ctx context.Context) bool            { return false }
 func (f *fix552Client) SetThinkingEnabled(enabled bool)                         {}
 func (f *fix552Client) SetReasoningEffort(effort string)                        {}
+func (f *fix552Client) SetReasoningField(field string)                          {}
+func (f *fix552Client) SetReasoningTags(tags []string)                          {}
 func (f *fix552Client) SetTopP(topP float64)                                    {}
 func (f *fix552Client) SetTopK(topK int)                                        {}
 func (f *fix552Client) SetRepetitionPenalty(penalty float64)                    {}

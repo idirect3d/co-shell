@@ -3317,6 +3317,9 @@ button.qs-kbd:active { transform: translateY(1px); }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* FEATURE-620: allows an optional detected-value line to wrap onto its own
+     row; with only the label and the switch present nothing wraps. */
+  flex-wrap: wrap;
 }
 .wizard-field.toggle .wizard-field-label {
   margin-bottom: 0;
@@ -4852,3 +4855,15 @@ button.dyn-res-card:hover { border-color: var(--accent); }
   text-overflow: ellipsis;
 }
 .dyn-res-empty { color: var(--fg-faint); font-size: 11px; padding: 0 2px; }
+
+/* FEATURE-620: value observed by the capability probe, shown under the row it
+   belongs to so the user can compare it with the value they are about to save. */
+.wizard-detected {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.72;
+  /* On a toggle row (flex, label left / switch right) the detected value must
+     take a full row of its own, otherwise flex space-between would push the
+     switch out of the right-hand slot. */
+  flex-basis: 100%;
+}

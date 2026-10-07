@@ -932,6 +932,15 @@ func (c *responsesClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
 }
 
+// SetReasoningField is a no-op for the Responses API: thinking arrives as a
+// dedicated "reasoning" output item rather than under a configurable message
+// field, so there is no response field to select (FEATURE-620).
+func (c *responsesClient) SetReasoningField(field string) {}
+
+// SetReasoningTags is a no-op for the Responses API: thinking never travels
+// inside content there, so there is nothing to strip (FEATURE-620).
+func (c *responsesClient) SetReasoningTags(tags []string) {}
+
 func (c *responsesClient) SetTopP(topP float64) {
 	c.topP = topP
 }

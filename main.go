@@ -52,9 +52,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.102.3"
+const version = "0.103.0"
 
-const build = "1257"
+const build = "1260"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1961,6 +1961,10 @@ func (c *noopClient) TestThinkingSupport(ctx context.Context) bool {
 func (c *noopClient) SetThinkingEnabled(enabled bool) {}
 
 func (c *noopClient) SetReasoningEffort(effort string) {}
+
+func (c *noopClient) SetReasoningField(field string) {}
+
+func (c *noopClient) SetReasoningTags(tags []string) {}
 
 func (c *noopClient) SetTopP(topP float64) {}
 

@@ -1756,6 +1756,12 @@ func (a *Agent) ApplyWorkModeConfig() {
 	newClient.SetTopK(topK)
 	newClient.SetRepetitionPenalty(repetitionPenalty)
 	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
+	// FEATURE-620: read thinking from the field this engine actually uses
+	// ("reasoning_content" legacy, "reasoning" current vLLM); empty = auto.
+	newClient.SetReasoningField(modelCfg.ReasoningField)
+	// Inline chain-of-thought is only stripped when the model explicitly asks
+	// for it (ReasoningFieldInline plus tags); otherwise this is a no-op.
+	newClient.SetReasoningTags(modelCfg.ReasoningTags)
 
 	// Merge body additions: cfg body additions + thinking adapter + model custom params
 	mergedAdditions := make(map[string]string)
@@ -1764,7 +1770,9 @@ func (a *Agent) ApplyWorkModeConfig() {
 			mergedAdditions[k] = v
 		}
 	}
-	adapter := llm.GetThinkingAdapter(modelCfg.Provider)
+	// FEATURE-620: an explicit ThinkingProtocol wins over the provider name,
+	// which is unreliable for self-hosted engines that serve any model.
+	adapter := llm.GetThinkingAdapterFor(modelCfg.ThinkingProtocol, modelCfg.Provider)
 	thinkingMode := llm.ThinkingModeDisabled
 	if thinkingEnabled {
 		thinkingMode = llm.ThinkingModeEnabled

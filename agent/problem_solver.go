@@ -299,7 +299,7 @@ func (a *Agent) callProblemSolver(ctx context.Context, scenario SupScenario, pro
 		additions := map[string]string{
 			"tool_choice": `{"type":"function","function":{"name":"report_problem"}}`,
 		}
-		adapter := llm.GetThinkingAdapter(modelCfg.Provider)
+		adapter := llm.GetThinkingAdapterFor(modelCfg.ThinkingProtocol, modelCfg.Provider)
 		for k, v := range adapter.BuildAdditions(llm.ThinkingConfig{Mode: llm.ThinkingModeDisabled}) {
 			additions[k] = v
 		}

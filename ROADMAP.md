@@ -4,6 +4,43 @@
 
 ---
 
+## v0.103.0 — 模型配置向导改造：思考字段自动探测 + 声明式兜底（FEATURE-620）
+
+> **版本**: v0.103.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.103.0；用户 2026-10-07 21:07 确认）
+> **里程碑**: vLLM / 自建推理端点「外壳统一、语义随模型/配置变化」——换模型会同时改变 chat template、是否需要 reasoning-parser / tool-call-parser、思考默认开关，而**思考字段名还会随 vLLM 版本变化**（`reasoning_content` → `reasoning`，vLLM 官方要求直接替换，未替换的客户端会「静默读到空 reasoning_content，即使 reasoning 已填充」）。co-shell 现状两个缺口：① 向导 `capabilities` 步骤只探 3 个布尔（vision / tool_call / thinking），**探不出“思考放在哪个字段”**；② `ModelConfig` 没有存“响应侧字段映射”的位置，`llm/client.go` 把 `reasoning_content` **硬编码**（响应侧 3 处 + 请求侧回传 1 处）→ 思考明明在、客户端读到空、UI 无思考块。本次把「多模型差异」从改代码降级为改配置 + 自动探测。设计文档原件：`/Users/direct3d/.co-shell/agents/admin-llm/output/co-shell-model-wizard-design.md`（admin-llm 交付，v1 草案）
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-620 | 0.103.0 | P1 | 模型配置向导改造：响应侧字段参数化（`ReasoningField`）+ 请求侧协议显式化（`ThinkingProtocol`）+ 工具调用风格（`ToolCallStyle`）+ 内嵌 CoT（`ReasoningTags`）；`capabilities` 步骤 → 「探测与能力」步骤（探测值 + 可覆写下拉 + 重新探测） |
+
+> 当前 BUILD: 1258
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-620 模型配置向导改造（P0+P1+P2）** [BUILD-1260]
+  - 需求（用户 2026-10-07 19:51 确认）：① 版本归属 = **新建 v0.103.0**（FEATURE 走 minor 递增）；② 范围 = **P0 + P1 + P2**（P3 adapter 接口完全对称化不做）；③ 分支 = **FEATURE-620 单分支一支到底**，P0 作为第一步；④ 4 项待拍板结论：**新增 `vllm-self-hosted` 模板**（采纳 admin-llm 建议）、**探测放向导内**（列表页独立按钮留后续）、**ThinkingProtocol 解耦采纳**（但字段提前到 P1 落地，解耦逻辑在 P2）、**显式声明优先 + auto 兜底**；⑤ 采纳本会话提出的 3 点修正（见下）。
+  - 用例：`use-case/FEATURE-620/`
+  - 分支：**FEATURE-620**（基于 main），版本 v0.103.0
+  - 关键决策（3 点修正）：
+    1. **P0 范围扩大**：admin-llm 列了 3 处硬编码，实际漏了**请求侧第 4 处**——`chatMessageJSON.ReasoningContent`（`llm/client.go:332`，由 L536-563 用于回传 assistant 思考）。新版 vLLM 要求回传 `reasoning`，只改响应侧则**多轮工具调用场景思考上下文仍会丢**。故 P0 同时参数化请求侧回传字段名（默认行为不变，零兼容风险）。
+    2. **探测与解耦的次序修正**：把「探测默认开关」放 P1、把「请求侧协议解耦」放 P2 会出问题——vLLM 上 `provider=openai-compatible` 走 fallback adapter，**“开思考”这一步依赖协议**，协议不对则思考开不起来，会把 Thinking 误判为 false。故 P1 探测采用**多协议遍历**（deepseek/qwen/zhipu/minimax/kimi/openai-compatible 的 enable 参数依次试，命中即记协议 key），并把命中的 key 直接写入 `ThinkingProtocol`（新增字段，零兼容风险）；P2 的“解耦”只剩 adapter 选择逻辑的小改。
+    3. **`inline` 剥离默认关闭**：`ReasoningTags` 仅探浏命中且在 UI 显式建议时才开启，**探测不自动开启**（同意设计文档 §8 的误切风险判断）。
+  - 实施：
+    - **P0（✅ 已完成，BUILD-1258）**：新增 `llm/reasoning.go`（`ReasoningField*` 常量 + `PickReasoning` union 兜底 + `ReasoningEchoField`）；`llm/client.go` 三处响应解析（`responseMessageJSON` / `streamEventJSON` / `parseSSELine` delta）补 `reasoning` 字段，`parseResponseChoices` 与流式 `handleEvent` 统一走 `PickReasoning`，`buildMessages` 按字段名回传（`none` 不回传），`Client` 接口新增 `SetReasoningField` 并同步全部 7 个实现方（openAIClient / responsesClient / noopClient / 4 个测试假客户端）；`config/model_template.go` 的 `ModelConfig` 新增 `reasoning_field`；`agent/agent.go:1758` 装配点注入 `modelCfg.ReasoningField`。
+    - **P1** `llm/reasoning_probe.go`（新）：探测字段名 / 默认开关 / 内嵌 CoT / 工具调用风格 / 上下文长度 / 引擎识别 + `ProbeLevel`（light / full / off）分档；`config/model_template.go` 新增 4 字段；`cmd/model.go` + `cmd/model_web_wizard.go` 「探测与能力」步骤；`web/static/app.js` 表格 UI；i18n zh/en 文案
+    - **P2** `ThinkingProtocol` 与 provider 解耦（adapter 选择逻辑）+ `vllm-self-hosted` 模板 + 内嵌 CoT 标签剥离
+  - 验证（**P0，BUILD-1258**）：① `go build ./... && go vet ./...` **一次通过**；② 新增 `llm/feature620_test.go`（5 个测试函数 / 18 个用例：字段选择表、回传键名表、非流式 6 例、流式 3 例、请求侧 3 例）→ `go test ./llm/ -run FEATURE620` **全绿**；③ **改动前后对照复现**（main worktree + 不依赖新 API 的探针）：非流式 `ReasoningContent=""`、流式 `0` 个思考事件 → **红灯复现成功**，修复后对应用例转绿；④ **真实端点端到端**（`CO_SHELL_TEST_LLM_ENDPOINT=http://192.168.3.39:8899/v1`、`deepseek-v4-flash-vision-exp`）：思考 **636 字节**（修复前 0）—— 原排障现象消除；⑤ 真实端点实测确认：该 vLLM（`system_fingerprint=vllm-0.25.2.dev0+...`）输出 **`delta.reasoning`** 且**默认即返回思考**（无需 thinking 参数），与设计文档判断一致，为 P1 探测默认档提供实证；⑥ 全量 `go test ./... -short` 失败集与 main 基线**逐项一致**（8 项既有失败，agent/cmd/i18n，由既有 `M RULES.md` 与本地技能目录引起），`llm` 包 0 失败。
+  - 验证（**P1+P2，BUILD-1259**）：① `go build ./... && go vet ./...` **一次通过**；② `node --check web/static/app.js` 通过；③ 新增用例 `llm/feature620_probe_test.go`（13 个测试函数：字段名 / 默认开关 / 多协议遍历与固定顺序 / 分档请求预算 / 单项超时降级 / 交互日志开关与还原 / inline 仅提示 / 工具调用风格三态 / 引擎识别）、`llm/feature620_p2_test.go`（协议解耦 4 例 + 厂商请求形状回归 + inline 非流式/跨分片/未闭合/直通 + 剥离器单测）、`config/feature620_test.go`（vLLM 模板字段与顺序、10 个既有模板 provider/endpoint/priority 与 FEATURE-620 提示为空、模板提示传递到模型、新字段 omitempty）→ 全部 **PASS**；④ 既有向导测试同步更新（capabilities 步 3 行 → 7 行并新增 4 键断言）→ `go test ./cmd/ -run Wizard` **PASS**；⑤ **前端运行时**（隔离实例 0.103.0/1259、端口 28931、真实 `renderWizardStep`）：行 = [vision, reasoning_field, thinking_protocol, tool_call_style, probe_level]；`探测值: reasoning` / `探测值: native` 正确展示；`reasoning_field` 选项 = `自动（默认）/reasoning_content/reasoning/inline/none`；`thinking_protocol` 覆写值 `qwen` 正确回显；⑥ 全量 `go test ./... -short` 失败集与 main 基线**逐项一致**（8 项既有失败，agent/cmd/i18n），`llm`/`config` 包 0 失败；⑦ 已编译 `work/co-shell-0.103.0.darwin.arm64` 与 `work/co-shell-hub-0.103.0.darwin.arm64`。
+  - 实施期修正（用户 2026-10-07 21:07 确认测试通过，视为接受）：① **`ReasoningField` 不由探浏自动写入**——auto 本身已兼容两种命名，写死具体名称反而更脆，故探浏值只作展示，由用户下拉显式选择（`ThinkingProtocol`/`ToolCallStyle` 则自动回填，因为 auto 在自建端点上不可靠）；② **「重新探测」沿用步骤级按钮**（FEATURE-601 既有），未做成每行一个按钮（全步一次性重探，7 个重复按钮无意义）；③ **REPL 交互向导未同步扩展**（`wizardSelectCapabilities` 仍为 3 个开关）——本次改造面向 Web 向导（设计文档 §3.3 的表格形态），REPL 侧无表格概念，如需同步请提出。
+  - 收尾修复（**BUILD-1260**，用户 2026-10-07 20:42 反馈）：能力页「思考」行的开关与上面两行（视觉/原生工具调用）不对齐，且「探测值: on」占在开关应该在的位置。根因：`.wizard-field.toggle` 是 `display:flex; justify-content:space-between` 的两列布局（左标签 / 右开关），而 FEATURE-620 新增的 `.wizard-detected` 作为**第三个 flex 项**被 space-between 排到最右槽位，把开关挤到了中间。修法：`.wizard-field.toggle` 加 `flex-wrap: wrap`，`.wizard-detected` 加 `flex-basis: 100%`，使探测值在开关行**独占下一整行**、不参与两列布局（仅两个子项时不会触发换行，其他开关行不受影响）。验证：离线渲染夹具（真实 `style.css` + 与 `renderWizardField` 同构的 DOM）几何断言 → 三个开关右边缘 1264/1264/1264（spread = 0，完全对齐）；`thinking` 行探测值独占一行且左边缘与行左对齐；选择行探测值正常；`go build ./... && go vet ./...` 与 `node --check web/static/app.js` 均通过。
+  - **P3 未做项（明确留空，回应 admin-llm m-1124）**：`ExtractReasoning()`（响应侧适配器对称化）**未实现**——P0 已把解析按 `ReasoningField` 参数化并收敛到 `PickReasoning` 单一处，适配器侧对称化属可测试性优化、不阻塞功能；如需纳入请单独排期。
+
+---
+
 ## v0.102.3 — 移动端长时间离线后重连失败修复（FIX-619）
 
 > **版本**: v0.102.3

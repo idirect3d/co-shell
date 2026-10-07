@@ -310,6 +310,8 @@ func (c *interruptToolClient) TestToolCallSupport(ctx context.Context) bool { re
 func (c *interruptToolClient) TestThinkingSupport(ctx context.Context) bool { return false }
 func (c *interruptToolClient) SetThinkingEnabled(enabled bool)              {}
 func (c *interruptToolClient) SetReasoningEffort(effort string)             {}
+func (c *interruptToolClient) SetReasoningField(field string)               {}
+func (c *interruptToolClient) SetReasoningTags(tags []string)               {}
 func (c *interruptToolClient) SetTopP(topP float64)                         {}
 func (c *interruptToolClient) SetTopK(topK int)                             {}
 func (c *interruptToolClient) SetRepetitionPenalty(penalty float64)         {}

@@ -40,6 +40,23 @@ func GetThinkingAdapter(provider string) ThinkingAdapter {
 	return &fallbackThinkingAdapter{}
 }
 
+// GetThinkingAdapterFor selects the request-side thinking adapter for a model
+// (FEATURE-620). A non-empty protocol wins over provider: a self-hosted engine
+// serves any model, so the provider name (often the generic
+// "openai-compatible") says nothing about which thinking parameters the model
+// on the other end actually needs.
+//
+// An unknown protocol falls back to the provider lookup, which itself falls
+// back to the generic adapter.
+func GetThinkingAdapterFor(protocol, provider string) ThinkingAdapter {
+	if protocol != "" {
+		if a, ok := thinkingAdapterRegistry[protocol]; ok {
+			return a
+		}
+	}
+	return GetThinkingAdapter(provider)
+}
+
 // NormalizeReasoningEffort normalizes a configured reasoning-effort value at
 // every config-resolution site (FEATURE-468). The global settings value
 // "default" means "do not override — fall back to the model-level value, then
