@@ -52,7 +52,7 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.105.0"
+	hubVersion = "0.106.0"
 	hubBuild   = "1263"
 )
 
