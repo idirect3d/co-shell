@@ -9784,6 +9784,25 @@ function dynBoardAgents(inner) {
   return rows;
 }
 
+// dynToolSections turns the two-section <tools> block (global first, then the
+// workspace one) into rows: one `section` row carrying that directory's absolute
+// path, followed by one row per tool file name (FEATURE-623).
+function dynToolSections(inner) {
+  const rows = [];
+  const re = /<(global|workspace)>([\s\S]*?)<\/\1>/g;
+  let m;
+  while ((m = re.exec(inner)) !== null) {
+    const lines = m[2].split("\n");
+    const dir = (lines.shift() || "").trim();
+    if (dir) rows.push({ value: dir, section: true });
+    for (const line of lines) {
+      const t = line.trim();
+      if (t) rows.push({ value: dynEnvPath(t) });
+    }
+  }
+  return rows;
+}
+
 // dynEnvLines turns one block into readable rows. Child elements become
 // "label：value" rows; a block without children (tool list, skill list) keeps its
 // own lines. Raw XML is never shown.
@@ -9792,6 +9811,12 @@ function dynEnvLines(tag, raw) {
   if (tag === "board_agents") {
     const agents = dynBoardAgents(inner);
     return agents.length ? agents : [{ value: T.dynEnvNone || "none" }];
+  }
+  if (tag === "tools") {
+    const sections = dynToolSections(inner);
+    if (sections.length) return sections;
+    if (/<unchanged\s*\/>/.test(inner)) return [{ value: T.dynEnvUnchanged || "unchanged" }];
+    return [{ value: T.dynEnvNone || "none" }];
   }
   if (/<unchanged\s*\/>/.test(inner)) return [{ value: T.dynEnvUnchanged || "unchanged" }];
   // Roster blocks list one <agent …> element per agent; render them from their
@@ -9980,11 +10005,12 @@ function dynBlockEl(b) {
   body.className = "dyn-env-text";
   for (const line of dynEnvLines(b.tag, b.text)) {
     const row = document.createElement("div");
-    row.className = "dyn-env-line";
     const isObj = typeof line !== "string";
     const name = isObj ? (line.name || "") : "";
     const value = isObj ? (line.value || "") : line;
     const badge = isObj ? (line.badge || "") : "";
+    // FEATURE-623: a tool-directory row heads its section, not a value row.
+    row.className = (isObj && line.section) ? "dyn-env-line dyn-env-section" : "dyn-env-line";
     if (name) {
       const label = document.createElement("span");
       label.className = "dyn-env-name";

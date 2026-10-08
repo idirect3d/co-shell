@@ -4758,6 +4758,13 @@ select,
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* FEATURE-623: a tool directory row heads its section (its absolute path, once). */
+.dyn-env-section {
+  font-weight: 600;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+.dyn-env-section:first-child { margin-top: 0; }
 /* FEATURE-612: environment rows read as "name (left) / value (right)". */
 .dyn-env-name { flex: none; }
 .dyn-env-val { flex: 1; min-width: 0; text-align: right; }

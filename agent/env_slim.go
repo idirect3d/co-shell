@@ -22,6 +22,8 @@ package agent
 
 import (
 	"hash/fnv"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -59,6 +61,45 @@ func fnvHash(parts ...string) uint64 {
 		_, _ = h.Write([]byte{0})
 	}
 	return h.Sum64()
+}
+
+// envToolsMaxEntries caps how many entries each tool directory contributes to
+// the <tools> block (the same limit the workspace listing used before).
+const envToolsMaxEntries = 64
+
+// toolsGlobalDir returns the absolute path of the global tools directory
+// (~/.co-shell/bin), or "" when the home directory cannot be resolved.
+func toolsGlobalDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".co-shell", "bin")
+}
+
+// buildToolsBlock renders the body of the <tools> block as two sections: the
+// global directory first (~/.co-shell/bin), then the workspace one (<cwd>/bin).
+// Each section prints its absolute path exactly once on its own line and lists
+// every entry below it as "name time size" with no path prefix (FEATURE-623).
+// A section whose directory is missing keeps its path line so the reader can
+// tell the directory is empty; the global section is dropped entirely when the
+// home directory cannot be resolved.
+func buildToolsBlock(cwd string) string {
+	var sb strings.Builder
+	if dir := toolsGlobalDir(); dir != "" {
+		sb.WriteString("<global>\n")
+		sb.WriteString(dir)
+		sb.WriteString("\n")
+		sb.WriteString(listFilesWithMeta(dir, envToolsMaxEntries, ""))
+		sb.WriteString("</global>\n")
+	}
+	wsDir := filepath.Join(cwd, "bin")
+	sb.WriteString("<workspace>\n")
+	sb.WriteString(wsDir)
+	sb.WriteString("\n")
+	sb.WriteString(listFilesWithMeta(wsDir, envToolsMaxEntries, ""))
+	sb.WriteString("</workspace>")
+	return sb.String()
 }
 
 // envStaticBlocks renders the <current_dir>/<tools>/<research> blocks for the

@@ -13,9 +13,7 @@
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FEATURE-623 | 0.106.0 | P2 | 可用工具拆分为全局（`~/.co-shell/bin`）与空间（`{workspace}/bin`）两段 + 每段只输出一次绝对路径 + 工具行只列文件名/时间/大小 + 动态信息面板同步 |
-
-> 当前 BUILD: 1263
+> 当前 BUILD: 1264
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -35,7 +33,13 @@
     | `web/static/app.js` | 动态信息「可用工具」按两段渲染：路径行（分组标题）各一次，工具行只列文件名/时间/大小 |
     | `agent/*_test.go` | 新增/更新单测：两段结构、空目录、绝对路径唯一、变化检测哈希 |
 
-  - 状态：用例待用户确认后开工
+  - 实施（BUILD-1264）：
+    ① `agent/env_slim.go`：新增 `toolsGlobalDir()`（`$HOME/.co-shell/bin`，不可解析时返回空）与 `buildToolsBlock(cwd)`——`<tools>` 内容改为 `<global>`（绝对路径行 + 裸文件名行）在前、`<workspace>` 在后；常量 `envToolsMaxEntries=64`；
+    ② `agent/envelope.go`：`binFiles` 改用 `buildToolsBlock(cwd)`（不再输出 `bin/` 前缀）；
+    ③ `web/dyninfo.go` + `web/session.go`：新增 `applyToolCache` 与 `lastToolsBlock` 缓存，`<unchanged …/>` 占位时回填上次完整 tools 块（用户 2026-10-08 22:36 确认「一并做」）；
+    ④ `web/static/app.js` + `style.css`：新增 `dynToolSections`（解析两段 → 目录行为 `section` 行、工具行只留文件名）+ `.dyn-env-section` 样式。
+  - 验证（BUILD-1264）：`go build ./... && go vet ./...` 通过；新增 `agent/env_tools_test.go`（两段结构 / 空目录 / 无 HOME 省略全局段 / 变化检测哈希覆盖全局目录 / 裁剪开时实发）与 `web/feature623_test.go`（面板缓存回填）全绿；env 相关回归（EnvPrune / FIX586 / EnvStaticBlocks / BoardRosterBrief）与 `go test ./web/` 全包通过。
+  - 状态：编码/单测完成，**待用户确认后合并 main**。
 
 ---
 
