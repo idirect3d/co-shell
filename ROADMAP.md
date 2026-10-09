@@ -41,6 +41,7 @@
   - 验证（BUILD-1264）：`go build ./... && go vet ./...` 通过；新增 `agent/env_tools_test.go`（两段结构 / 空目录 / 无 HOME 省略全局段 / 变化检测哈希覆盖全局目录 / 裁剪开时实发）与 `web/feature623_test.go`（面板缓存回填）全绿；env 相关回归（EnvPrune / FIX586 / EnvStaticBlocks / BoardRosterBrief）与 `go test ./web/` 全包通过。
   - 面板分组增强（2026-10-09，用户反馈「两段看着像合并在一起」）：`web/static/app.js` 的 `dynToolSections` 改为输出带标签的分组行（「全局」/「工作空间」，i18n 中英双语）+ 工具行标记；`dynBlockEl` 特判渲染分组标题（标签 + 绝对路径）与缩进的工具行，空段显示淡色「无」；`style.css` 新增 `.dyn-env-section` / `.dyn-env-tool` / `.dyn-env-empty`（分段分隔线 + 缩进）。[BUILD-1265]
   - 面板微调（2026-10-09，用户反馈「不要分割线，(全局)/(工作空间) 加括号即可」）：`dynToolsGlobal`/`dynToolsWorkspace` 改为 `(全局)`/`(工作空间)`（en: `(Global)`/`(Workspace)`），`.dyn-env-section` 去掉分隔线与上内边距，仅保留段间间距。[BUILD-1266]
+  - 静态资源版本化（2026-10-09，用户报告「重启+刷新后界面仍是旧样式」）：`web/server.go` 新增 `assetVersion`（app.js/style.css 内容指纹）与 `assetVersionPlaceholder`，`handleIndex` 把 index.html 的 `__ASSET_VERSION__` 替换为指纹，并对 index.html 加 `Cache-Control: no-store`；`index.html` 的 style.css/app.js 引用带 `?v=`，使重建后浏览器必然拉取新资源。[BUILD-1267]
   - 状态：编码/单测完成，**待用户确认后合并 main**。
 
 ---
