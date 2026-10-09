@@ -41,7 +41,7 @@ const I18N = {
     dynResActivate: "切换到该窗口",
     dynEnvUnchanged: "（与上次相同，无变化）",
     // FEATURE-623: section labels of the two-part tool list.
-    dynToolsGlobal: "全局", dynToolsWorkspace: "工作空间",
+    dynToolsGlobal: "(全局)", dynToolsWorkspace: "(工作空间)",
     dynEnvNone: "无",
     dynEnvTokens: "已用 {used} / {total} tokens（{pct}）",
     dynAttrLabels: { id: "ID", name: "名称", status: "状态", role: "职责", desc: "描述", description: "描述", from: "来自", conv: "会话", reply_to: "回复", agent_id: "代理" },
@@ -184,7 +184,7 @@ const I18N = {
     dynResActivate: "Switch to this window",
     dynEnvUnchanged: "(unchanged since last time)",
     // FEATURE-623: section labels of the two-part tool list.
-    dynToolsGlobal: "Global", dynToolsWorkspace: "Workspace",
+    dynToolsGlobal: "(Global)", dynToolsWorkspace: "(Workspace)",
     dynEnvNone: "none",
     dynEnvTokens: "used {used} / {total} tokens ({pct})",
     dynAttrLabels: { id: "ID", name: "Name", status: "Status", role: "Role", desc: "Description", description: "Description", from: "From", conv: "Conversation", reply_to: "Reply to", agent_id: "Agent" },
