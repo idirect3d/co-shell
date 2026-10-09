@@ -4758,13 +4758,20 @@ select,
   white-space: pre-wrap;
   word-break: break-word;
 }
-/* FEATURE-623: a tool directory row heads its section (its absolute path, once). */
+/* FEATURE-623: a tool section heads its directory with "label + absolute path",
+   and its files are indented below it, so global and workspace read as two
+   separate groups instead of one merged list. */
 .dyn-env-section {
-  font-weight: 600;
-  opacity: 0.8;
-  margin-top: 4px;
+  gap: 6px;
+  margin: 8px 0 2px;
+  border-top: 1px solid rgba(128, 128, 128, 0.18);
+  padding-top: 6px;
 }
-.dyn-env-section:first-child { margin-top: 0; }
+.dyn-env-section:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+.dyn-env-section-label { flex: none; font-weight: 600; }
+.dyn-env-section-path { flex: 1; min-width: 0; word-break: break-all; opacity: 0.7; }
+.dyn-env-tool { padding-left: 14px; }
+.dyn-env-empty { padding-left: 14px; opacity: 0.5; font-style: italic; }
 /* FEATURE-612: environment rows read as "name (left) / value (right)". */
 .dyn-env-name { flex: none; }
 .dyn-env-val { flex: 1; min-width: 0; text-align: right; }

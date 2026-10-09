@@ -40,6 +40,8 @@ const I18N = {
     dynResActive: "当前活动", dynResTitle: "标题", dynResSummary: "内容摘要",
     dynResActivate: "切换到该窗口",
     dynEnvUnchanged: "（与上次相同，无变化）",
+    // FEATURE-623: section labels of the two-part tool list.
+    dynToolsGlobal: "全局", dynToolsWorkspace: "工作空间",
     dynEnvNone: "无",
     dynEnvTokens: "已用 {used} / {total} tokens（{pct}）",
     dynAttrLabels: { id: "ID", name: "名称", status: "状态", role: "职责", desc: "描述", description: "描述", from: "来自", conv: "会话", reply_to: "回复", agent_id: "代理" },
@@ -181,6 +183,8 @@ const I18N = {
     dynResActive: "Active", dynResTitle: "Title", dynResSummary: "Summary",
     dynResActivate: "Switch to this window",
     dynEnvUnchanged: "(unchanged since last time)",
+    // FEATURE-623: section labels of the two-part tool list.
+    dynToolsGlobal: "Global", dynToolsWorkspace: "Workspace",
     dynEnvNone: "none",
     dynEnvTokens: "used {used} / {total} tokens ({pct})",
     dynAttrLabels: { id: "ID", name: "Name", status: "Status", role: "Role", desc: "Description", description: "Description", from: "From", conv: "Conversation", reply_to: "Reply to", agent_id: "Agent" },
@@ -9792,13 +9796,18 @@ function dynToolSections(inner) {
   const re = /<(global|workspace)>([\s\S]*?)<\/\1>/g;
   let m;
   while ((m = re.exec(inner)) !== null) {
+    const label = m[1] === "global" ? (T.dynToolsGlobal || "Global") : (T.dynToolsWorkspace || "Workspace");
     const lines = m[2].split("\n");
     const dir = (lines.shift() || "").trim();
-    if (dir) rows.push({ value: dir, section: true });
+    if (dir) rows.push({ label: label, value: dir, section: true });
+    let count = 0;
     for (const line of lines) {
       const t = line.trim();
-      if (t) rows.push({ value: dynEnvPath(t) });
+      if (!t) continue;
+      rows.push({ value: dynEnvPath(t), tool: true });
+      count++;
     }
+    if (count === 0) rows.push({ value: T.dynEnvNone || "none", empty: true });
   }
   return rows;
 }
@@ -10006,11 +10015,27 @@ function dynBlockEl(b) {
   for (const line of dynEnvLines(b.tag, b.text)) {
     const row = document.createElement("div");
     const isObj = typeof line !== "string";
+    // FEATURE-623: a tool section heads its directory with a label + absolute
+    // path; the files below it are indented rows.
+    if (isObj && line.section) {
+      row.className = "dyn-env-line dyn-env-section";
+      const label = document.createElement("span");
+      label.className = "dyn-env-section-label";
+      label.textContent = line.label || "";
+      const path = document.createElement("span");
+      path.className = "dyn-env-section-path";
+      path.textContent = line.value || "";
+      row.appendChild(label);
+      row.appendChild(path);
+      body.appendChild(row);
+      continue;
+    }
     const name = isObj ? (line.name || "") : "";
     const value = isObj ? (line.value || "") : line;
     const badge = isObj ? (line.badge || "") : "";
-    // FEATURE-623: a tool-directory row heads its section, not a value row.
-    row.className = (isObj && line.section) ? "dyn-env-line dyn-env-section" : "dyn-env-line";
+    row.className = (isObj && line.tool) ? "dyn-env-line dyn-env-tool"
+      : (isObj && line.empty) ? "dyn-env-line dyn-env-empty"
+        : "dyn-env-line";
     if (name) {
       const label = document.createElement("span");
       label.className = "dyn-env-name";

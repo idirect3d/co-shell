@@ -39,6 +39,7 @@
     ③ `web/dyninfo.go` + `web/session.go`：新增 `applyToolCache` 与 `lastToolsBlock` 缓存，`<unchanged …/>` 占位时回填上次完整 tools 块（用户 2026-10-08 22:36 确认「一并做」）；
     ④ `web/static/app.js` + `style.css`：新增 `dynToolSections`（解析两段 → 目录行为 `section` 行、工具行只留文件名）+ `.dyn-env-section` 样式。
   - 验证（BUILD-1264）：`go build ./... && go vet ./...` 通过；新增 `agent/env_tools_test.go`（两段结构 / 空目录 / 无 HOME 省略全局段 / 变化检测哈希覆盖全局目录 / 裁剪开时实发）与 `web/feature623_test.go`（面板缓存回填）全绿；env 相关回归（EnvPrune / FIX586 / EnvStaticBlocks / BoardRosterBrief）与 `go test ./web/` 全包通过。
+  - 面板分组增强（2026-10-09，用户反馈「两段看着像合并在一起」）：`web/static/app.js` 的 `dynToolSections` 改为输出带标签的分组行（「全局」/「工作空间」，i18n 中英双语）+ 工具行标记；`dynBlockEl` 特判渲染分组标题（标签 + 绝对路径）与缩进的工具行，空段显示淡色「无」；`style.css` 新增 `.dyn-env-section` / `.dyn-env-tool` / `.dyn-env-empty`（分段分隔线 + 缩进）。[BUILD-1265]
   - 状态：编码/单测完成，**待用户确认后合并 main**。
 
 ---
