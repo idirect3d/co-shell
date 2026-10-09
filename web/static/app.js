@@ -9796,18 +9796,15 @@ function dynToolSections(inner) {
   const re = /<(global|workspace)>([\s\S]*?)<\/\1>/g;
   let m;
   while ((m = re.exec(inner)) !== null) {
-    const label = m[1] === "global" ? (T.dynToolsGlobal || "Global") : (T.dynToolsWorkspace || "Workspace");
-    const lines = m[2].split("\n");
-    const dir = (lines.shift() || "").trim();
+    const label = m[1] === "global" ? (T.dynToolsGlobal || "(Global)") : (T.dynToolsWorkspace || "(Workspace)");
+    // The captured body starts with a newline ("<global>\n/path\n…"): drop the
+    // blank lines first, otherwise the absolute path would be mistaken for a
+    // tool entry and no section row would be emitted (FEATURE-623).
+    const lines = m[2].split("\n").map((s) => s.trim()).filter((s) => s !== "");
+    const dir = lines.shift() || "";
     if (dir) rows.push({ label: label, value: dir, section: true });
-    let count = 0;
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t) continue;
-      rows.push({ value: dynEnvPath(t), tool: true });
-      count++;
-    }
-    if (count === 0) rows.push({ value: T.dynEnvNone || "none", empty: true });
+    for (const line of lines) rows.push({ value: dynEnvPath(line), tool: true });
+    if (lines.length === 0) rows.push({ value: T.dynEnvNone || "none", empty: true });
   }
   return rows;
 }

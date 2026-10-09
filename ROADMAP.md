@@ -42,6 +42,7 @@
   - 面板分组增强（2026-10-09，用户反馈「两段看着像合并在一起」）：`web/static/app.js` 的 `dynToolSections` 改为输出带标签的分组行（「全局」/「工作空间」，i18n 中英双语）+ 工具行标记；`dynBlockEl` 特判渲染分组标题（标签 + 绝对路径）与缩进的工具行，空段显示淡色「无」；`style.css` 新增 `.dyn-env-section` / `.dyn-env-tool` / `.dyn-env-empty`（分段分隔线 + 缩进）。[BUILD-1265]
   - 面板微调（2026-10-09，用户反馈「不要分割线，(全局)/(工作空间) 加括号即可」）：`dynToolsGlobal`/`dynToolsWorkspace` 改为 `(全局)`/`(工作空间)`（en: `(Global)`/`(Workspace)`），`.dyn-env-section` 去掉分隔线与上内边距，仅保留段间间距。[BUILD-1266]
   - 静态资源版本化（2026-10-09，用户报告「重启+刷新后界面仍是旧样式」）：`web/server.go` 新增 `assetVersion`（app.js/style.css 内容指纹）与 `assetVersionPlaceholder`，`handleIndex` 把 index.html 的 `__ASSET_VERSION__` 替换为指纹，并对 index.html 加 `Cache-Control: no-store`；`index.html` 的 style.css/app.js 引用带 `?v=`，使重建后浏览器必然拉取新资源。[BUILD-1267]
+  - 面板解析修复（2026-10-09，用户反馈「路径前仍无 (全局)/(当前空间)」）：根因不在缓存而在 `dynToolSections` 自身——正则捕获的段内容以换行开头（`<global>\n/path`），`lines.shift()` 取到空串，目录行被跳过、路径被当成工具行渲染。修复：先 trim+filter 去空行，首行作目录（section 行），其余作工具行；空段仍出「无」。[BUILD-1268]
   - 状态：编码/单测完成，**待用户确认后合并 main**。
 
 ---
