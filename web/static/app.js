@@ -115,6 +115,7 @@ const I18N = {
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
     supplement: "补充信息", supplementHint: "长按按钮或单击输入框可补充信息",
+    qsProgressCount: "第 %d 题 / 共 %d 题", qsProgressDone: "已完成 %d / %d",
     qsSubmit: "提交", qsSubmitCount: "(%d/%d)", qsNote: "补充说明", qsNotePlaceholder: "补充说明（可选）",
     qsMulti: "多选", qsSingle: "单选", qsFreePlaceholder: "请输入你的回答…",
     answerTag: "回答", qsFreeNotePlaceholder: "针对本题补充说明（可作为答案，回车确认）",
@@ -258,6 +259,7 @@ const I18N = {
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
     supplement: "Supplement", supplementHint: "Long-press a button or click the input box to supplement",
+    qsProgressCount: "Question %d / %d", qsProgressDone: "Answered %d / %d",
     qsSubmit: "Submit", qsSubmitCount: "(%d/%d)", qsNote: "Add note", qsNotePlaceholder: "Add a note (optional)",
     qsMulti: "multi-select", qsSingle: "single choice", qsFreePlaceholder: "Type your answer…",
     answerTag: "Answer", qsFreeNotePlaceholder: "Add a note for this question (Enter to confirm)",
@@ -4360,6 +4362,47 @@ function renderQuestions(it) {
   const total = it.questions.length;
   qsState = it.questions.map(() => ({ selected: new Set(), notes: new Map(), text: "" }));
 
+  // FEATURE-624: one question per screen. The header tells the user where they
+  // are ("Question N / M") and how many questions they have already answered,
+  // with a bar that fills as answers come in — replacing the FEATURE-512 layout
+  // that stacked every question card into one long list.
+  const prog = document.createElement("div");
+  prog.className = "qs-progress";
+  const progHead = document.createElement("div");
+  progHead.className = "qs-progress-head";
+  const progCount = document.createElement("span");
+  progCount.className = "qs-progress-count";
+  const progDone = document.createElement("span");
+  progDone.className = "qs-progress-done";
+  progHead.appendChild(progCount);
+  progHead.appendChild(progDone);
+  const progBar = document.createElement("div");
+  progBar.className = "qs-progress-bar";
+  const progFill = document.createElement("div");
+  progFill.className = "qs-progress-fill";
+  progBar.appendChild(progFill);
+  prog.appendChild(progHead);
+  prog.appendChild(progBar);
+  askInteraction.appendChild(prog);
+
+  // answeredCount is the same "done" notion the submit button used before: a
+  // question counts as answered once it has a selection or non-empty free text.
+  const answeredCount = () =>
+    qsState.filter((s) => s.selected.size > 0 || s.text.trim() !== "").length;
+
+  // refreshProgress repaints the header: position, answered count and bar width.
+  const refreshProgress = () => {
+    const done = answeredCount();
+    progCount.textContent = i18nT("qsProgressCount", "Question %d / %d")
+      .replace("%d", String(activeQ + 1))
+      .replace("%d", String(total));
+    progDone.textContent = i18nT("qsProgressDone", "Answered %d / %d")
+      .replace("%d", String(done))
+      .replace("%d", String(total));
+    progFill.style.width = (total ? (done / total) * 100 : 0) + "%";
+    progFill.classList.toggle("full", total > 0 && done === total);
+  };
+
   // FEATURE-512: keyboard navigation state. Only the active question renders its
   // 1-9 option hotkeys; "-"/"+" move between questions and Space opens the note
   // input of the active question.
@@ -4380,14 +4423,14 @@ function renderQuestions(it) {
   // qsWarn shows why a submit was rejected (unanswered required questions).
   let qsWarn = null;
 
-  // FEATURE-517: focus-transition state. Moving the focus between questions has
-  // to be visible: the key caps and the hint line fade out before they are
-  // hidden and fade in right after they are shown, the Qn badge cross-fades in
-  // CSS, and the focused question is scrolled into place smoothly. QS_FADE_MS
-  // mirrors the 0.45s transitions set on .qs-index / .qs-hotkey / .qs-hint and
-  // is the rhythm shared by the fades and the scroll (300ms → 450ms in v0.56.0
-  // after the first hands-on review asked for a longer, clearer focus move).
+  // FEATURE-517: focus-transition state. Moving between questions is visible:
+  // the key caps and the hint line fade in/out and the Qn badge cross-fades in
+  // CSS. QS_FADE_MS mirrors the 0.45s transitions set on .qs-index /
+  // .qs-hotkey / .qs-hint (300ms → 450ms in v0.56.0 after the first hands-on
+  // review asked for a longer, clearer focus move). FEATURE-624 swaps the
+  // on-screen question itself, so it uses a shorter, snappier fade of its own.
   const QS_FADE_MS = 450;
+  const QS_ENTER_MS = 180;
   const qFadeTimers = new Map();
   let qsFirstActivation = true;
 
@@ -4421,37 +4464,6 @@ function renderQuestions(it) {
     }, QS_FADE_MS));
   };
 
-  // qsScrollTo animates the ask area so the focused question sits at its top.
-  // scrollIntoView({behavior:"smooth"}) computes its target once, but the
-  // previous question's key caps / hint line only collapse when their fade ends
-  // (QS_FADE_MS later), which shrinks that card and shifts every card below it
-  // — the pre-computed target then lands ~70px off (measured). Re-reading the
-  // target every frame keeps the focused card exactly at the top for the whole
-  // transition while still reading as a smooth scroll. `instant` skips the
-  // animation for the initial activation.
-  let qsScrollRAF = 0;
-  const qsScrollTo = (card, instant) => {
-    if (!card || !askArea) return;
-    const want = () =>
-      askArea.scrollTop + card.getBoundingClientRect().top - askArea.getBoundingClientRect().top;
-    if (qsScrollRAF) { cancelAnimationFrame(qsScrollRAF); qsScrollRAF = 0; }
-    if (instant) { askArea.scrollTop = want(); return; }
-    // Exponential ease-out: ~18% of the remaining distance per frame, so the
-    // scroll settles in roughly the same 450ms as the fades (0.25/frame, the
-    // initial value, was ~300ms). An exponential follow is used rather than a
-    // fixed-duration tween because the target moves when the previous
-    // question's key caps collapse — following absorbs that shift smoothly
-    // instead of re-interpolating against a stale origin.
-    const deadline = performance.now() + QS_FADE_MS * 2;
-    const step = (now) => {
-      const delta = want() - askArea.scrollTop;
-      if (Math.abs(delta) < 0.5 || now > deadline) { qsScrollRAF = 0; return; }
-      askArea.scrollTop += delta * 0.18;
-      qsScrollRAF = requestAnimationFrame(step);
-    };
-    qsScrollRAF = requestAnimationFrame(step);
-  };
-
   const submit = document.createElement("button");
   submit.type = "button";
   submit.className = "qs-submit";
@@ -4466,12 +4478,13 @@ function renderQuestions(it) {
     }, []);
 
   const refreshSubmit = () => {
-    const done = qsState.filter((s) => s.selected.size > 0 || s.text.trim() !== "").length;
+    // FEATURE-624: the primary button advances on every screen except the last
+    // (where it submits). The running count now lives in the progress header, so
+    // the button only spells out its own action.
     submit.textContent = "";
     submit.appendChild(kbdSpan(i18nT("qsKeyEnter", "Enter")));
     submit.appendChild(document.createTextNode(
-      " " + i18nT("qsConfirm", "Confirm") + " " +
-      i18nT("qsSubmitCount", "(%d/%d)").replace("%d", String(done)).replace("%d", String(total))
+      " " + (activeQ === total - 1 ? i18nT("qsConfirm", "Confirm") : i18nT("qsHintNext", "Next"))
     ));
     // Clear the highlight of required questions the user has answered meanwhile.
     const missing = requiredMissing();
@@ -4482,6 +4495,7 @@ function renderQuestions(it) {
       qsWarn.textContent = "";
       qsWarn.classList.add("hidden");
     }
+    refreshProgress();
   };
 
   // FEATURE-512: shared submit path for the 确定 button and Enter on the last
@@ -4517,7 +4531,8 @@ function renderQuestions(it) {
 
   it.questions.forEach((q, qi) => {
     const card = document.createElement("div");
-    card.className = "qs-card";
+    // FEATURE-624: cards start hidden; setActive(0) below reveals the first one.
+    card.className = "qs-card qs-off";
 
     const head = document.createElement("div");
     head.className = "qs-head";
@@ -4626,7 +4641,12 @@ function renderQuestions(it) {
           row.appendChild(noteBtn);
         }
 
-        row.addEventListener("click", () => toggleOption(qi, opt, q, syncers, refreshSubmit));
+        row.addEventListener("click", () => {
+          toggleOption(qi, opt, q, syncers, refreshSubmit);
+          // FEATURE-624: answering a single-choice question completes it, so the
+          // form moves on to the next screen right away (matching the digit key).
+          if (!q.multi) goNext();
+        });
 
         syncers.push(() => {
           const on = qsState[qi].selected.has(opt);
@@ -4771,22 +4791,28 @@ function renderQuestions(it) {
       (qsHotkeys[qi] || []).forEach((h) => fadeToggle(h, on, instant));
       if (qBadges[qi]) qBadges[qi].classList.toggle("hot", on);
       if (qHints[qi]) fadeToggle(qHints[qi], on, instant);
-      if (qCards[qi]) qCards[qi].classList.toggle("active", on);
+      if (qCards[qi]) {
+        qCards[qi].classList.toggle("active", on);
+        // FEATURE-624: only the active question stays on screen — the others
+        // leave the flow entirely (one question per screen).
+        qCards[qi].classList.toggle("qs-off", !on);
+        if (on && !instant) {
+          const c = qCards[qi];
+          c.classList.remove("qs-enter");
+          void c.offsetWidth;                // restart the fade-in on every move
+          c.classList.add("qs-enter");
+          setTimeout(() => c.classList.remove("qs-enter"), QS_ENTER_MS);
+        }
+      }
     });
     renderHint(activeQ);
-    // The submit button only applies to the last question: on the others Enter
-    // means "next question" (FEATURE-512).
-    submit.classList.toggle("hidden", activeQ !== total - 1);
-    // Keep the focused question readable: anchor it to the top of the ask area
-    // so its options and hint line are visible at once. FEATURE-517 scrolls
-    // there with a short animation so the move is followable instead of a cut;
-    // the first activation still positions the form instantly (no animation on
-    // appearance).
-    qsScrollTo(qCards[activeQ], instant);
+    // FEATURE-624: the primary button stays visible on every screen (its label
+    // and action follow the position); refreshSubmit keeps both in sync.
+    refreshSubmit();
     // A free-text question takes focus immediately; Enter then advances.
     const q = it.questions[activeQ];
-    if (q && (!q.options || !q.options.length) && card) {
-      const inp = card.querySelector(".qs-free");
+    if (q && (!q.options || !q.options.length)) {
+      const inp = qCards[activeQ].querySelector(".qs-free");
       if (inp) inp.focus();
     }
   };
@@ -4838,7 +4864,12 @@ function renderQuestions(it) {
 
   const bar = document.createElement("div");
   bar.className = "qs-bar";
-  submit.addEventListener("click", submitAnswers);
+  // FEATURE-624: on every screen but the last the button moves on; the last one
+  // submits (the label is kept in sync by refreshSubmit).
+  submit.addEventListener("click", () => {
+    if (activeQ === total - 1) submitAnswers();
+    else goNext();
+  });
   bar.appendChild(submit);
   qsWarn = document.createElement("span");
   qsWarn.className = "qs-warn hidden";

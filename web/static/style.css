@@ -1428,8 +1428,32 @@ aside {
 
 /* FEATURE-512: multi-question form (ask_user) — one card per question with a
    divider between questions, radio/checkbox options and per-option notes. */
-.qs-card { border-top: 1px dashed var(--border); padding-top: 10px; }
-.qs-card:first-of-type { border-top: none; padding-top: 0; }
+/* FEATURE-624: one question per screen. Non-active cards are removed from the
+   flow (.qs-off) instead of being stacked with a dashed divider, and each move
+   fades the incoming question in. */
+.qs-card { padding-top: 0; }
+.qs-card.qs-off { display: none; }
+.qs-card.qs-enter { animation: qsCardIn 0.18s ease-out; }
+@keyframes qsCardIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+/* FEATURE-624: progress header — "Question N / M" + answered count + a fill bar
+   tracking the answered share. Sticky so the progress stays visible when a long
+   question scrolls. */
+.qs-progress {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 0 6px;
+  background: var(--accent-dim);
+}
+.qs-progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.qs-progress-count { font-size: 12px; font-weight: 600; color: var(--accent); }
+.qs-progress-done { font-size: 11.5px; color: var(--fg-dim, #888); }
+.qs-progress-bar { height: 4px; margin-top: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.qs-progress-fill { height: 100%; width: 0; border-radius: 2px; background: var(--accent); transition: width 0.25s ease; }
+.qs-progress-fill.full { background: var(--ok, var(--accent)); }
 .qs-head { display: flex; align-items: baseline; gap: 8px; }
 .qs-index {
   flex: none;

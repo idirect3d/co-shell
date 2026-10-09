@@ -2,6 +2,45 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.107.0 — ask_user 表单改为「一屏一题」逐题独立界面（进度可感知）（FEATURE-624）
+
+> **版本**: v0.107.0
+
+> **状态**: ✅ 已完成并合并 main（v0.107.0 / BUILD-1272，2026-10-09；用户确认测试通过）
+> **里程碑**: Web UI 的 `ask_user` 多问题表单（FEATURE-512）当前一次性把所有问题卡片并列渲染在 ask 区域里，只有「当前题」显示选项热键与提示，其余题目同样可见——题目一多列表就很长，用户难以判断「总共有几题、我答到第几题」。本次把表单改为「一屏一题」的独立界面：界面只显示当前这一道题，回答/确认后自动切到下一题，并在显眼位置标示「第 N 题 / 共 M 题」与已完成题数（进度条），使总题数与答题进度一目了然。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-624 | 0.107.0 | P1 | ask_user 表单改为「一屏一题」逐题独立界面：只显示当前题 + 逐题推进 + 「第 N/共 M 题」与完成数进度标示 |
+
+> 当前 BUILD: 1272
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-624 ask_user 表单改为「一屏一题」逐题独立界面**
+  - 需求（用户 2026-10-09 21:52 提出）：① 每个问题单独成一个独立界面，回答完一题后再显示下一题；② 界面需标示问题总数与已完成数量，便于判断答题进度；③ 改善观感，使总题数与答题进度一目了然。
+  - 用例：`use-case/FEATURE-624/`（待生成并确认）
+  - 分支：**FEATURE-624**（基于 main），版本 v0.107.0
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `web/static/app.js` | `renderQuestions` 改为「一屏一题」：非当前题的 `.qs-card` 不再显示；新增顶部进度区（第 N/共 M 题 + 已完成数 + 进度条）；切题时平滑过渡 |
+    | `web/static/app.js`（i18n） | 新增中英文进度文案（如「第 %d 题 / 共 %d 题」「已完成 %d 题」） |
+    | `web/static/style.css` | 新增进度区样式（`.qs-progress*`）与题目切换的显隐/淡入过渡 |
+
+  - 实施（BUILD-1271）：
+    ① `web/static/app.js`：新增 i18n 文案 `qsProgressCount` / `qsProgressDone`（中英双语）；`renderQuestions` 在表单顶部插入 `.qs-progress` 进度区（左「第 N 题 / 共 M 题」、右「已完成 X / M」+ 进度条，bar 宽度 = 已完成/M），新增 `refreshProgress()` 并在 `refreshSubmit()` 末尾调用；
+    ② 一屏一题：卡片创建时带 `.qs-off`，`setActive()` 为非当前题切换 `.qs-off`（display:none），当前题播放 `.qs-enter` 淡入（新增 `QS_ENTER_MS=180`）；
+    ③ 主按钮常显并随位置切换文案（非末题=「回车 下一题」、末题=「回车 确定」），点击时非末题 `goNext()`、末题 `submitAnswers()`；单选点击选项后与数字键一致地自动前进；
+    ④ 删除仅服务于「多题并列滚动」的 `qsScrollTo`/`qsScrollRAF`；顺手修正 `setActive()` 中自由文本题 focus 引用了未定义变量 `card` 的旧缺陷（应为 `qCards[activeQ]`）；
+    ⑤ `web/static/style.css`：`.qs-card` 去掉并列虚线分隔，新增 `.qs-off` / `.qs-enter`（qsCardIn 动画）/ `.qs-progress*`（sticky 进度区，fill 过渡 0.25s）。
+  - 验证（BUILD-1271）：`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 通过；`go test ./... -short` 除 `i18n` 包 3 个**既有基线失败**（TestRulesDirCustomizationNote / TestPerSectionFileNotes / TestRulesNoteMergesRulesFile，已用 main 干净检出复核同样失败，与本次改动无关）外全绿；隔离实例（`-w /tmp/co-shell-f624 --serve --port 28941`，v0.107.0/BUILD-1271）+ 调试浏览器注入 `kind:"questions"` 交互做运行时断言：UC-01~UC-17 全部通过（进入只见第 1 题、进度「第 1 题/共 3 题 · 已完成 0/3 · 0%」；单选点击自动进第 2 题且进度 33.33%；多选不自动前进；`+` 回退保留已答；必填未答提交被拦并跳回 Q1 高亮；末题按钮变「确定」且 answers 三条完整回传；备注/取消/中英文案/单题 M=1/中间自由文本 Enter 前进均正常）。
+  - 产物：`work/co-shell-0.107.0.darwin.arm64`、`work/co-shell-hub-0.107.0.darwin.arm64`（无参数本机编译）。
+  - 状态：✅ 已完成并合并 main（v0.107.0，2026-10-09；用户确认测试通过后按 /merge 流程合并并打标签 v0.107.0；验收方式：通过新界面本身提 4 问，用户逐题确认「符合预期 / 达到预期 / 顺手 / 测试通过」）。[BUILD-1272]
+
 ---
 
 ## v0.106.0 — 可用工具拆分「全局 / 空间」两段并精简展示（FEATURE-623）
