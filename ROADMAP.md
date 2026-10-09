@@ -2,6 +2,62 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.0 — co-shell.app 原型：双击即用的 macOS 应用（内嵌 hub）（FEATURE-625）
+
+> **版本**: v0.108.0
+
+> **状态**: 🚧 待用户确认（分支 FEATURE-625；实现与自测已完成）
+> **里程碑**: co-shell 目前只有 CLI / `--serve` 两种启动方式，macOS 用户需开终端敲命令才能用。本次做一个**可双击运行的 `co-shell.app` 原型**（Developer ID 直发，不上架 App Store），把 hub 与 co-shell 二进制内嵌进 bundle，双击即拉起 hub 并打开 Web UI，验证「双击即用」的体验。本次目标是**验证形态与体验**，不做功能补全；且**不改动 Go 功能代码**（hub 已有的 `--config` / `--registry` / `--web-addr` / `--co-shell-path` 参数足以支撑外壳驱动），以便 go 版与 app 版共用同一份二进制、同步发布。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-625 | 0.108.0 | P1 | 新增 `co-shell.app` 原型：Swift 薄外壳（WKWebView）+ bundle 内嵌 hub/co-shell，双击启动 hub 子进程并打开 Web UI，退出回收子进程 |
+
+> 当前 BUILD: 1272
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-625 co-shell.app 原型（Developer ID 直发，内嵌 hub）**
+  - 需求（用户 2026-10-09 23:05 提出）：做一个 Developer ID 直发的 `co-shell.app` 原型（不上架），名称 `co-shell.app`，内含 hub 与 co-shell，先验证「双击即用」体验；本次尽量不动 Go 代码，以便未来 go 版与 app 版同步发布。
+  - 用例：`use-case/FEATURE-625/`
+  - 分支：**FEATURE-625**（基于 main），版本 v0.108.0
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `app/macos/CoShellApp.swift`（新增） | Swift 外壳：探空闲端口 → 启动内嵌 `co-shell-hub` → 轮询就绪 → NSWindow+WKWebView 打开 Web UI → 退出时回收子进程；hub 日志落 `~/Library/Logs/co-shell-app/hub.log` |
+    | `app/macos/Info.plist`（新增） | bundle 标识 `com.coshell.app`、`CFBundleExecutable=co-shell-app`、`LSMinimumSystemVersion` |
+    | `app/build-app.sh`（新增） | 构建脚本：编译 co-shell/hub 二进制 → `swiftc` 编译外壳 → 组装 bundle → `codesign` 签名 |
+    | `main.go` / `cmd/co-shell-hub/main.go` | 仅更新 `version`/`build` 与 `hubVersion`/`hubBuild` 字符串（发布管理，不改功能代码） |
+
+  - 设计要点：
+    - bundle 布局：`Contents/MacOS/co-shell-app`（外壳）、`Contents/Resources/bin/{co-shell,co-shell-hub}`（内嵌二进制）
+    - 数据目录：`~/Library/Application Support/co-shell.app/`（hub-gateway.json / hub-agents.json / hub-board.db / workspaces）
+    - 端口：外壳先探测空闲端口再经 `--web-addr` / `--tcp-addr` 传入，避免 hub 自动递增后外壳不知实际端口
+    - 不开沙箱（Developer ID 直发路线），故无需 entitlements
+  - 已知限制：本机仅「Apple Development」证书，无「Developer ID Application」证书 —— 本原型本机可签名运行，分发他人需先在 Apple Developer 后台创建 Developer ID 证书。
+  - 新增文件：`app/macos/CoShellApp.swift`（Swift 外壳 206 行）、`app/macos/Info.plist`、`app/build-app.sh`（构建脚本）、`use-case/FEATURE-625/FEATURE-625-UC-0001.md`（14 条用例）。
+  - 实施（BUILD-1273）：
+    ① `CoShellApp.swift`：定位 `Contents/Resources/bin/` 内嵌二进制 → `findFreePort()` 以 `bind(port 0)`+`getsockname` 由内核分配空闲端口 → 启动 `co-shell-hub --web-addr/--tcp-addr/--config/--registry/--co-shell-path/--no-api-key`（cwd=数据目录）→ 轮询 `http://127.0.0.1:<port>/` 至 HTTP 200（30s 超时）→ NSWindow+WKWebView 加载 Web UI → `applicationWillTerminate` 先 SIGTERM 后 SIGKILL 回收子进程；hub stdout/stderr 落 `~/Library/Logs/co-shell-app/hub.log`；
+    ② 数据目录 `~/Library/Application Support/co-shell.app/`（首次启动自动创建）；
+    ③ `Info.plist`：`com.coshell.app` / `co-shell-app` / `NSAllowsLocalNetworking`；版本号与 build 由构建脚本从 `main.go` 读入覆写；
+    ④ `build-app.sh`：编译 co-shell/hub 直入 bundle → `swiftc -O -parse-as-library` 编译外壳（单文件编译需该参数才能与 `@main` 共存）→ 组装 → 由内到外签名。
+  - 验证（BUILD-1273，`work/co-shell.app`）：
+    - 离线：bundle 结构完整；`plutil -lint` 通过；`CFBundleExecutable=co-shell-app` / `CFBundleIdentifier=com.coshell.app` / `0.108.0`；`codesign --verify --strict` 通过；内嵌 `co-shell --help` 显示 `v0.108.0 [BUILD-1273]`。
+    - 运行时（`open work/co-shell.app`）：hub 子进程已拉起（`--web-addr 127.0.0.1:51191 --tcp-addr 127.0.0.1:51192 --co-shell-path <bundle>/.../co-shell --no-api-key`）；数据目录与 `hub.log` 创建；hub 日志显示 `Web UI on http://127.0.0.1:51191`，且 WKWebView 已请求 `GET /`、`/api/hub-info`、`/api/agents`（JS 运行中）；`/api/hub-info` 返回 `{"build":"1273","version":"0.108.0"}`。
+    - UC-08：经 `POST /api/agents` 创建托管 agent `probe-1`，hub 成功以内嵌 co-shell 拉起，`/api/agents` 返回 `running:true, version:0.108.0, build:1273`（验证后已删除）。
+    - UC-10：退出 App 后内嵌 hub 被回收、App 退出，无残留；当前已运行会话（pid 66344/端口 28256）不受影响。
+    - UC-11：二次启动成功并复用既有数据目录，hub 换新空闲端口（52208）。
+    - UC-12：`kill` 内嵌 hub 后 App 仍存活（`terminationHandler` 显示错误页）。
+    - UC-13：连续两次 `app/build-app.sh` 均成功（幂等）。
+    - UC-14：`git diff main --stat` 中 Go 改动仅 `main.go`(4 行)+`cmd/co-shell-hub/main.go`(4 行)，即 version/build 字符串，**无功能代码改动**。
+    - 基线：`go build ./... && go vet ./...` 通过；`go test ./... -short` 的 8 个失败（agent 3/cmd 2/i18n 3）经 main 干净检出对比确认为**既有基线失败**，与本次无关。
+  - 状态：🚧 实现与自测完成，**待用户确认**（确认后按 /merge 流程合并）。[BUILD-1273]
+
+---
+
 ## v0.107.0 — ask_user 表单改为「一屏一题」逐题独立界面（进度可感知）（FEATURE-624）
 
 > **版本**: v0.107.0
