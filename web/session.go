@@ -156,6 +156,12 @@ type WebSession struct {
 	// NOTE: it is NOT the message array index — see msgIndexForRetry.
 	msgIndex int
 
+	// lastToolsBlock caches the most recently rendered <tools> block body so the
+	// dynamic-info panel can keep listing tool files while the envelope sent to
+	// the model carries the compact <unchanged …/> placeholder (FEATURE-623).
+	toolsMu        sync.Mutex
+	lastToolsBlock string
+
 	inputQ *inputQueue
 
 	// lastInputSource / lastInputSourceID identify the端 whose instruction is

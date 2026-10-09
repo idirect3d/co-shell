@@ -4,6 +4,50 @@
 
 ---
 
+## v0.106.0 — 可用工具拆分「全局 / 空间」两段并精简展示（FEATURE-623）
+
+> **版本**: v0.106.0
+
+> **状态**: ✅ 已完成并合并 main（v0.106.0 / BUILD-1269，2026-10-09；用户确认测试通过）
+> **里程碑**: `<environment_details>` 的 `<tools>` 块原先只列工作区 `{workspace}/bin/`，且每行都带 `bin/` 路径前缀；`~/.co-shell/bin/` 下的全局工具从不展示（代码中无任何引用）。本次把可用工具拆成「全局」（`~/.co-shell/bin/`）与「空间」（`{workspace}/bin/`）两段：每段只在开头输出一次该目录的绝对路径，其余行只列「文件名 + 时间 + 大小」；Web UI「动态信息 → 可用工具」同步按「先全局、后空间」展示。目录不存在或为空时仍输出该段的绝对路径行（便于看出「此目录为空」）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+> 当前 BUILD: 1269
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-623 可用工具拆分「全局 / 空间」两段并精简展示**
+  - 需求（用户 2026-10-08 22:30~22:31 确认）：① `<tools>` 分为全局（`~/.co-shell/bin/`）与空间（`{workspace}/bin/`）两部分；② Web UI 动态信息的「可用工具」同步调整，先显示全局、再显示当前空间；③ 两处都只分别显示一次「工具所在文件夹的绝对路径」，工具行只显示工具文件名（不再带路径前缀），并保留时间与大小（用户 2026-10-08 22:31 选择）；④ 目录不存在或为空时仍输出该路径行（用户 2026-10-08 22:31 选择）。
+  - 用例：`use-case/FEATURE-623/`（待生成并确认）
+  - 分支：**FEATURE-623**（基于 main），版本 v0.106.0
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `agent/envelope.go` | `<tools>` 段改为「全局段 + 空间段」，每段首行输出目录绝对路径；全局目录取 `~/.co-shell/bin` |
+    | `agent/env_slim.go` | 三列表哈希与占位符逻辑覆盖「全局 + 空间」两份列表 |
+    | `agent/file_tools.go` | 工具行渲染支持「不重复输出目录路径前缀」（每段只输出一次绝对路径） |
+    | `web/static/app.js` | 动态信息「可用工具」按两段渲染：路径行（分组标题）各一次，工具行只列文件名/时间/大小 |
+    | `agent/*_test.go` | 新增/更新单测：两段结构、空目录、绝对路径唯一、变化检测哈希 |
+
+  - 实施（BUILD-1264）：
+    ① `agent/env_slim.go`：新增 `toolsGlobalDir()`（`$HOME/.co-shell/bin`，不可解析时返回空）与 `buildToolsBlock(cwd)`——`<tools>` 内容改为 `<global>`（绝对路径行 + 裸文件名行）在前、`<workspace>` 在后；常量 `envToolsMaxEntries=64`；
+    ② `agent/envelope.go`：`binFiles` 改用 `buildToolsBlock(cwd)`（不再输出 `bin/` 前缀）；
+    ③ `web/dyninfo.go` + `web/session.go`：新增 `applyToolCache` 与 `lastToolsBlock` 缓存，`<unchanged …/>` 占位时回填上次完整 tools 块（用户 2026-10-08 22:36 确认「一并做」）；
+    ④ `web/static/app.js` + `style.css`：新增 `dynToolSections`（解析两段 → 目录行为 `section` 行、工具行只留文件名）+ `.dyn-env-section` 样式。
+  - 验证（BUILD-1264）：`go build ./... && go vet ./...` 通过；新增 `agent/env_tools_test.go`（两段结构 / 空目录 / 无 HOME 省略全局段 / 变化检测哈希覆盖全局目录 / 裁剪开时实发）与 `web/feature623_test.go`（面板缓存回填）全绿；env 相关回归（EnvPrune / FIX586 / EnvStaticBlocks / BoardRosterBrief）与 `go test ./web/` 全包通过。
+  - 面板分组增强（2026-10-09，用户反馈「两段看着像合并在一起」）：`web/static/app.js` 的 `dynToolSections` 改为输出带标签的分组行（「全局」/「工作空间」，i18n 中英双语）+ 工具行标记；`dynBlockEl` 特判渲染分组标题（标签 + 绝对路径）与缩进的工具行，空段显示淡色「无」；`style.css` 新增 `.dyn-env-section` / `.dyn-env-tool` / `.dyn-env-empty`（分段分隔线 + 缩进）。[BUILD-1265]
+  - 面板微调（2026-10-09，用户反馈「不要分割线，(全局)/(工作空间) 加括号即可」）：`dynToolsGlobal`/`dynToolsWorkspace` 改为 `(全局)`/`(工作空间)`（en: `(Global)`/`(Workspace)`），`.dyn-env-section` 去掉分隔线与上内边距，仅保留段间间距。[BUILD-1266]
+  - 静态资源版本化（2026-10-09，用户报告「重启+刷新后界面仍是旧样式」）：`web/server.go` 新增 `assetVersion`（app.js/style.css 内容指纹）与 `assetVersionPlaceholder`，`handleIndex` 把 index.html 的 `__ASSET_VERSION__` 替换为指纹，并对 index.html 加 `Cache-Control: no-store`；`index.html` 的 style.css/app.js 引用带 `?v=`，使重建后浏览器必然拉取新资源。[BUILD-1267]
+  - 面板解析修复（2026-10-09，用户反馈「路径前仍无 (全局)/(当前空间)」）：根因不在缓存而在 `dynToolSections` 自身——正则捕获的段内容以换行开头（`<global>\n/path`），`lines.shift()` 取到空串，目录行被跳过、路径被当成工具行渲染。修复：先 trim+filter 去空行，首行作目录（section 行），其余作工具行；空段仍出「无」。[BUILD-1268]
+  - 产物：`work/co-shell-0.106.0.darwin.arm64`、`work/co-shell-hub-0.106.0.darwin.arm64`（无参数本机编译）。
+  - 状态：✅ 已完成并合并 main（v0.106.0，2026-10-09；用户确认测试通过后按 /merge 流程合并并打标签 v0.106.0）。[BUILD-1269]
+
+---
+
 ## v0.105.0 — env_details 机制优化：历史裁剪收敛为「唯一全量信封」（FEATURE-622）
 
 > **版本**: v0.105.0

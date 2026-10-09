@@ -141,7 +141,7 @@ func (s *WebSession) buildDynInfo() dynInfo {
 		}
 		info.Items = append(info.Items, it)
 	}
-	for _, b := range applyBoardRoster(s.ag.EnvBlocks(), s.ag.BoardRosterBlock()) {
+	for _, b := range s.applyToolCache(applyBoardRoster(s.ag.EnvBlocks(), s.ag.BoardRosterBlock())) {
 		if dynEnvSkip[b.Tag] {
 			continue
 		}
@@ -162,6 +162,31 @@ func applyBoardRoster(blocks []agent.EnvBlock, roster string) []agent.EnvBlock {
 		if b.Tag == "board_agents" && strings.Contains(b.Text, "<unchanged") {
 			blocks[i].Text = roster
 		}
+	}
+	return blocks
+}
+
+// applyToolCache replaces a compact <tools><unchanged …/></tools> placeholder
+// with the last fully rendered tool block, so the panel keeps listing the tool
+// files while the LLM keeps receiving the compact form (FEATURE-623). A block
+// carrying real content refreshes the cache.
+func (s *WebSession) applyToolCache(blocks []agent.EnvBlock) []agent.EnvBlock {
+	for i, b := range blocks {
+		if b.Tag != "tools" {
+			continue
+		}
+		if strings.Contains(b.Text, "<unchanged") {
+			s.toolsMu.Lock()
+			cached := s.lastToolsBlock
+			s.toolsMu.Unlock()
+			if cached != "" {
+				blocks[i].Text = cached
+			}
+			continue
+		}
+		s.toolsMu.Lock()
+		s.lastToolsBlock = b.Text
+		s.toolsMu.Unlock()
 	}
 	return blocks
 }

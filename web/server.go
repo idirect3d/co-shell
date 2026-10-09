@@ -57,6 +57,24 @@ var staticETag = func() string {
 	return `"` + hex.EncodeToString(h.Sum(nil))[:16] + `"`
 }()
 
+// assetVersionPlaceholder is replaced in index.html with assetVersion, so the
+// asset URLs change whenever the UI is rebuilt.
+const assetVersionPlaceholder = "__ASSET_VERSION__"
+
+// assetVersion fingerprints app.js/style.css. Revalidation alone is not enough:
+// a tab that never re-requests them (bfcache, an aggressive cache, a mounted
+// PWA) keeps running the previous code, so a shipped UI change looks missing.
+// Stamping the URL makes the browser treat them as new resources.
+var assetVersion = func() string {
+	h := sha256.New()
+	for _, name := range []string{"static/app.js", "static/style.css"} {
+		if b, err := staticFS.ReadFile(name); err == nil {
+			_, _ = h.Write(b)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12]
+}()
+
 // serveStatic serves the embedded UI assets with an explicit validator so the
 // browser revalidates on every load. Without it a rebuilt binary keeps showing
 // the previous UI until the user performs a hard reload.
@@ -913,7 +931,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", indexCSP)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	_, _ = w.Write(data)
+	// The shell must not be cached either: its asset URLs carry assetVersion, so
+	// a stale copy would keep pinning the previous app.js/style.css.
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte(strings.ReplaceAll(string(data), assetVersionPlaceholder, assetVersion)))
 }
 
 // handleUISandbox serves the fixed shell the `html` component embeds. It never

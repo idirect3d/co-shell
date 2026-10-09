@@ -40,6 +40,8 @@ const I18N = {
     dynResActive: "当前活动", dynResTitle: "标题", dynResSummary: "内容摘要",
     dynResActivate: "切换到该窗口",
     dynEnvUnchanged: "（与上次相同，无变化）",
+    // FEATURE-623: section labels of the two-part tool list.
+    dynToolsGlobal: "(全局)", dynToolsWorkspace: "(工作空间)",
     dynEnvNone: "无",
     dynEnvTokens: "已用 {used} / {total} tokens（{pct}）",
     dynAttrLabels: { id: "ID", name: "名称", status: "状态", role: "职责", desc: "描述", description: "描述", from: "来自", conv: "会话", reply_to: "回复", agent_id: "代理" },
@@ -181,6 +183,8 @@ const I18N = {
     dynResActive: "Active", dynResTitle: "Title", dynResSummary: "Summary",
     dynResActivate: "Switch to this window",
     dynEnvUnchanged: "(unchanged since last time)",
+    // FEATURE-623: section labels of the two-part tool list.
+    dynToolsGlobal: "(Global)", dynToolsWorkspace: "(Workspace)",
     dynEnvNone: "none",
     dynEnvTokens: "used {used} / {total} tokens ({pct})",
     dynAttrLabels: { id: "ID", name: "Name", status: "Status", role: "Role", desc: "Description", description: "Description", from: "From", conv: "Conversation", reply_to: "Reply to", agent_id: "Agent" },
@@ -9784,6 +9788,27 @@ function dynBoardAgents(inner) {
   return rows;
 }
 
+// dynToolSections turns the two-section <tools> block (global first, then the
+// workspace one) into rows: one `section` row carrying that directory's absolute
+// path, followed by one row per tool file name (FEATURE-623).
+function dynToolSections(inner) {
+  const rows = [];
+  const re = /<(global|workspace)>([\s\S]*?)<\/\1>/g;
+  let m;
+  while ((m = re.exec(inner)) !== null) {
+    const label = m[1] === "global" ? (T.dynToolsGlobal || "(Global)") : (T.dynToolsWorkspace || "(Workspace)");
+    // The captured body starts with a newline ("<global>\n/path\n…"): drop the
+    // blank lines first, otherwise the absolute path would be mistaken for a
+    // tool entry and no section row would be emitted (FEATURE-623).
+    const lines = m[2].split("\n").map((s) => s.trim()).filter((s) => s !== "");
+    const dir = lines.shift() || "";
+    if (dir) rows.push({ label: label, value: dir, section: true });
+    for (const line of lines) rows.push({ value: dynEnvPath(line), tool: true });
+    if (lines.length === 0) rows.push({ value: T.dynEnvNone || "none", empty: true });
+  }
+  return rows;
+}
+
 // dynEnvLines turns one block into readable rows. Child elements become
 // "label：value" rows; a block without children (tool list, skill list) keeps its
 // own lines. Raw XML is never shown.
@@ -9792,6 +9817,12 @@ function dynEnvLines(tag, raw) {
   if (tag === "board_agents") {
     const agents = dynBoardAgents(inner);
     return agents.length ? agents : [{ value: T.dynEnvNone || "none" }];
+  }
+  if (tag === "tools") {
+    const sections = dynToolSections(inner);
+    if (sections.length) return sections;
+    if (/<unchanged\s*\/>/.test(inner)) return [{ value: T.dynEnvUnchanged || "unchanged" }];
+    return [{ value: T.dynEnvNone || "none" }];
   }
   if (/<unchanged\s*\/>/.test(inner)) return [{ value: T.dynEnvUnchanged || "unchanged" }];
   // Roster blocks list one <agent …> element per agent; render them from their
@@ -9980,11 +10011,28 @@ function dynBlockEl(b) {
   body.className = "dyn-env-text";
   for (const line of dynEnvLines(b.tag, b.text)) {
     const row = document.createElement("div");
-    row.className = "dyn-env-line";
     const isObj = typeof line !== "string";
+    // FEATURE-623: a tool section heads its directory with a label + absolute
+    // path; the files below it are indented rows.
+    if (isObj && line.section) {
+      row.className = "dyn-env-line dyn-env-section";
+      const label = document.createElement("span");
+      label.className = "dyn-env-section-label";
+      label.textContent = line.label || "";
+      const path = document.createElement("span");
+      path.className = "dyn-env-section-path";
+      path.textContent = line.value || "";
+      row.appendChild(label);
+      row.appendChild(path);
+      body.appendChild(row);
+      continue;
+    }
     const name = isObj ? (line.name || "") : "";
     const value = isObj ? (line.value || "") : line;
     const badge = isObj ? (line.badge || "") : "";
+    row.className = (isObj && line.tool) ? "dyn-env-line dyn-env-tool"
+      : (isObj && line.empty) ? "dyn-env-line dyn-env-empty"
+        : "dyn-env-line";
     if (name) {
       const label = document.createElement("span");
       label.className = "dyn-env-name";
