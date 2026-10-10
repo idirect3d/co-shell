@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  App-level entitlements for the sandboxed Mac App Store build (FIX-630).
+
+  FILE ACCESS: WHY THERE IS ONLY ONE KEY HERE
+
+  A/B tested on 2026-10-10 (three variants, only the file grant differing; see
+  docs/macos-appstore-sandbox-design.md section 6.9):
+
+      com.apple.security.files.all only            : write to home DENIED
+      temporary-exception home-relative-path only  : write to home ALLOWED
+      neither (control)                            : write to home DENIED
+
+  So com.apple.security.files.all grants nothing on this platform and has been
+  REMOVED. Declaring a permission the app does not actually use would misstate
+  our request to App Review. The temporary exception below is what really grants
+  access.
+
+  SCOPE: the home directory only. The same A/B test showed that writes OUTSIDE
+  home (for example /Users/Shared, external volumes) are denied. That is a real
+  product boundary, recorded in the design document section 5.2.
+
+  WHY WE REQUEST IT: co-shell is a local AI agent application. Reading and
+  writing files in the user's own project directories, at the user's explicit
+  direction, IS the product's core function, not a convenience feature. The user
+  points the app at a project they own and asks the agent to work on it.
+  Restricting the app to its own container would remove the point of the product
+  entirely. See docs/macos-appstore-release.md section 6 for the review notes.
+
+  NOTE: XML comments may not contain a double hyphen, and Apple's entitlements
+  parser (AMFI) enforces that strictly even though plutil -lint does not. This
+  file therefore avoids them.
+-->
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/</string>
+	</array>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

@@ -53,10 +53,8 @@ input/
 # Output files (runtime)
 output/
 
-# Temporary research subdirectories (not for public repo)
-research/Go合同条款MCP服务梳理/
-research/qwen3-thinking-mode/
-research/thinking-test/
+# Research notes (not for public repo) — the whole directory is ignored
+research/
 
 # Change notes (auto-generated)
 change/

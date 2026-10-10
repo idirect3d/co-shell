@@ -31,12 +31,22 @@ private enum AppPaths {
     static var hubBinary: URL { binDir.appendingPathComponent("co-shell-hub") }
 
     /// ~/Library/Application Support/co-shell.app
+    ///
+    /// Under the App Sandbox (the Mac App Store build) the standard directories
+    /// resolve inside the app container, so this becomes
+    /// `~/Library/Containers/<bundle id>/Data/Library/Application Support/co-shell.app`.
+    /// That is intended: the layout is unchanged, only the root moves.
     static var dataDir: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("co-shell.app")
     }
 
     /// ~/Library/Logs/co-shell-app
+    ///
+    /// Container-redirected under the App Sandbox exactly like `dataDir`.
+    /// No other process — including a terminal — can read inside the container,
+    /// so the app exposes a menu entry to open this directory; otherwise the hub
+    /// log would be unreachable while troubleshooting.
     static var logDir: URL {
         let base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Logs/co-shell-app")
@@ -337,6 +347,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "打开日志目录",
+                        action: #selector(openLogDirectory(_:)),
+                        keyEquivalent: "")
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出 \(AppPaths.displayName)",
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
@@ -349,6 +363,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         for dir in [AppPaths.dataDir, AppPaths.logDir] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
+    }
+
+    /// Opens the log directory in Finder.
+    ///
+    /// Under the App Sandbox the logs live inside the app container
+    /// (`~/Library/Containers/<bundle id>/Data/Library/Logs/co-shell-app`), which
+    /// no other process can read. The app itself can, so this entry point is the
+    /// only practical way to get at the hub log when something goes wrong.
+    @objc private func openLogDirectory(_ sender: Any?) {
+        NSWorkspace.shared.open(AppPaths.logDir)
     }
 
     private func buildWindow() {

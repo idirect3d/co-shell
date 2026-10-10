@@ -2,6 +2,94 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.5 — Mac App Store 沙箱版（受限本地版）改造（FIX-630）
+
+> **版本**: v0.108.5
+
+> **状态**: 🚧 开发中（分支 FIX-630）
+
+> **里程碑**: 按 Mac App Store 强制沙箱要求，在 App 内运行受沙箱约束的 hub/agent：App 与内嵌 helper 采用 **inherit 继承式沙箱**（helper 不独立声明权利，跟随 App 沙箱），并补齐隐私清单/出口合规/归档上传链路。权限档位为**宽权限档**（用户 2026-10-10 13:32 拍板）：`files.all` + `temporary-exception.files.home-relative-path.read-write`（覆盖整个 home）；**不做“用户经 NSOpenPanel 选目录”的流程**（用户明确否决：“不要用户选目录，太麻烦”）。实测结论：沙箱后 agent 核心能力（在用户真实项目目录读写文件、执行命令、调用模型）**完整保留**，变化仅在 App 自身数据落位于容器、以及受 TCC/容器保护的位置不可达。Bundle ID 新开 `com.coshell.app.mas`（用户 2026-10-10 13:34 修正：与 Developer ID 版互不覆盖，可共存）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-630 | 0.108.5 | P1 | Mac App Store 沙箱化改造：entitlements（App 宽权限档 `app-sandbox`/`files.all`/`network.client+server`/home 相对路径读写例外；helper `app-sandbox`/`inherit`）+ 容器内数据落位 + 隐私清单/出口合规 + 归档上传链路 + 设计文档与发布文档 |
+
+> 当前 BUILD: 1290
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-630 Mac App Store 沙箱版（受限本地版）改造**
+  - 需求（用户 2026-10-10 13:22 提出）：做 Mac 版 App Store 发布；只发 Mac；路线 **B（坚持 MAS）**；权限档位 **宽权限档**（13:32 拍板）、**不做**用户选目录流程；Bundle ID 新开 `com.coshell.app.mas`（13:34 修正）；版本 v0.108.5（patch 递增）；审核理由要写硬（说明是 agent 应用、需要更强能力）。
+  - 设计文档：`docs/macos-appstore-sandbox-design.md`（决策 / 进程模型 / entitlements / 容器落位 / 能力矩阵 / 实测证据链 / 风险与审核策略）。
+  - 前置调研（已完成，详见 `use-case/FIX-630/FIX-630-UC-0001.md`）：
+    - **签名资产盘点**：付费 Program / Team `5BZBX3DL83`；本机仅 `Apple Development`，**无 Apple Distribution / Developer ID / 3rd Party Mac Developer**；本机**无任何 macOS 描述文件**（仅 2 个 iOS 的）；`mobile/ios/build/ExportOptions-upload.plist`（`method=app-store-connect` / `destination=upload` / `teamID=5BZBX3DL83`）可复用。
+    - **沙箱 spike**（`tmp/spike-mas`）：给 bundle 加 `app-sandbox` 后直接运行内嵌 `co-shell --serve` → **立即 exit=133（SIGTRAP）、零输出**；崩溃报告 `signal=SIGTRAP` + `Unable to get bundle identifier for container id co-shell`（子系统二进制被单独签名、无独立 bundle 身份）。证明“天真沙箱化”必死；正确的沙箱子进程形态（helper 带 `com.apple.security.inherit` / 由沙箱父进程发起 / XPC）待 **spike v2** 实测。
+    - **沙箱 spike v2（宽权限档，`tmp/spike-wide`，✅ 已实测通过，2026-10-10 13:41）**：App entitlements = `app-sandbox` + `files.all` + `network.client` + `network.server` + `temporary-exception.files.home-relative-path.read-write`(`/`)；helper（`Contents/Resources/bin/{co-shell,co-shell-hub}`）= `app-sandbox` + `inherit`；以 `Apple Development` + `--options runtime` 签名。实测链路：① App 启动无崩溃；② 内嵌 hub 被拉起并监听 `127.0.0.1:52123`(web)/`52124`(tcp)；③ hub Web UI `HTTP 200`（117226 字节）；④ hub REST API 正常，且对沙箱内嵌 `co-shell --version` 探测 `ok:true`（证明 `inherit` helper 可执行）；⑤ **hub 成功拉起受控 agent**（端口 `52125`，`HTTP 200`，`/api/status` 返回 `{"busy":false}`）；⑥ **沙箱 agent 在真实 home 路径落出完整工作区**（`config.json` 5318B / `db/co-shell.db` / `log/co-shell-*.log` / `IDENTITY.md`）→ `files.all` + home 相对路径例外**确认真实生效**；⑦ 沙箱 App 的 home 被重定向到 `~/Library/Containers/com.coshell.app/Data`（`/api/agent-defaults` 的 `default_workspace` 落在容器内），外部 shell 读容器目录被拒（`Operation not permitted`）属**预期语义**、非故障。
+    - **平台硬约束**：沙箱进程只能访问容器 + 用户显式授权路径；审核指南 2.5.2（不得下载/执行改变功能的代码）与 4.2（网页壳）风险仍在。
+  - 用户需自行完成（清单已提供）：Xcode 建 Apple Distribution 证书 → portal 建 Mac App Store 描述文件 → ASC 建 Mac App 记录 → 物料（4 档截图 / 隐私政策 URL / 审核备注与演示凭据）。
+  - 用例：`use-case/FIX-630/`
+  - 分支：**FIX-630**（基于 main）
+  - **实施进展（截至 BUILD-1288）**：✅ 设计文档 `docs/macos-appstore-sandbox-design.md` 落库；✅ `app/macos/app.entitlements`（宽权限档）+ `app/macos/helper.entitlements`（`app-sandbox`+`inherit`）落库；✅ `app/build-app.sh` 新增沙箱/MAS 通道（`CO_SHELL_MAS=1`，可选 `CO_SHELL_MAS_PROFILE` 内嵌描述文件；默认通道行为不变）。端到端实测：`CO_SHELL_MAS=1` 产出物启动 → hub 监听 → Web UI `HTTP 200` → 独立容器 `~/Library/Containers/com.coshell.app.mas` 建立；bundle id `com.coshell.app.mas`、双层 entitlements、硬化运行时（`flags=0x10000(runtime)`）全部正确落位。默认通道回归通过（`com.coshell.app`、无 entitlements、无 runtime flag）。`go build ./... && go vet ./...` 通过。
+  - **本轮追加（BUILD-1289）**：✅ 沙箱数据落位适配——`app/macos/CoShellApp.swift` 写明标准目录在沙箱下重定向到容器，并新增菜单项「打开日志目录」（容器日志外部进程读不到，只能由 App 自己打开）；✅ 合规项——`app/macos/PrivacyInfo.xcprivacy`（不追踪/不采集 + 所需理由 API）、`Info.plist` 增 `ITSAppUsesNonExemptEncryption=false`、MAS 产物由构建脚本挂入 `Contents/Resources/PrivacyInfo.xcprivacy`；✅ `app/mas-package.sh`——证书前置校验（缺证书明确报错、绝不退回开发证书）+ `productbuild` 签名打包 + 上传指引（实测：守卫生效、productbuild 机制可用）；✅ `docs/macos-appstore-release.md`——上架手册（前置条件/本机现状/证书步骤/打包上传/元数据清单/沙箱排错）+ **硬审核理由草稿（中英双版）**；✅ 以 BUILD-1289 重建 `work/co-shell.app`（默认通道）与 `work/mas/co-shell.app`（沙箱试用版）。
+  - **本轮追加（BUILD-1290）**：✅ **A/B 实测推翻并纠正了一处错误结论**——`com.apple.security.files.all` 经三变体实测**是空转的**（单独声明它时，连 home 内的写入都被拒），已从 `app/macos/app.entitlements` **移除**；真正生效的只有 `temporary-exception.files.home-relative-path.read-write`。同时确认**权限边界是 home 之内**（`/Users/Shared`、外接宗卷等一律拒绝）。✅ 设计文档 §3.1/§5.2/§6.9/§7/§8.2 与上架手册 §6 审核理由（中英双版）均已按实测纠正。✅ 移除 `files.all` 后回归验证：沙箱 App 仍能在 home 下正常创建 workspace（无回退）。✅ 另：TCC 保护目录（桌面/文稿/下载）实测为静默可读写、不弹窗（§6.8）。
+  - **上架准备进展（2026-10-10）**：✅ 证书齐备——`Apple Distribution: Shuang Liang (5BZBX3DL83)` 与 `3rd Party Mac Developer Installer: Shuang Liang (5BZBX3DL83)`；✅ App ID `com.coshell.app.mas` 已在 developer portal 创建（Description `co-shell macOS`，Explicit，未勾任何 Capability）；✅ Mac App Store 描述文件 `co-shell MAS` 已生成并下载（Expires 2027-10-10，落于 `download/browser/coshell_MAS.provisionprofile`）；✅ **打包链路已用真实证书跑通**：`CO_SHELL_MAS_PROFILE=<profile> app/mas-package.sh work/mas-pkg` → 产出 `work/mas-pkg/co-shell-0.108.5.pkg`（18MB），`pkgutil --check-signature` 确认由 `3rd Party Mac Developer Installer` 签名。✅ App Store Connect Mac App 记录已于 2026-10-10 15:13 建成（详见下方「ASC Mac App 记录」）；✅ `.pkg` **已于 2026-10-10 18:22 由用户自行上传**至该 macOS 记录；✅ 截图定稿为 7 张（见下）；✅ 隐私政策落地并已有可用 URL（见下）；✅ ASC 上架资料草稿就绪（见下）；⏳ 仅剩：演示 API Key + 年龄分级选项 → 提交审核 → 合并 main。
+  - **进度快照（2026-10-10 15:15，供跨会话接续）**：
+
+    | 维度 | 状态 |
+    |------|------|
+    | 代码与文档 | ✅ 全部提交在 `FIX-630`；未动 main |
+    | 沙箱形态 | ✅ entitlements（App 宽权限档 = `app-sandbox` + home 相对路径例外 + `network.*`；helper = `app-sandbox` + `inherit`）、`PrivacyInfo.xcprivacy`、`ITSAppUsesNonExemptEncryption=false` 均已落库并实测 |
+    | 构建通道 | ✅ `app/build-app.sh`（`CO_SHELL_MAS=1` 沙箱/MAS 通道，默认通道行为不变） |
+    | 打包通道 | ✅ `app/mas-package.sh`（证书前置校验 + `productbuild` 签名出 `.pkg`） |
+    | 证书 | ✅ `Apple Distribution` 与 `3rd Party Mac Developer Installer`（后者用户于 14:50 补齐） |
+    | App ID | ✅ `com.coshell.app.mas`（Description `co-shell macOS`；Explicit；未勾 Capability） |
+    | 描述文件 | ✅ `co-shell MAS`（Type App Store，Expires 2027-10-10） |
+    | 描述文件落位 | ⚠ `download/browser/coshell_MAS.provisionprofile`——**浏览器工具把下载目录设为工作区 `download/browser/`，不是 `~/Downloads`** |
+    | 打包实跑 | ✅ 产物 `work/mas-pkg/co-shell-0.108.5.pkg`（约 18MB），已由 Installer 证书签名 |
+    | ASC Mac App 记录 | ✅ **已完成（15:13）**：id `6821266901`、名称 `co-shell – 自建 AI 终端`、Bundle ID `com.coshell.app.mas`、SKU `coshell-macos-001`、平台 macOS 1.0（准备提交） |
+
+  - **截图定稿（2026-10-10 18:00，用户拍板顺序）**：`work/appstore-shots/` 由 10 张**收敛为 7 张**，全部精确 2560×1600、纯页面渲染（本机 Docker 无关，仅为 `browser_pdf(16×10in, print_background)` → `pdf2png --dpi 160`）：
+    1. `co-shell-mac-01-hub欢迎页-2560x1600.png`（干净欢迎页，无左侧抽屉）
+    2. `co-shell-mac-02-hub智能体列表-2560x1600.png`（hub 欢迎页 + 左侧 Agents 列表，**research-agent 红色→绿灯且开关打开为真实运行态**）
+    3. `co-shell-mac-03-hub与Agent聊天室-2560x1600.png`（原 10）
+    4. `co-shell-mac-04-工作区文件树-2560x1600.png`（原 03）
+    5. `co-shell-mac-05-模型与设置-2560x1600.png`（原 05）
+    6. `co-shell-mac-06-文件预览-2560x1600.png`（原 04）
+    7. `co-shell-mac-07-多Agent与聊天室-2560x1600.png`（原 07）
+    未采用的 4 张（原 01 会话对话、02 任务进展、06 命令输出、09 hub 多 Agent 设置）连同全部原始文件归档在 `work/tmp/mas-shots/shots-backup-20261010-170612/`，**未删除**，可随时回退。
+    - **hub 侧出图三个实测坑（避免重蹈）**：① hub 抽屉内的 agent 只有在 `running \|\| connected` 时才亮灯，而演示 registry 原 workspace `~/Projects/acme-tasks` **不存在**，hub 无法拉起子进程 → 必须把 workspace 改成真实存在的演示项目目录、`config_path` 指向演示 config，再通过 `POST /api/agents/<id>/start` 真正启动；② 有 agent 运行时 hub 会**自动聚焦**它并把该 agent 的 app 界面嵌进主区域，而 app UI 自带 `@media print{ body>*:not(.ui-print-root){display:none} }`，打印出来是**一片灰块**（需运行时删掉该媒体规则）；③ 该 iframe 为 hub **同源代理**（`/agent/<id>/`），因此可运行时做路径/用户名脱敏（跨域则不可）。最终选择让主区停在 hub 自己的欢迎页，保证是**纯 hub 界面**。
+  - **隐私政策（2026-10-10 17:16）**：新增 `docs/PRIVACY.md`（中英双语，依据 `app/macos/PrivacyInfo.xcprivacy` 与真实数据流撰写，含沙箱文件例外理由与本地删除方式），提交 `07de2823`；`FIX-630` 已推送 origin，隐私政策 URL **实测 HTTP 200 可用**：`https://github.com/idirect3d/co-shell/blob/FIX-630/docs/PRIVACY.md`（并入 main 后应改用 `/blob/main/` 干净地址）。
+  - **ASC 上架资料草稿（2026-10-10 18:22）**：`work/mas-pkg/asc-listing-metadata.md`——名称/副标题/分类/关键词/促销文本/中英双语描述/支持 URL（`https://github.com/idirect3d/co-shell`，实测 200）/隐私政策 URL/年龄分级注意项（「无限制网页访问」若开放则需如实勾选，分级会到 17+）/审核备注模板（含审核员 4 步跑通脚本）/9 项提交前清单。仍待用户提供：**演示 LLM API Key**、年龄分级问卷选项。
+  - **接续所需命令**：
+    ```bash
+    export PATH="$PATH:/opt/homebrew/bin"
+    CO_SHELL_MAS_PROFILE=$PWD/download/browser/coshell_MAS.provisionprofile \\
+      app/mas-package.sh work/mas-pkg
+    pkgutil --check-signature work/mas-pkg/co-shell-0.108.5.pkg
+    ```
+  - **ASC Mac App 记录（2026-10-10 15:13 创建成功）**：✅ id `6821266901`——平台 **macOS**（版本 1.0 `准备提交`）、名称 **`co-shell – 自建 AI 终端`**、Bundle ID **`com.coshell.app.mas`**、SKU `coshell-macos-001`、主要语言简体中文、用户访问权限完全访问。SQL 化验证：`GET /iris/v1/apps/6821266901` → `bundleId=com.coshell.app.mas`；`appStoreVersions` → `platform=MAC_OS`。
+    - **名称冲突实测（15:11）**：用原定名称 `co-shell` 提交时，ASC 表单明确报错「**你输入的 App 名称已经用于你账户中的其他 App**」（The app name you have entered is already in use by another app in your account）——即 iOS 版记录（id `6818714760`）已占用 `co-shell`，故换名。名称中**刻意不含 `macOS`/`Mac`**（避免使用 Apple 商标，降低审核风险）。
+    - **为何不走「添加平台」（多平台/通用购买）**：ASC 的 `apps` 资源只暴露**单一** `bundleId`（`GET /iris/v1/apps/{id}` → `bundleId=com.coshell.mobile`），App 信息页也只有**一个**「套装 ID」，且「添加平台」弹窗只收集平台勾选、不收集 Bundle ID；把 macOS 加到 iOS 记录上会把 Mac 版绑到 `com.coshell.mobile`，与打包链路（App ID / 描述文件 / entitlements / `mas-package.sh`）全部按 `com.coshell.app.mas` 的设计**不符**。旁证：新建 App 表单的 Bundle ID 下拉中 `com.coshell.app.mas` **仍可选**（未被任何记录占用）。
+    - ⚠️ **遗留（需知悉）**：排查过程中曾把 macOS 平台加到 iOS 记录（id `6818714760`，bundleId `com.coshell.mobile`）上；ASC「添加平台」弹窗中已添加平台的复选框为**禁用**，页面上仅有「删除 macOS 版本 1.0」（删的是版本，不是平台），因此该记录目前同时挂着 iOS 1.0 与 macOS 1.0（macOS 版未提交，对 iOS 版无可见影响）。如需彻底移除平台需联系 Apple。**注意：该 macOS 平台绑定 `com.coshell.mobile`，不要用它上传 `com.coshell.app.mas` 的 `.pkg`。**
+  - **剩余步骤（ASC）**：上传 `.pkg`（Transporter，或 `xcrun altool --upload-app -f work/mas-pkg/co-shell-0.108.5.pkg --type macos -u <apple-id> -p <app专用密码>`）→ 在 macOS 记录的「构建版本」中选中 → 补元数据（4 档截图、描述、关键词、支持 URL、隐私政策 URL、年龄分级、**演示 LLM API Key**、审核备注；审核理由草稿见 `docs/macos-appstore-release.md` §6）。
+  - **待用户拍板的未决项**：① 老用户数据迁移（非沙箱版 → 沙箱容器）；② home 之外不可访问这一产品级边界如何向用户交代。
+  - **历史提交链（FIX-630）**：`4f845f19`（登记）→ `820dab99`（设计文档）→ `5a950998`（entitlements + 构建通道，BUILD-1288）→ `2e7d9263`（数据落位/合规/打包/手册，BUILD-1289）→ `0cd69f95`（TCC 实测）→ `f560a5fd`（A/B 实测 + 纠正，BUILD-1290）→ `ddd8a32b`（上架准备记录）→ `72757ee5`（进度快照）→ `c7811375`（ASC Mac App 记录创建）→ `07de2823`（新增 `docs/PRIVACY.md` 中英隐私政策；FIX-630 已推送 origin，隐私政策 URL 生效）。
+  - 变更点（实施状态）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `app/macos/app.entitlements`（新增，✅ 已落库） | App 宽权限档：`app-sandbox` + `files.all` + `network.client` + `network.server` + `temporary-exception.files.home-relative-path.read-write`(`/`) |
+    | `app/macos/helper.entitlements`（新增，✅ 已落库） | 内嵌 hub/agent：`app-sandbox` + `com.apple.security.inherit`（不独立声明权利，继承 App 沙箱） |
+    | `app/build-app.sh`（✅ 已落库） | 沙箱/MAS 通道：`CO_SHELL_MAS=1` 时 helper 用 `helper.entitlements`、App 用 `app.entitlements`、带硬化运行时、bundle id 切为 `com.coshell.app.mas`，并支持 `CO_SHELL_MAS_PROFILE` 内嵌 MAS 描述文件；默认通道行为不变 |
+    | `app/macos/CoShellApp.swift`（✅ 已落库） | 沙箱数据落位适配：写明 `AppPaths`（dataDir/logDir）在沙箱下的容器重定向；新增「打开日志目录」菜单项解决容器日志外部不可读（**不**引入 NSOpenPanel/书签授权流程） |
+    | `app/macos/Info.plist`（✅ 已落库） | 出口合规（`ITSAppUsesNonExemptEncryption=false`）；新增 `app/macos/PrivacyInfo.xcprivacy` 并在 MAS 产物中挂入 `Contents/Resources/` |
+    | 归档链路（新增） | 归档/导出上传（`xcodebuild -exportArchive` 或 `productbuild`），沿用 iOS 的 ExportOptions 格式 |
+    | `docs/macos-appstore-sandbox-design.md`（新增，✅ 已落库） | 沙箱版设计文档：决策 / 进程模型 / entitlements / 容器数据落位 / 能力矩阵 / 实测证据链 / 风险与审核策略 |
+    | `app/mas-package.sh`（新增，✅ 已落库） | MAS 打包链路：证书前置校验 + `productbuild` 签名出 `.pkg` + 上传指引 |
+    | `docs/macos-appstore-release.md`（新增，✅ 已落库） | 上架指导：前置条件/本机现状/证书与描述文件步骤/打包上传/元数据清单/沙箱排错 + 硬审核理由草稿（中英双版） |
+
 ## v0.108.4 — ask 问答弹窗精简：去掉底部重复键、警告上移进度行（FIX-629）
 
 > **版本**: v0.108.4
