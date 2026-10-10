@@ -94,7 +94,6 @@ Unable to get bundle identifier for container id co-shell
 
 ```xml
 <key>com.apple.security.app-sandbox</key><true/>
-<key>com.apple.security.files.all</key><true/>
 <key>com.apple.security.network.client</key><true/>
 <key>com.apple.security.network.server</key><true/>
 <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
@@ -104,12 +103,12 @@ Unable to get bundle identifier for container id co-shell
 | 键 | 作用 | 为什么需要 |
 |---|------|-----------|
 | `app-sandbox` | 开启沙箱 | MAS **强制要求**，没有它不能上架 |
-| `files.all` | 沙箱层面放开全部文件读写 | agent 的立身之本：能读写用户任意项目目录 |
+| ~~`files.all`~~ | — | **已移除**：A/B 实测证明它是空转的（§6.9）。保留它等于向审核方声明一个用不到的权限 |
 | `network.client` | 允许对外发起连接 | 调 LLM API、MCP、飞书等 |
 | `network.server` | 允许监听端口 | hub/agent 的本地 Web UI 与 WS 网关 |
-| `temporary-exception.files.home-relative-path.read-write` = `/` | home 相对路径整棵放行 | 与 `files.all` 互为兜底，覆盖 home 下全部路径 |
+| `temporary-exception.files.home-relative-path.read-write` = `/` | home 相对路径整棵放行（**唯一真正生效的文件授权**） | agent 的核心能力来源。**边界：只覆盖 home 之内**，home 之外（`/Users/Shared`、外接卷等）一律拒绝（§6.9 实测） |
 
-> **两把钥匙一起用**：`files.all` 是"放开沙箱文件限制"的总开关；`temporary-exception.*` 是 Apple 提供的"例外通道"。二者叠加是为了让"agent 能在用户的真实项目里干活"这一核心诉求在任何路径解析分支下都不掉链子——**代价是要向 Apple 逐条说明用途**（见 §7）。
+> **只有一个真正生效的键**：早期版本的"两把钥匙互为兜底"说法经 A/B 实测**已被推翻**（见 §6.9）——`temporary-exception.files.home-relative-path.read-write` 是**唯一**真正授予文件访问的 entitlement。它的**代价**是要向 Apple 说明用途（见 §7），**边界**是只覆盖 home 之内。
 
 ### 3.2 Helper（内嵌二进制）
 
@@ -298,7 +297,7 @@ logos/   mode/  output/  research/  skills/  tmp/
 
 `config.json`、bbolt 数据库 `db/co-shell.db`、日志文件、`IDENTITY.md` 全部落盘成功。
 
-**结论：`files.all` + `temporary-exception.files.home-relative-path.read-write` 组合确实让沙箱进程能读写真实用户目录**——agent 的立身之本没有被沙箱夺走。
+**结论：home 相对路径临时例外确实能让沙箱进程读写真实用户目录（home 之内）**——agent 的立身之本没有被沙箱夺走。
 
 ### 6.6 预期内的"被拒绝"（不要误判成故障）
 
@@ -362,13 +361,36 @@ $ log show --last 15m --predicate 'subsystem == "com.apple.TCC"' | grep -i coshe
 
 ---
 
+### 6.9 A/B 实测：`files.all` 是空转的，只有 home 临时例外真正生效（2026-10-10）
+
+**问题**：App entitlements 声明了 `files.all` 与 home 相对路径临时例外，文档一度称“两把钥匙互为兜底”。但 `files.all` 并未出现在 Apple 的 App Sandbox 文档中——它到底有没有生效？
+
+**方法**：三个变体，**只改 App 的文件权限键**，其余完全相同；每个变体启动一次真实沙箱 App，再经 hub REST API 让 hub 在目标目录创建 agent workspace。`manager.CreateManaged` 用的是 `os.MkdirAll`（`hub/gateway/manager.go:301`，会自动建父目录），所以**失败即权限拒绝**，不存在“父目录不存在”的假象。
+
+```
+变体        App 文件权限                 home 内        home 外(/Users/Shared)
+filesall    files.all                    DENIED         DENIED
+exception   home-relative-path ("/")     ALLOWED        DENIED
+neither     （无）                        DENIED         DENIED
+```
+
+**结论**：
+
+1. **`com.apple.security.files.all` 是空转的**——单独声明它时，连 home 内的写入都被拒绝。已从 `app/macos/app.entitlements` **移除**：保留一个用不到的权限，等于向 App Review 声明了一个不存在的需求。
+2. **唯一真正授予权限的是 `com.apple.security.temporary-exception.files.home-relative-path.read-write`**。
+3. **权限边界是 home**：home 之外（`/Users/Shared`、外接宗卷等）一律拒绝。这是产品级约束，已写入 §5.2。
+
+复现脚本：`tmp/mas-entitlement-ab.sh`（一次性实验，不接入生产构建）。
+
+---
+
 ## 7. 风险与审核策略
 
 ### 7.1 平台/审核风险
 
 | 风险 | 说明 | 应对 |
 |------|------|------|
-| `files.all` 与 `temporary-exception.*` 需逐条说明 | Apple 对"宽权限 + 临时例外"审查严格，说明不充分会被拒 | **把理由写硬**：co-shell 就是 agent 应用，"在用户的项目目录里读写文件"是产品的**核心功能本身**，不是便利性诉求（见上架手册的审核理由草稿） |
+| `temporary-exception.*` 需逐条说明 | Apple 对“临时例外”审查严格，说明不充分会被拒 | **把理由写硬**：co-shell 就是 agent 应用，“在用户的项目目录里读写文件”是产品的**核心功能本身**，不是便利性诉求（见上架手册的审核理由草稿）。已移除空转的 `files.all`，需要说明的权限反而更少 |
 | 审核指南 2.5.2 | 不得下载并执行"改变 App 功能"的代码 | 明确边界：agent 执行的是用户/模型给出的**任务命令**，不改变 App 自身功能；不自我更新 |
 | 审核指南 4.2 最低功能性 | 网页壳会被拒 | co-shell 有本地 Go 引擎、工具链、调度、记忆等，非纯网页壳；审核备注中说明 |
 | 沙箱能力被误认为"受限产品" | 审核员可能质疑沙箱下功能残缺 | 以 §5 能力矩阵 + §6.5 实测作为"核心能力完整"的书面与可复现凭据 |
@@ -407,7 +429,7 @@ $ log show --last 15m --predicate 'subsystem == "com.apple.TCC"' | grep -i coshe
 | B | 既有配置/工作区迁移到容器的路径 | 影响老用户升级 MAS 版 | 可选方案：首次启动检测 + 导入向导 |
 | C | `Apple Distribution` 证书与 Mac App Store 描述文件 | **硬阻塞**：没有它们无法分发 | 用户侧操作（Xcode → Manage Certificates / portal） |
 | D | App Store Connect 的 Mac App 记录 | **硬阻塞**：没有它无法上传 | 用户侧操作（SKU 建议 `coshell-macos-001`） |
-| E | `files.all` 在持续集成/自动构建下的签名一致性 | 影响发布流水线稳定性 | 构建脚本固化签名身份 |
+| E | 临时例外在持续集成/自动构建下的签名一致性 | 影响发布流水线稳定性 | 构建脚本固化签名身份 |
 
 ### 8.3 术语与文件索引
 

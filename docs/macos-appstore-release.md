@@ -125,7 +125,7 @@ app/mas-package.sh                    # 默认输出 work/mas/
 自查：
 
 ```bash
-codesign -d --entitlements - work/mas/co-shell.app                  # 应有 app-sandbox / files.all / network.*
+codesign -d --entitlements - work/mas/co-shell.app                  # 应有 app-sandbox / home 相对路径例外 / network.*
 codesign -d --entitlements - work/mas/co-shell.app/Contents/Resources/bin/co-shell   # 应只有 app-sandbox / inherit
 codesign --verify --deep --strict work/mas/co-shell.app             # 应通过
 ```
@@ -191,7 +191,7 @@ co-shell is a LOCAL AI AGENT application. It is not a website wrapper: it ships 
 native engine (Go) plus a Swift shell, runs entirely on the user's own Mac, and
 the developer operates no backend servers.
 
-WHY WE REQUEST com.apple.security.files.all AND THE FILE TEMPORARY EXCEPTION
+WHY WE REQUEST THE FILE TEMPORARY EXCEPTION
 
 Reading and writing files in the user's own project directories, at the user's
 explicit direction, IS the product's core function -- not a convenience feature.
@@ -202,16 +202,13 @@ the app would be unable to touch the very files the user is asking about. This i
 the same category of tool as a terminal emulator or an IDE, both of which operate
 on arbitrary user-chosen files.
 
-  * com.apple.security.files.all
-      The agent must read and write files wherever the user can, because the
-      target of any given task is chosen by the user at runtime, not at build
-      time.
-
   * com.apple.security.temporary-exception.files.home-relative-path.read-write
     (value: "/")
-      Used together with the above so that path resolution anywhere under the
-      user's home directory -- the normal case for developer project trees --
-      never falls through to a denied branch.
+      Grants read/write access to paths under the user's home directory, which is
+      where the user's own projects live -- the normal case for developer
+      project trees. It is the single entitlement that makes the agent useful:
+      the target of any given task is chosen by the user at runtime, not at
+      build time, so no narrower pre-declared path can be given to the app.
 
 HOW THE USER STAYS IN CONTROL
 
@@ -244,12 +241,11 @@ end to end.
 
 co-shell 是一个**本地 AI Agent 应用**。它不是网页壳：内含原生引擎（Go）+ Swift 外壳，完全运行在用户自己的 Mac 上，开发者不运营任何后端服务。
 
-**为什么申请 `files.all` 与文件临时例外**
+**为什么申请文件临时例外**
 
 "按用户指示，在用户自己的项目目录里读写文件"**就是本产品的核心功能**，不是便利性功能。用户打开 App、指向自己的项目、让 agent 干活：查看代码、改文件、跑命令、产出文档。如果只允许 App 访问自己的容器，产品就失去了全部意义——它恰恰碰不到用户正在问的那些文件。这类工具与终端模拟器、IDE 属于同一类别，二者同样操作任意用户指定的文件。
 
-- `com.apple.security.files.all`：agent 必须能在用户能访问的范围内读写文件，因为每个任务的目标是**用户运行时**选定的，而非构建期固定的。
-- `com.apple.security.temporary-exception.files.home-relative-path.read-write`（值 `/`）：与上一条配合使用，确保 home 目录下的路径解析（开发者项目树的常见情形）不会落到被拒分支。
+- `com.apple.security.temporary-exception.files.home-relative-path.read-write`（值 `/`）：授予 home 目录下路径的读写权限。用户自己的项目就在 home 下（开发者项目树的常见情形），而每个任务的目标是**用户运行时**选定的、而非构建期固定的，因此无法给 App 一个更窄的预声明路径。
 
 **用户如何保持掌控**
 
@@ -297,6 +293,12 @@ codesign -d --entitlements - work/mas/co-shell.app/Contents/Resources/bin/co-she
 
 崩溃报告里出现 `Unable to get bundle identifier for container id ...` 就是这个问题，原因与处理见设计文档 §2.2（spike v1 反面案例）。
 
+### 7.2.1 「构建时报 Failed to parse entitlements: AMFIUnserializeXML」
+
+entitlements 文件的 **XML 注释里不能出现双连字符 `--`**（XML 规范禁止，AMFI 严格强制）。
+
+坑在于：`plutil -lint` 会放行这种文件，**只有 AMFI（签名阶段）才报错**，所以别拿 plutil 的 OK 当依据。构建脚本遇到这个错误会直接失败退出（不会产出半成品），报错里会带大致行号。
+
 ### 7.3 「打包时的 write: Permission denied 与 payload 里的 `._*`」
 
 `productbuild` 在**本地构建**的 bundle 上会出现这个现象：系统托管的 `com.apple.provenance` 扩展属性被 cpio 编码成 AppleDouble（`._*`）条目。
@@ -321,7 +323,7 @@ hub 端口由 Swift 外壳用 `bind(0)` 动态分配，正常不会冲突。若 
 APP=work/mas/co-shell.app
 /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $APP/Contents/Info.plist   # com.coshell.app.mas
 /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' $APP/Contents/Info.plist   # false
-codesign -d --entitlements - $APP | grep -E "app-sandbox|files.all|network"      # 宽权限档
+codesign -d --entitlements - $APP | grep -E "app-sandbox|home-relative|network"      # 宽权限档
 codesign -d --entitlements - $APP/Contents/Resources/bin/co-shell-hub | grep inherit
 codesign --verify --deep --strict --verbose=2 $APP                                # 签名严检
 ls $APP/Contents/Resources/PrivacyInfo.xcprivacy                                  # 隐私清单
