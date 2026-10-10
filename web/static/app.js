@@ -9287,13 +9287,14 @@ function setWorkspacePath(path) {
   renderWorkspacePath();
 }
 
-// renderWorkspacePath fits " - {path}" into the slot, shortening the middle
-// ("head…tail", the last segment always kept) when the path overflows. The head
+// renderWorkspacePath fits the path into the slot, shortening the middle
+// ("head…tail", the last segment always kept) when it overflows. The head
 // length is found by binary search so the browser's own layout does the
-// measuring (fonts and letter spacing stay authoritative).
+// measuring (fonts and letter spacing stay authoritative). FIX-628: the text is
+// the bare path — the gap to the agent name comes from CSS, not a "-" glyph.
 function renderWorkspacePath() {
   if (!wsPathEl || !wsFullPath) return;
-  wsPathEl.textContent = " - " + wsFullPath;
+  wsPathEl.textContent = wsFullPath;
   // Hidden on narrow screens, or it already fits.
   if (wsPathEl.clientWidth === 0 || wsPathEl.scrollWidth <= wsPathEl.clientWidth) return;
   const cut = wsFullPath.lastIndexOf("/");
@@ -9303,11 +9304,11 @@ function renderWorkspacePath() {
   let hi = head.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    wsPathEl.textContent = " - " + head.slice(0, mid) + "…" + tail;
+    wsPathEl.textContent = head.slice(0, mid) + "…" + tail;
     if (wsPathEl.scrollWidth <= wsPathEl.clientWidth) lo = mid;
     else hi = mid - 1;
   }
-  wsPathEl.textContent = " - " + head.slice(0, lo) + "…" + tail;
+  wsPathEl.textContent = head.slice(0, lo) + "…" + tail;
 }
 
 // brandWidth returns the full titlebar brand width (logo + co-shell + version),

@@ -219,6 +219,9 @@ body {
   min-width: 0;
   display: flex;
   justify-content: center;
+  /* FIX-628: centre the children vertically — the flex default (stretch) left
+     the smaller path text sitting above the agent name. */
+  align-items: center;
 }
 .agent-name {
   min-width: 0;
@@ -237,9 +240,11 @@ body {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  /* FIX-628: no separator glyph — the gap is pure spacing. The path keeps the
+     agent name's font size/family (inherited) so both sit on the same line;
+     only the fainter colour tells them apart. */
+  margin-left: 8px;
   color: var(--fg-faint);
-  font-size: 12px;
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 /* FEATURE-627: on narrow screens the midline slot competes with the right-hand

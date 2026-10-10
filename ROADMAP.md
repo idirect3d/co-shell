@@ -2,6 +2,44 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.3 — 顶栏 agent 名与工作区路径对齐、去掉“-”分隔符（FIX-628）
+
+> **版本**: v0.108.3
+
+> **状态**: ✅ 已完成（分支 FIX-628 已 squash 合并回 main，tag v0.108.3）
+
+> **里程碑**: 修正 FEATURE-627 顶栏工作区路径的两处观感问题：① 路径与 agent 名不在同一水平线（`.top-center` 未设 `align-items`，两段文字字号/字体不同导致视觉高度不一致）；② 两者之间的 `-` 分隔符改为纯间距（8px）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-628 | 0.108.3 | P1 | Web UI 顶栏：agent 名与工作区路径垂直居中、同字号（仅颜色区分）、去掉 “-” 并使用 8px 间距 |
+
+> 当前 BUILD: 1286
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-628 顶栏对齐与分隔符调整**
+  - 需求（用户 2026-10-10 11:46 反馈，11:47 确认细节）：新增的工作区绝对路径与前面的 agent 名不在同一水平线，需垂直居中且上下边距一致；去掉两者之间的 “-” 符号但保持合理间距（8px）；路径字号与 agent 名一致（同为 14px），仅颜色区分。
+  - 版本：v0.108.3（patch 递增，用户确认）
+  - 用例：`use-case/FIX-628/`
+  - 分支：**FIX-628**（基于 main）
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `web/static/style.css` | `.top-center` 增加 `align-items: center`；`.ws-path` 去掉 `font-size: 12px` 与等宽字体声明（改为继承 → 与 agent 名同字号同字体）、新增 `margin-left: 8px` |
+    | `web/static/app.js` | `renderWorkspacePath()` 去掉 `" - "` 前缀（三处），只渲染路径本身 |
+  - 实施（BUILD-1286）：
+    ① `web/static/style.css`：`.top-center` 增加 `align-items: center;`（修掉 flex 默认 stretch 导致的垂直错位）；`.ws-path` 删除 `font-size: 12px` 与 `font-family: ui-monospace…`（改为继承 → 与 agent 名同为 14px 同字体），新增 `margin-left: 8px`，保留 `color: var(--fg-faint)` 与省略相关属性；
+    ② `web/static/app.js`：`renderWorkspacePath()` 去掉 `" - "` 前缀（三处），只渲染路径本身（中间省略与 `title` 完整路径逻辑不变）。
+  - 验证（BUILD-1286）：
+    - 静态：`.top-center` 含 `align-items: center`；`.ws-path` 无字号/字体声明、含 `margin-left: 8px`；`renderWorkspacePath()` 无 `" - "` 拼接。
+    - 浏览器实测（临时实例 `--serve --port 28357`，工作区 `/Users/direct3d/github/co-shell/tmp/feat627-ws`）：`#agentName` 与 `#wsPath` **垂直中心差 0px**（同一水平线）、水平间距 **8px**、路径文本**不含** “-”、两者计算字体均为 `14px/-apple-system…`、路径色 `rgb(91,99,115)`、`.top-center` 的 `align-items: center`；压窄后文本为 `/U…/feat627-ws` 且 `title` 为完整路径（省略/tooltip 不回归）；`body.narrow` 下 `display:none`、移除后 `block`（窄屏隐藏不回归）。
+    - `go build ./... && go vet ./...` 通过；`work/co-shell-0.108.3.darwin.arm64`、`work/co-shell-hub-0.108.3.darwin.arm64` 生成；App 构建到独立目录 `tmp/app-verify/co-shell.app`（v0.108.3 build 1286）。
+  - 状态：✅ 已完成（用户 2026-10-10 12:54 确认测试通过并指示合并；分支已 squash 合并回 main，tag v0.108.3）。[BUILD-1286]
+
 ## v0.108.2 — Web UI 顶栏显示工作区路径 + App 顶部条显示 co-shell（FEATURE-627）
 
 > **版本**: v0.108.2
