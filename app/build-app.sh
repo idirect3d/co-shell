@@ -83,6 +83,12 @@ fi
 # --- 5. app icon -------------------------------------------------------------
 cp "$MACOS_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
+# --- 5b. privacy manifest (Mac App Store builds) -----------------------------
+# App Store submissions must carry the required-reason API declarations.
+if [ "$MAS" = "1" ]; then
+  cp "$MACOS_DIR/PrivacyInfo.xcprivacy" "$APP_BUNDLE/Contents/Resources/PrivacyInfo.xcprivacy"
+fi
+
 # --- 6. sign inside-out ------------------------------------------------------
 # Helpers are signed first, then the app bundle. In MAS mode each side gets its
 # own entitlements file and a hardened runtime; the helpers deliberately declare

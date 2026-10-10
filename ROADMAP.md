@@ -14,7 +14,7 @@
 |------|------|------|------|
 | FIX-630 | 0.108.5 | P1 | Mac App Store 沙箱化改造：entitlements（App 宽权限档 `app-sandbox`/`files.all`/`network.client+server`/home 相对路径读写例外；helper `app-sandbox`/`inherit`）+ 容器内数据落位 + 隐私清单/出口合规 + 归档上传链路 + 设计文档与发布文档 |
 
-> 当前 BUILD: 1288
+> 当前 BUILD: 1289
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -32,6 +32,7 @@
   - 用例：`use-case/FIX-630/`
   - 分支：**FIX-630**（基于 main）
   - **实施进展（截至 BUILD-1288）**：✅ 设计文档 `docs/macos-appstore-sandbox-design.md` 落库；✅ `app/macos/app.entitlements`（宽权限档）+ `app/macos/helper.entitlements`（`app-sandbox`+`inherit`）落库；✅ `app/build-app.sh` 新增沙箱/MAS 通道（`CO_SHELL_MAS=1`，可选 `CO_SHELL_MAS_PROFILE` 内嵌描述文件；默认通道行为不变）。端到端实测：`CO_SHELL_MAS=1` 产出物启动 → hub 监听 → Web UI `HTTP 200` → 独立容器 `~/Library/Containers/com.coshell.app.mas` 建立；bundle id `com.coshell.app.mas`、双层 entitlements、硬化运行时（`flags=0x10000(runtime)`）全部正确落位。默认通道回归通过（`com.coshell.app`、无 entitlements、无 runtime flag）。`go build ./... && go vet ./...` 通过。
+  - **本轮追加（BUILD-1289）**：✅ 沙箱数据落位适配——`app/macos/CoShellApp.swift` 写明标准目录在沙箱下重定向到容器，并新增菜单项「打开日志目录」（容器日志外部进程读不到，只能由 App 自己打开）；✅ 合规项——`app/macos/PrivacyInfo.xcprivacy`（不追踪/不采集 + 所需理由 API）、`Info.plist` 增 `ITSAppUsesNonExemptEncryption=false`、MAS 产物由构建脚本挂入 `Contents/Resources/PrivacyInfo.xcprivacy`；✅ `app/mas-package.sh`——证书前置校验（缺证书明确报错、绝不退回开发证书）+ `productbuild` 签名打包 + 上传指引（实测：守卫生效、productbuild 机制可用）；✅ `docs/macos-appstore-release.md`——上架手册（前置条件/本机现状/证书步骤/打包上传/元数据清单/沙箱排错）+ **硬审核理由草稿（中英双版）**；✅ 以 BUILD-1289 重建 `work/co-shell.app`（默认通道）与 `work/mas/co-shell.app`（沙箱试用版）。
   - 变更点（实施状态）：
 
     | 位置 | 变更 |
@@ -39,11 +40,12 @@
     | `app/macos/app.entitlements`（新增，✅ 已落库） | App 宽权限档：`app-sandbox` + `files.all` + `network.client` + `network.server` + `temporary-exception.files.home-relative-path.read-write`(`/`) |
     | `app/macos/helper.entitlements`（新增，✅ 已落库） | 内嵌 hub/agent：`app-sandbox` + `com.apple.security.inherit`（不独立声明权利，继承 App 沙箱） |
     | `app/build-app.sh`（✅ 已落库） | 沙箱/MAS 通道：`CO_SHELL_MAS=1` 时 helper 用 `helper.entitlements`、App 用 `app.entitlements`、带硬化运行时、bundle id 切为 `com.coshell.app.mas`，并支持 `CO_SHELL_MAS_PROFILE` 内嵌 MAS 描述文件；默认通道行为不变 |
-    | `app/macos/CoShellApp.swift` | 沙箱数据落位适配：确认 `AppPaths`（dataDir/logDir）在沙箱下的容器重定向行为并显式化（**不**引入 NSOpenPanel/书签授权流程） |
-    | `app/macos/Info.plist` | 隐私清单/出口合规（`ITSAppUsesNonExemptEncryption=false`）等合规项 |
+    | `app/macos/CoShellApp.swift`（✅ 已落库） | 沙箱数据落位适配：写明 `AppPaths`（dataDir/logDir）在沙箱下的容器重定向；新增「打开日志目录」菜单项解决容器日志外部不可读（**不**引入 NSOpenPanel/书签授权流程） |
+    | `app/macos/Info.plist`（✅ 已落库） | 出口合规（`ITSAppUsesNonExemptEncryption=false`）；新增 `app/macos/PrivacyInfo.xcprivacy` 并在 MAS 产物中挂入 `Contents/Resources/` |
     | 归档链路（新增） | 归档/导出上传（`xcodebuild -exportArchive` 或 `productbuild`），沿用 iOS 的 ExportOptions 格式 |
     | `docs/macos-appstore-sandbox-design.md`（新增，✅ 已落库） | 沙箱版设计文档：决策 / 进程模型 / entitlements / 容器数据落位 / 能力矩阵 / 实测证据链 / 风险与审核策略 |
-    | `docs/macos-appstore-release.md`（新增） | 上架指导（账号事实/流程/沙箱排错/元数据与审核备注草稿） |
+    | `app/mas-package.sh`（新增，✅ 已落库） | MAS 打包链路：证书前置校验 + `productbuild` 签名出 `.pkg` + 上传指引 |
+    | `docs/macos-appstore-release.md`（新增，✅ 已落库） | 上架指导：前置条件/本机现状/证书与描述文件步骤/打包上传/元数据清单/沙箱排错 + 硬审核理由草稿（中英双版） |
 
 ## v0.108.4 — ask 问答弹窗精简：去掉底部重复键、警告上移进度行（FIX-629）
 
