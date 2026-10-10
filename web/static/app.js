@@ -4376,6 +4376,12 @@ function renderQuestions(it) {
   progDone.className = "qs-progress-done";
   progHead.appendChild(progCount);
   progHead.appendChild(progDone);
+  // FIX-629: the required-missing warning is declared here (it shows why a submit
+  // was rejected — unanswered required questions) and lives at the right of the
+  // progress head now that the bottom action bar is gone.
+  let qsWarn = document.createElement("span");
+  qsWarn.className = "qs-warn hidden";
+  progHead.appendChild(qsWarn);
   const progBar = document.createElement("div");
   progBar.className = "qs-progress-bar";
   const progFill = document.createElement("div");
@@ -4420,8 +4426,6 @@ function renderQuestions(it) {
   const qBadges = qsState.map(() => null);
   const qHints = qsState.map(() => null);
   let activeQ = 0;
-  // qsWarn shows why a submit was rejected (unanswered required questions).
-  let qsWarn = null;
 
   // FEATURE-517: focus-transition state. Moving between questions is visible:
   // the key caps and the hint line fade in/out and the Qn badge cross-fades in
@@ -4464,10 +4468,6 @@ function renderQuestions(it) {
     }, QS_FADE_MS));
   };
 
-  const submit = document.createElement("button");
-  submit.type = "button";
-  submit.className = "qs-submit";
-
   // requiredMissing lists the required questions still unanswered; the form
   // cannot be submitted while it is non-empty (FEATURE-512).
   const requiredMissing = () =>
@@ -4478,14 +4478,11 @@ function renderQuestions(it) {
     }, []);
 
   const refreshSubmit = () => {
-    // FEATURE-624: the primary button advances on every screen except the last
-    // (where it submits). The running count now lives in the progress header, so
-    // the button only spells out its own action.
-    submit.textContent = "";
-    submit.appendChild(kbdSpan(i18nT("qsKeyEnter", "Enter")));
-    submit.appendChild(document.createTextNode(
-      " " + (activeQ === total - 1 ? i18nT("qsConfirm", "Confirm") : i18nT("qsHintNext", "Next"))
-    ));
+    // FIX-629: the bottom submit button is gone (its "[Enter] Next/Confirm" cap
+    // duplicated the active question's hint line), so this now only clears the
+    // stale required highlights, hides the warning once nothing is missing and
+    // repaints the progress header. The name is kept to keep the change
+    // surgical.
     // Clear the highlight of required questions the user has answered meanwhile.
     const missing = requiredMissing();
     it.questions.forEach((q, qi) => {
@@ -4862,32 +4859,11 @@ function renderQuestions(it) {
   window.__qsKeyUp = onQsKeyUp;
   setActive(0);
 
-  const bar = document.createElement("div");
-  bar.className = "qs-bar";
-  // FEATURE-624: on every screen but the last the button moves on; the last one
-  // submits (the label is kept in sync by refreshSubmit).
-  submit.addEventListener("click", () => {
-    if (activeQ === total - 1) submitAnswers();
-    else goNext();
-  });
-  bar.appendChild(submit);
-  qsWarn = document.createElement("span");
-  qsWarn.className = "qs-warn hidden";
-  bar.appendChild(qsWarn);
-
-  // Fixed keys (e.g. "-" think it over, exit for now) cancel/close the form.
-  (it.keys || []).forEach((k) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "qs-key";
-    // FEATURE-512: show the trigger key as a key cap in front of the label.
-    b.appendChild(kbdSpan(k.key || ""));
-    b.appendChild(document.createTextNode(" " + (k.label || k.key)));
-    b.addEventListener("click", () => answerInteraction({ action: "select", value: k.value }));
-    bar.appendChild(b);
-  });
-  askInteraction.appendChild(bar);
-
+  // FIX-629: the bottom action bar is gone. Its "[Enter] Next/Confirm" button and
+  // the fixed-key buttons built from it.keys (e.g. "[-] …" for think_exit) both
+  // repeated the active question's hint line, so the form is one row shorter.
+  // Both actions stay reachable: the hint line's caps are clickable and the
+  // keyboard still handles Enter (and "-" cancels via cancelForm).
   refreshSubmit();
 }
 

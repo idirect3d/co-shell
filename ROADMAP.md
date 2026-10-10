@@ -2,6 +2,43 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.4 — ask 问答弹窗精简：去掉底部重复键、警告上移进度行（FIX-629）
+
+> **版本**: v0.108.4
+
+> **状态**: ✅ 已完成（分支 FIX-629 已 squash 合并回 main，tag v0.108.4）
+
+> **里程碑**: 缩减 ask_user 问答弹窗的垂直占用 —— 底部操作条里的 “[回车] 下一个/确认” 与 “[-] 我要再想想，先退出” 与当前题提示行里的键帽完全重复，删除该行；必答未答警告上移到 “Question N/M” 进度行右侧。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-629 | 0.108.4 | P1 | Web UI ask 弹窗：删除底部重复的 [回车]/[取消] 按钮（`.qs-bar` 整行消失），必答警告上移进度行；提示行键帽点击与键盘 Enter/- 行为不变 |
+
+> 当前 BUILD: 1287
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-629 ask 弹窗底部重复按钮精简**
+  - 核实（2026-10-10 13:08，用户提出）：多题表单底部 `.qs-bar` 的 `.qs-submit`（`[回车] 下一个/确认`）与当前题提示行 `.qs-hint` 的 `[回车]` 同键同动作；`.qs-bar` 中由后端 `it.keys` 生成的固定键按钮 `[-] 我要再想想，先退出`（`agent/ask_user.go:100`，value=think_exit）与提示行的 `[-] 取消` 为同一动作 → **确认重复**。
+  - 决定（用户 2026-10-10 13:12/13:13）：保留提示行的 `[-] 取消`（键帽可点击、键盘 `-` 仍等同于点击它）；删除底部 `[-] 我要再想想，先退出` 与重复的 `[回车] 下一个/确认`；必答未答警告 `.qs-warn` 上移到 `Question N/M` 进度行右侧。
+  - 版本：v0.108.4（patch 递增，用户确认）；用例：`use-case/FIX-629/`；分支：**FIX-629**（基于 main）
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `web/static/app.js` | `renderQuestions()` 不再创建 `.qs-bar`（移除 submit 按钮与 `it.keys` 固定键按钮）；`qsWarn` 改挂 `.qs-progress-head` 右侧；`refreshSubmit()` 收缩为“清必答高亮 + 警告显隐 + 进度刷新”（函数名与调用点不变） |
+    | `web/static/style.css` | 删除失去引用的 `.qs-bar` / `.qs-submit`（及仅此处使用的 `.qs-key`）；补 `.qs-warn` 在进度行内的排版 |
+  - 实施（BUILD-1287）：
+    ① `web/static/app.js`：`renderQuestions()` 不再创建 `.qs-bar`（删除 `.qs-submit` 按钮与由 `it.keys` 生成的固定键按钮）；`qsWarn` 改为在进度行头部创建并挂到 `.qs-progress-head` 右侧（**在多题表单首次使用处声明**，修掉“先赋值后 `let` 声明”触发的 TDZ 报错 `Cannot access 'qsWarn' before initialization`——该问题由本次浏览器实测抓出）；`refreshSubmit()` 收缩为“清必答高亮 + 警告显隐 + 进度刷新”（函数名与调用点不变）；`renderHint()`、`cancelForm()`、键盘处理与 `submitAnswers()` 均未改。
+    ② `web/static/style.css`：删除 `.qs-bar` / `.qs-submit`（含 hover）/ `.qs-key`（含 hover）共 29 行失效规则；`.qs-warn` 改为 `margin-left:auto; white-space:nowrap`（进度行右侧）。
+  - 验证（BUILD-1287）：
+    - 静态：`node --check web/static/app.js` 通过；`app.js`/`style.css` 中已无 `.qs-bar` / `.qs-submit` / `.qs-key` 引用；`go build ./... && go vet ./...` 通过；产物 `work/co-shell-0.108.4.darwin.arm64`、`work/co-shell-hub-0.108.4.darwin.arm64`（v0.108.4 build 1287）。
+    - 浏览器实测（临时实例 `--serve --port 28358`，注入 `kind="questions"` 模拟交互：2 题、Q1 必答、`it.keys` 含 think_exit）：`.qs-bar` / `.qs-submit` / `.qs-key` 均不存在；提示行文本 = `数字键选择 · 长按选项数字键填备注 · 回车 下一题 · + 上一题 · 空格 备注 · - 取消`，键帽为 4 个可点击 `button`（回车/+/空格/-）；`.qs-warn` 位于 `.qs-progress-head` 内且**右对齐**（右边界与进度行一致）；在最后一题回车提交触发警告 `必填题未作答 Q1` 并显示于进度行；点击 `[回车]` 键帽 = 前进/提交，点击 `[-]` 键帽 = 取消（弹窗关闭），键盘 `-` 同样取消（弹窗关闭）。
+    - App：本次未重建 bundle（Web UI 资源内嵌于 co-shell 二进制，改动已在 `work/` 的二进制中生效；运行中的 `tmp/app-verify/co-shell.app` 未触碰）。
+  - 状态：✅ 已完成（用户 2026-10-10 13:19 确认测试通过并指示合并；分支已 squash 合并回 main，tag v0.108.4）。[BUILD-1287]
+
 ## v0.108.3 — 顶栏 agent 名与工作区路径对齐、去掉“-”分隔符（FIX-628）
 
 > **版本**: v0.108.3

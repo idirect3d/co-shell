@@ -1630,35 +1630,9 @@ button.qs-kbd:active { transform: translateY(1px); }
 }
 /* FEATURE-512: required question left unanswered on submit. */
 .qs-missing .qs-index { background: var(--warn); border-color: var(--warn); color: var(--bg); }
-.qs-warn { align-self: center; color: var(--warn); font-size: 11.5px; }
-.qs-bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.qs-submit {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: var(--accent-dim);
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.qs-submit:hover { background: var(--accent); color: var(--bg); }
-.qs-key {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-elev);
-  color: var(--fg);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.qs-key:hover { border-color: var(--accent); color: var(--accent); }
+/* FIX-629: sits at the right end of the progress head ("Question N / M"); the
+   bottom action bar it used to live in was removed as a duplicate. */
+.qs-warn { margin-left: auto; color: var(--warn); font-size: 11.5px; white-space: nowrap; }
 .interaction-title.md a:hover { text-decoration: underline; }
 .interaction-body { font-size: 12px; color: var(--fg-dim, #888); white-space: pre-wrap; }
 /* FEATURE-459: each report section (main LLM report / supervisor review) is an
