@@ -59,6 +59,11 @@ type AgentSpec struct {
 	// their behaviour).
 	DownloadEnabled bool `json:"download_enabled,omitempty"`
 
+	// AutoStart (FEATURE-626): when true the hub starts this managed agent
+	// automatically on hub startup, and the Web UI focuses the first such agent
+	// in the list. Opt-in only (the zero value keeps existing behaviour).
+	AutoStart bool `json:"auto_start,omitempty"`
+
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
 }
@@ -371,6 +376,7 @@ type AgentPatch struct {
 	ExtraArgs       *string
 	YOLO            *bool
 	DownloadEnabled *bool
+	AutoStart       *bool
 	WSURL           *string
 }
 
@@ -430,6 +436,9 @@ func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
 		}
 		if patch.DownloadEnabled != nil {
 			spec.DownloadEnabled = *patch.DownloadEnabled
+		}
+		if patch.AutoStart != nil {
+			spec.AutoStart = *patch.AutoStart
 		}
 		if patch.UseSharedConfig != nil {
 			spec.UseSharedConfig = *patch.UseSharedConfig
@@ -633,6 +642,36 @@ func WSURLForPort(port int) string {
 }
 
 // StopAll terminates every running managed agent.
+// StartAutoStartable starts every agent whose spec has AutoStart set and that is
+// not already running (FEATURE-626). It returns how many agents it started and
+// the IDs that failed, so the caller can log them. A single failure never
+// prevents the remaining agents (or the hub itself) from coming up.
+func (m *Manager) StartAutoStartable() (int, []string) {
+	m.mu.Lock()
+	var ids []string
+	for _, a := range m.agents {
+		if a.AutoStart {
+			ids = append(ids, a.ID)
+		}
+	}
+	m.mu.Unlock()
+
+	started := 0
+	var failed []string
+	for _, id := range ids {
+		if m.IsRunning(id) {
+			started++
+			continue
+		}
+		if _, err := m.Start(id); err != nil {
+			failed = append(failed, id)
+			continue
+		}
+		started++
+	}
+	return started, failed
+}
+
 func (m *Manager) StopAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

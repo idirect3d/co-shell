@@ -52,8 +52,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.108.0"
-	hubBuild   = "1273"
+	hubVersion = "0.108.1"
+	hubBuild   = "1284"
 )
 
 // Default listen ports for the hub. When neither the command line nor the
@@ -216,6 +216,12 @@ func main() {
 		if _, err := mgr.AddExternal(id, url); err != nil {
 			log.Printf("note: --agent %s not added: %v", id, err)
 		}
+	}
+
+	// FEATURE-626: bring up every agent marked "auto_start" so the Web UI can
+	// focus the first of them on first load. Failures are logged, never fatal.
+	if started, failed := mgr.StartAutoStartable(); started > 0 || len(failed) > 0 {
+		log.Printf("auto-start: started %d agent(s), failed=%v", started, failed)
 	}
 
 	// Create an empty proxy and connect the registry's external agents (and any

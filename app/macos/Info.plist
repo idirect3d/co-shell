@@ -6,6 +6,8 @@
 	<string>zh_CN</string>
 	<key>CFBundleExecutable</key>
 	<string>co-shell-app</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.coshell.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>

@@ -58,6 +58,17 @@ const webIndexHTML = `<!DOCTYPE html>
      artwork as the favicon — as its logo; clicking it opens the create panel. */
   .empty .logo { width:96px; height:96px; cursor:pointer; transition:transform .15s ease; }
   .empty .logo:hover { transform:scale(1.08); }
+  /* FEATURE-626: welcome-page entry actions — bright outline, transparent bg. */
+  .empty-action {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 20px; font-size:15px; font-weight:600; font-family:inherit;
+    background:transparent; color:var(--accent);
+    border:2px solid var(--accent); border-radius:8px;
+    cursor:pointer; transition:background .15s ease, border-color .15s ease;
+  }
+  .empty-action:hover { background:var(--accent-dim); }
+  /* Shown when no agent is configured yet: a dashed hint instead of a solid CTA. */
+  .empty-action.dashed { border-style:dashed; }
 
   /* Hub badge floating over the co-shell logo area (top-left, 44px tall to
      match the co-shell topbar). Clicking it toggles the agent drawer.
@@ -432,7 +443,10 @@ const webIndexHTML = `<!DOCTYPE html>
 <div id="stage">
   <div class="empty" id="empty">
     <img class="logo" id="emptyRun" src="/favicon.svg" alt="co-shell-hub" data-i18n-title="emptyCreateTitle" title="创建或添加 Agent">
-    <div data-i18n="emptyHint">暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。</div>
+    <div class="empty-actions" style="display:flex;gap:14px;justify-content:center;margin-top:18px">
+      <button type="button" id="emptyNewAgent" class="empty-action"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="emptyNewAgent">新建智能体</span></button>
+      <button type="button" id="emptyStartAll" class="empty-action"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span data-i18n="emptyStartAll">启动全部智能体</span></button>
+    </div>
   </div>
 </div>
 
@@ -506,6 +520,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label" data-i18n="lblSharedConfig">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint" data-i18n="hintSharedConfig">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
       <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label" data-i18n="lblYolo">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
       <div class="field" id="f-download"><div class="switch-row"><span class="switch-label" data-i18n="lblDownloadEnabled">启用下载功能</span><label class="switch"><input type="checkbox" id="d-download"><span class="slider"></span></label></div><div class="hint" data-i18n="hintDownloadEnabled">开启后该 agent 启动时带上 --download-enabled，允许远程/移动端客户端下载工作区文件（默认关闭）。需重启 agent 后生效。</div></div>
+      <div class="field" id="f-autostart"><div class="switch-row"><span class="switch-label" data-i18n="lblAutoStart">自动启动</span><label class="switch"><input type="checkbox" id="d-autostart"><span class="slider"></span></label></div><div class="hint" data-i18n="hintAutoStart">开启后，hub 启动时自动启动该 agent，并自动切换到列表中排在最前的已开启自动启动的 agent。</div></div>
       <div class="field" id="f-extra"><label data-i18n="lblExtraArgs">补充运行参数</label><input id="d-extra" data-i18n-ph="phExtraArgsDetail" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
       <!-- FIX-558: the Agent描述 is the last item and read-only: it shows what the
@@ -572,6 +587,12 @@ var HUB_LANG = "__HUB_LANG__";
     // --- drawer / page chrome ---
     emptyCreateTitle: 'Create or add an Agent',
     emptyHint: 'No agents yet. Click the "Run" arrow above, or the co-shell-hub badge at the top left and then "Manage", to create or add an agent.',
+    emptyNewAgent: 'New Agent',
+    emptyStartAll: 'Start All Agents',
+    emptyStartAllNone: 'No agents yet — create one first',
+    alertNoAgentToStart: 'There are no agents yet. Click "New Agent" to create one first.',
+    lblAutoStart: 'Auto start',
+    hintAutoStart: 'When on, the hub starts this agent automatically at hub startup and focuses the first auto-start agent in the list.',
     badgeTitle: 'co-shell-hub · click to open the agent list',
     pinTitle: 'Pin (no auto-collapse)',
     paneAgents: 'Agents',
@@ -744,6 +765,9 @@ var HUB_LANG = "__HUB_LANG__";
   document.documentElement.lang = LANG;
   var stageEl = document.getElementById('stage');
   var emptyEl = document.getElementById('empty');
+  // FEATURE-626: one-shot flag so the auto-start focus policy runs only on the
+  // first agent-list load after hub startup.
+  var f626FocusInit = false;
   var badge = document.getElementById('hubBadge');
   var edge = document.getElementById('edge');
   var panel = document.getElementById('agentPanel');
@@ -944,11 +968,26 @@ var HUB_LANG = "__HUB_LANG__";
       if (st === 0){ setConn(false); stopPolling(); return; } // hub unreachable
       setConn(true);
       agents = (j && j.agents) || [];
+      updateEmptyActions();
       Object.keys(frames).forEach(function(id){
         if (!agents.some(function(a){ return a.id === id; })){ removeFrame(id); }
       });
-      if (!current && agents.length) current = agents[0].id;
-      if (current && !agents.some(function(a){ return a.id === current; })) current = agents.length ? agents[0].id : null;
+      // FEATURE-626: focus policy. On the first load after hub startup, focus
+      // the first auto-start agent; when no agent is auto-started, fall back to
+      // the "first running" rule below — with nothing running that leaves
+      // current null and the welcome page is shown (same as having no agents).
+      if (!f626FocusInit){
+        f626FocusInit = true;
+        for (var ai = 0; ai < agents.length; ai++){
+          if (agents[ai].auto_start){ current = agents[ai].id; break; }
+        }
+      }
+      if (current && !agents.some(function(a){ return a.id === current; })) current = null;
+      if (!current){
+        for (var ri = 0; ri < agents.length; ri++){
+          if (agents[ri].running || agents[ri].connected){ current = agents[ri].id; break; }
+        }
+      }
       // FIX-594: only rebuild the (innerHTML-based) list when something it
       // paints actually changed; the 3s poll used to rebuild it every tick.
       var sig = agentsSignature(agents, current);
@@ -1393,6 +1432,7 @@ var HUB_LANG = "__HUB_LANG__";
     yoloInput.checked = !!a.yolo;
     syncYoloHint(yoloInput, document.getElementById('d-yolo-hint'));
     document.getElementById('d-download').checked = !!a.download_enabled;
+    document.getElementById('d-autostart').checked = !!a.auto_start;
     document.getElementById('d-state').textContent = (a.running || a.connected) ? t('stateRunning', '运行中（修改需重启后生效）') : t('stateStopped', '已停止');
     document.getElementById('d-msg').textContent = '';
     // Local-only fields are greyed out for a remote agent, and vice versa.
@@ -1404,6 +1444,7 @@ var HUB_LANG = "__HUB_LANG__";
     setFieldEnabled('d-extra', !external);
     setFieldEnabled('d-yolo', !external);
     setFieldEnabled('d-download', !external);
+    setFieldEnabled('d-autostart', !external);
     document.getElementById('d-port-label').textContent = external ? t('lblPortWs', '端口号（与主机地址组成 WS 地址）') : t('lblPortRestart', '端口号（可修改，需重启后生效）');
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
@@ -1451,6 +1492,7 @@ var HUB_LANG = "__HUB_LANG__";
       body.extra_args = document.getElementById('d-extra').value.trim();
       body.yolo = document.getElementById('d-yolo').checked;
       body.download_enabled = document.getElementById('d-download').checked;
+      body.auto_start = document.getElementById('d-autostart').checked;
       // Only send co_shell once the executable list has loaded: a slow
       // /api/agent-defaults response must never silently reset the value.
       var editShellSel = document.getElementById('d-coshell');
@@ -1778,8 +1820,45 @@ var HUB_LANG = "__HUB_LANG__";
     if (e.target && e.target.id === 'emptyRun') {
       e.stopPropagation();
       document.getElementById('manageBtn').click();
+      return;
+    }
+    // FEATURE-626: the welcome page offers two entry actions.
+    var btn = e.target && e.target.closest ? e.target.closest('.empty-action') : null;
+    if (!btn) return;
+    e.stopPropagation();
+    if (btn.id === 'emptyNewAgent') {
+      document.getElementById('manageBtn').click();
+    } else if (btn.id === 'emptyStartAll') {
+      if (!agents.length) {
+        alert(t('alertNoAgentToStart', '还没有任何智能体，请先点「新建智能体」创建一个。'));
+      } else {
+        startAllAgents();
+      }
     }
   });
+
+  // FEATURE-626: with no agent configured, the "start all" action is shown as a
+  // dashed placeholder that nudges the user to create one first.
+  function updateEmptyActions(){
+    var startBtn = document.getElementById('emptyStartAll');
+    if (!startBtn) return;
+    var none = !agents.length;
+    startBtn.classList.toggle('dashed', none);
+    startBtn.title = none ? t('emptyStartAllNone', '还没有智能体，请先新建一个') : '';
+  }
+
+  // FEATURE-626: start every stopped managed agent from the welcome page, then
+  // refresh once all start requests have been answered.
+  function startAllAgents(){
+    var stopped = agents.filter(function(a){ return a.type === 'managed' && !a.running; });
+    if (!stopped.length){ refresh(); return; }
+    var pending = stopped.length;
+    stopped.forEach(function(a){
+      api('POST', '/api/agents/' + encodeURIComponent(a.id) + '/start', null, function(){
+        if (--pending === 0) refresh();
+      });
+    });
+  }
 
   // ---- Local/remote mode toggle ----
   var mode = 'local';

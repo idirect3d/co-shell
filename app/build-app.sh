@@ -55,7 +55,10 @@ cp "$MACOS_DIR/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP_BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$BUILD" "$APP_BUNDLE/Contents/Info.plist"
 
-# --- 5. sign inside-out ------------------------------------------------------
+# --- 5. app icon -------------------------------------------------------------
+cp "$MACOS_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+
+# --- 6. sign inside-out ------------------------------------------------------
 codesign --force --sign "$SIGN_ID" "$BIN_DIR/co-shell"
 codesign --force --sign "$SIGN_ID" "$BIN_DIR/co-shell-hub"
 codesign --force --sign "$SIGN_ID" "$APP_BUNDLE"

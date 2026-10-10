@@ -10,6 +10,10 @@
 //     and passed via --web-addr/--tcp-addr: hub auto-increments when a port is
 //     taken, which would leave the shell unaware of the real port.
 //   - hub stdout/stderr are redirected to ~/Library/Logs/co-shell-app/hub.log.
+//   - The title-bar strip is painted by the shell, not by the page: the window
+//     uses .fullSizeContentView with a transparent title bar, its content view
+//     is split into a 28 pt strip on top and the web view right below, and the
+//     strip is repainted with the page colour reported by the injected probe.
 
 import Cocoa
 import WebKit
@@ -73,11 +77,161 @@ private func findFreePort() -> UInt16? {
     return UInt16(bigEndian: actual.sin_port)
 }
 
+// MARK: - Title-bar strip
+
+/// Title-bar metrics and the colour used until the page reports its own.
+private enum Titlebar {
+    /// Height of the title bar of a window without a toolbar (standard macOS).
+    static let height: CGFloat = 28
+
+    /// Name of the web -> shell message carrying the page background colour.
+    static let messageName = "coShellThemeColor"
+
+    /// Dark page background, shown until the probe reports the real colour.
+    static let fallbackColor = NSColor(srgbRed: 11 / 255, green: 14 / 255, blue: 20 / 255, alpha: 1)
+
+    /// Parses the CSS colour notations the probe can report (`#rgb`, `#rrggbb`,
+    /// `rgb()` and `rgba()`).
+    static func color(fromCSS css: String) -> NSColor? {
+        let text = css.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if text.hasPrefix("#") {
+            var hex = String(text.dropFirst())
+            if hex.count == 3 {
+                hex = hex.map { "\($0)\($0)" }.joined()
+            }
+            guard hex.count == 6 || hex.count == 8, let value = UInt64(hex, radix: 16) else { return nil }
+            let hasAlpha = hex.count == 8
+            func component(_ shift: Int) -> CGFloat {
+                CGFloat((value >> UInt64(shift)) & 0xFF) / 255
+            }
+            return NSColor(srgbRed: component(hasAlpha ? 24 : 16),
+                           green: component(hasAlpha ? 16 : 8),
+                           blue: component(hasAlpha ? 8 : 0),
+                           alpha: hasAlpha ? component(0) : 1)
+        }
+
+        guard text.hasPrefix("rgb"),
+              let open = text.firstIndex(of: "("),
+              let close = text.lastIndex(of: ")") else { return nil }
+        let parts = text[text.index(after: open)..<close]
+            .split(whereSeparator: { $0 == "," || $0 == " " || $0 == "/" })
+            .map(String.init)
+        guard parts.count >= 3 else { return nil }
+
+        func channel(_ raw: String) -> CGFloat? {
+            if raw.hasSuffix("%") {
+                guard let percent = Double(raw.dropLast()) else { return nil }
+                return CGFloat(percent) / 100
+            }
+            // Computed styles always serialise rgb() with 0...255 channels;
+            // NSColor clamps its components to 0...1 and turns anything larger
+            // into a near-black colour, so normalise here.
+            guard let value = Double(raw) else { return nil }
+            return CGFloat(value) / 255
+        }
+        guard let red = channel(parts[0]), let green = channel(parts[1]), let blue = channel(parts[2]) else {
+            return nil
+        }
+        let alpha = parts.count >= 4 ? (channel(parts[3]) ?? 1) : 1
+        return NSColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
+    }
+}
+
+/// The strip that fills the title-bar area. It stays a window drag handle
+/// (mouseDownCanMoveWindow) so the transparent title bar keeps working.
+final class TitlebarStripView: NSView {
+    override var mouseDownCanMoveWindow: Bool { true }
+}
+
+/// Measures the background colour of the page area right below the strip and
+/// posts it to the shell, re-posting whenever the page theme may have changed.
+private let themeProbeScript = """
+(function () {
+  var NAME = 'coShellThemeColor';
+  var last = null;
+
+  function alphaOf(c) {
+    if (c.indexOf('rgba(') !== 0) return 1;
+    var parts = c.slice(5, c.length - 1).split(',');
+    if (parts.length < 4) return 1;
+    var a = parseFloat(parts[3]);
+    return isNaN(a) ? 1 : a;
+  }
+
+  // Solid background colour of one element, or null when it is see-through.
+  function solidBackground(el, win) {
+    var cs = win.getComputedStyle(el);
+    var bg = cs.backgroundColor;
+    if (!bg || bg === 'transparent' || bg.indexOf('color(') === 0) return null;
+    if (alphaOf(bg) < 0.9) return null;
+    var img = cs.backgroundImage;
+    if (img && img !== 'none') return null;
+    return bg;
+  }
+
+  // Walks up from the element painted at the very top of a document until a
+  // solid background is found: that is the colour shown below the strip. The
+  // hub page hosts the agent UI in a same-origin iframe, whose element itself
+  // reports the browser's default white, so descend into the frame first.
+  function colourAt(doc, x, y, depth) {
+    if (!doc || !doc.defaultView || depth > 4) return null;
+    var el = doc.elementFromPoint(Math.round(x), Math.round(y));
+    while (el) {
+      if (el.tagName === 'IFRAME') {
+        var inner = null;
+        try { inner = el.contentDocument; } catch (e) { inner = null; }
+        if (inner) {
+          var box = el.getBoundingClientRect();
+          var nested = colourAt(inner, x - box.left, y - box.top, depth + 1);
+          if (nested) return nested;
+        }
+      }
+      var own = solidBackground(el, doc.defaultView);
+      if (own) return own;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function measure() {
+    return colourAt(document, window.innerWidth / 2, 4, 0);
+  }
+
+  function report() {
+    try {
+      var c = measure();
+      if (c && c !== last) {
+        last = c;
+        window.webkit.messageHandlers[NAME].postMessage(c);
+      }
+    } catch (e) {}
+  }
+
+  try {
+    var mo = new MutationObserver(report);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+    if (document.body) {
+      mo.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+    }
+  } catch (e) {}
+  try {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) { mq.addEventListener('change', report); }
+    else if (mq.addListener) { mq.addListener(report); }
+  } catch (e) {}
+  window.addEventListener('resize', report);
+  setInterval(report, 1200);
+  report();
+})();
+"""
+
 // MARK: - App delegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
     private var window: NSWindow!
     private var webView: WKWebView!
+    private var titlebarStrip: TitlebarStripView!
     private var hub: Process?
     private var webPort: UInt16 = 0
     private var isQuitting = false
@@ -153,16 +307,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildWindow() {
         let rect = NSRect(x: 0, y: 0, width: 1280, height: 860)
-        webView = WKWebView(frame: rect, configuration: WKWebViewConfiguration())
 
+        let configuration = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+        controller.addUserScript(WKUserScript(source: themeProbeScript,
+                                              injectionTime: .atDocumentEnd,
+                                              forMainFrameOnly: true))
+        controller.add(self, name: Titlebar.messageName)
+        configuration.userContentController = controller
+
+        // The shell owns the title-bar strip. With .fullSizeContentView the content
+        // view spans the whole window and the transparent title bar lets it show
+        // through, so the strip can be painted with the page's own colour instead
+        // of a system material — and repainted whenever that colour changes.
         window = NSWindow(contentRect: rect,
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered,
                           defer: false)
         window.title = AppPaths.displayName
-        window.contentView = webView
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = Titlebar.fallbackColor
+        window.isOpaque = true
+
+        // Content view layout: strip on top, page below it. The web view is inset
+        // by the strip height, so page content is never covered — the shell only
+        // paints the otherwise empty title-bar area.
+        let container = NSView(frame: rect)
+        webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(webView)
+
+        let strip = TitlebarStripView(frame: .zero)
+        strip.translatesAutoresizingMaskIntoConstraints = false
+        strip.wantsLayer = true
+        strip.layer?.backgroundColor = Titlebar.fallbackColor.cgColor
+        container.addSubview(strip)
+        titlebarStrip = strip
+
+        NSLayoutConstraint.activate([
+            strip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            strip.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            strip.topAnchor.constraint(equalTo: container.topAnchor),
+            strip.heightAnchor.constraint(equalToConstant: Titlebar.height),
+
+            webView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            webView.topAnchor.constraint(equalTo: strip.bottomAnchor),
+            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        window.contentView = container
         window.center()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - Page theme colour
+
+    /// Repaints the strip with the colour the page reports for the area right
+    /// below it, so the strip keeps matching the page when its theme changes.
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == Titlebar.messageName,
+              let css = message.body as? String,
+              let color = Titlebar.color(fromCSS: css) else { return }
+        titlebarStrip.layer?.backgroundColor = color.cgColor
+        window.backgroundColor = color
     }
 
     // MARK: - hub lifecycle
@@ -171,13 +381,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let proc = Process()
         proc.executableURL = AppPaths.hubBinary
         proc.currentDirectoryURL = AppPaths.dataDir
+        // --config/--registry are deliberately omitted, so hub resolves its own
+        // defaults: ./hub-gateway.json and ./hub-agents.json relative to this
+        // working directory (the app data dir), then ~/.co-shell/ as fallback.
+        // --serve: the shell shows the hub Web UI in its own WKWebView window,
+        // so hub must not open the system browser.
         proc.arguments = [
             "--web-addr", "127.0.0.1:\(webPort)",
             "--tcp-addr", "127.0.0.1:\(webPort &+ 1)",
-            "--config", AppPaths.dataDir.appendingPathComponent("hub-gateway.json").path,
-            "--registry", AppPaths.dataDir.appendingPathComponent("hub-agents.json").path,
             "--co-shell-path", AppPaths.coShellBinary.path,
             "--no-api-key",
+            "--serve",
         ]
 
         let logHandle = try openHubLog()

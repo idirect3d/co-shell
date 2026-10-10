@@ -225,6 +225,9 @@ type agentView struct {
 	ExtraArgs       string `json:"extra_args,omitempty"`
 	// YOLO reports whether the agent is started with --yolo (FEATURE-528).
 	YOLO bool `json:"yolo"`
+	// AutoStart reports whether the hub starts this agent automatically on hub
+	// startup (FEATURE-626).
+	AutoStart bool `json:"auto_start"`
 	// DownloadEnabled reports whether the agent is started with
 	// --download-enabled (FEATURE-607).
 	DownloadEnabled bool `json:"download_enabled"`
@@ -263,6 +266,7 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 			UseSharedConfig: s.UseSharedConfig,
 			ExtraArgs:       s.ExtraArgs,
 			YOLO:            s.YOLO,
+			AutoStart:       s.AutoStart,
 		}
 		// Report the co-shell version for compatibility awareness.
 		if s.Type == AgentTypeManaged {
@@ -423,6 +427,7 @@ type updateAgentRequest struct {
 	UseSharedConfig *bool   `json:"use_shared_config"`
 	ExtraArgs       *string `json:"extra_args"`
 	YOLO            *bool   `json:"yolo"`
+	AutoStart       *bool   `json:"auto_start"`
 	DownloadEnabled *bool   `json:"download_enabled"`
 	WSURL           *string `json:"ws_url"`
 }
@@ -446,6 +451,7 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		ExtraArgs:       req.ExtraArgs,
 		YOLO:            req.YOLO,
 		DownloadEnabled: req.DownloadEnabled,
+		AutoStart:       req.AutoStart,
 		WSURL:           req.WSURL,
 	})
 	if err != nil {

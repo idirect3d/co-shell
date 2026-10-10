@@ -2,6 +2,70 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.1 — hub 体验优化：agent「自动启动」开关 + 欢迎页改造（FEATURE-626）
+
+> **版本**: v0.108.1
+
+> **状态**: ✅ 已完成（分支 FEATURE-626 已 squash 合并回 main，tag v0.108.1）
+> **里程碑**: 配合 `co-shell.app`（FEATURE-625）的「双击即用」体验，对 hub 的 agent 生命周期与首次进入体验做三项优化：① agent 设置新增「自动启动」滑动开关，开启后 hub 启动时自动启动该 agent，并自动切换到排在列表最前的已自动启动 agent；② 无 agent 时的欢迎页由纯文案提示改为两个可点选项（「+ 新建智能体」「▶ 启动全部智能体」）；③ 当没有任何 agent 被自动启动时，与无 agent 时一样显示欢迎页 —— 避免用户双击 App 后看到一个空壳界面。
+>
+> 现状调研：`AutoStart` 字段虽存在于 `hub/hub.go`，但那是 legacy hub（`cmd/co-shell-hub-legacy`）的实现；实际运行的 `hub/gateway/` 无此字段，故本次为全新实现。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-626 | 0.108.1 | P1 | hub：agent「自动启动」开关（设置面板 + 持久化 + 启动时自动拉起并自动切换）+ 欢迎页改为「+ 新建智能体 / ▶ 启动全部智能体」+ 无自动启动 agent 时显示欢迎页 |
+
+> 当前 BUILD: 1274
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-626 hub 体验优化：agent 自动启动 + 欢迎页改造**
+  - 需求（用户 2026-10-09 23:35 提出）：
+    ① agent 设置中增加自动启动滑动开关，打开后 hub 启动时自动启动该 agent，hub 自动切换到排在最前面自动启动的那个 agent；
+    ② 欢迎页/无 agent 提示（原「暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。」）改为两个选项：「{+号矢量图} 新建智能体」与「{运行三角箭头} 启动全部智能体」；
+    ③ 当没有 agent 被自动启动时，和没有 agent 时一样，显示欢迎页。
+  - 用例：`use-case/FEATURE-626/`
+  - 分支：**FEATURE-626**（基于 main），版本 v0.108.1
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `hub/gateway/manager.go` | `AgentSpec` 新增 `AutoStart` 字段（JSON `auto_start`），随 registry 持久化 |
+    | `hub/gateway/manager.go` | hub 启动时遍历 registry，自动启动 `auto_start=true` 的 agent |
+    | `hub/gateway/webui.go` | `handleUpdateAgent` 支持更新 `auto_start` |
+    | `hub/gateway/webui_static.go` | agent 设置面板新增「自动启动」滑动开关；欢迎页改为两选项；无自动启动 agent 时显示欢迎页 |
+
+    | `hub/gateway/manager.go` | `AgentSpec` 新增 `AutoStart` 字段（JSON `auto_start`）随 registry 持久化；`AgentPatch` 新增 `AutoStart`；`Update` 落地；新增 `StartAutoStartable()` |
+    | `cmd/co-shell-hub/main.go` | 启动时调用 `StartAutoStartable()`（失败仅记日志） |
+    | `hub/gateway/webui.go` | `agentView` / `updateAgentRequest` 暴露 `auto_start`，`handleUpdateAgent` 透传 |
+    | `hub/gateway/webui_static.go` | 设置面板新增「自动启动」滑动开关；欢迎页改为两选项 + `startAllAgents()`；聚焦策略（首个 auto_start，否则首个运行中，否则显示欢迎页） |
+  - 实施（BUILD-1274）：
+    ① `hub/gateway/manager.go`：`AgentSpec` 新增 `AutoStart bool \`json:"auto_start,omitempty"\``；`AgentPatch` 新增 `AutoStart *bool` 并在 `Update` 中落地；新增 `Manager.StartAutoStartable() (int, []string)` —— 遍历 registry 启动所有 `auto_start=true` 且未运行的 agent，返回启动数与失败 ID（单个失败不影响其余，也不阻断 hub 启动）；
+    ② `cmd/co-shell-hub/main.go`：在注册外部 agent 后调用 `StartAutoStartable()`，结果写日志；
+    ③ `hub/gateway/webui.go`：`agentView`/`updateAgentRequest` 暴露 `auto_start`，`handleUpdateAgent` 透传；
+    ④ `hub/gateway/webui_static.go`：欢迎页 `emptyHint` 纯文案替换为两个可点选项（「＋ 新建智能体」「▶ 启动全部智能体」，内联 SVG + 中英双语）并新增 `startAllAgents()`（逐个 `POST /api/agents/{id}/start` 后统一 `refresh()`）；设置面板新增「自动启动」开关（回填 / 外部 agent 禁用 / 提交写入）；聚焦策略以 `f626FocusInit` 一次性标志实现：首次加载聚焦列表中第一个 `auto_start` 的 agent，无自动启动则回退「第一个运行中/已连接」，都没有则 `current=null` → 显示欢迎页。
+  - 验证（BUILD-1274）：
+    - `go build ./... && go vet ./...` 通过；`hub/` 独立 module 亦通过；`cmd/co-shell-hub` 编译通过。
+    - 测试实例（独立 registry）：`/api/hub-info` 返回 `{"build":"1274","version":"0.108.1"}`。
+    - UC-01/02：registry 含 `"auto_start":true` 时启动后原样保留（字段可持久化）。
+    - UC-06/07：hub 启动日志 `auto-start: started 1 agent(s), failed=[]`，`/api/agents` 返回该 agent `running:true`。
+    - UC-08/13：`curl /` 校验新增标记均存在（`d-autostart` / `emptyNewAgent` / `emptyStartAll` / `新建智能体` / `启动全部智能体` / `自动启动`）。
+    - 待用户确认（需人工目视）：UC-04/05/09/10/11/12 的界面交互表现。
+  - 迭代（用户 2026-10-10 00:16 提出，BUILD-1275）：欢迎页两个按钮改为「亮色（`--accent` #3fd6ef）较粗边框（2px）+ 同色字体 + 透明背景」（新增 `.empty-action` 样式，hover 用 `--accent-dim` 底）；无 agent 时「启动全部智能体」显示虚线边框（`.empty-action.dashed`，由 `updateEmptyActions()` 在每次 refresh 后同步），点击时以 `alert` 提示「还没有任何智能体，请先点「新建智能体」创建一个。」（i18n `alertNoAgentToStart` / `emptyStartAllNone`）。
+  - 迭代（用户 2026-10-10 00:50 提出，BUILD-1276）：mac app 窗口改为无边框观感 —— `styleMask` 增加 `.fullSizeContentView`、`titlebarAppearsTransparent = true`、`titleVisibility = .hidden`（保留红绿灯与拖动/阴影/⌘W；**不**设 `isMovableByWindowBackground`，故仅顶部窄栏可拖动窗口）；并在 WKWebView `didFinish` 后注入 CSS（`#hubBadge{left:76px !important; …}`）让 hub 左上角徽标右移让开红绿灯并留出间距；注入仅发生在 App 内，浏览器访问 hub 布局不受影响。
+  - 迭代（用户 2026-10-10 01:12 反馈，BUILD-1277）：badge 右移方案效果不佳，改为**顶部留白条**方案 —— 回退 CSS 注入与 `WKNavigationDelegate`；`CoShellApp.swift` 去掉 `.fullSizeContentView`（内容不再顶到窗口最上），保留 `.titled` 使系统标题栏成为独立条带（红绿灯位于其中，该条带即窗口拖动手柄）；`titleVisibility = .hidden` + `titlebarAppearsTransparent = true` + `window.backgroundColor = #0b0e14`（与 hub 页面 `--bg` 一致，使条带与页面无割裂）。不设 `isMovableByWindowBackground`，故仅该条带可拖动窗口，页面内拖动不移动窗口。
+  - 迭代（用户 2026-10-10 01:16 反馈，BUILD-1278）：留白条颜色与相邻背景不融合 —— 根因是未启用 `.fullSizeContentView` 时 `titlebarAppearsTransparent` 仍会叠加系统材质（截图实测显示条带比内容区偏亮），纯色 `backgroundColor` 不生效。改为 `.fullSizeContentView` 让 WebView 铺满窗口，并在 `didFinish` 注入 CSS 将页面顶部 fixed 元素下移 28px（`#hubBadge` / `#stage` 的 `top`），使留白条区域渲染的就是页面自身 body 背景（`--bg`），与下方同一层、颜色严格一致；同时设 `window.appearance = .darkAqua` 消除浅色 tint。
+  - 迭代（用户 2026-10-10 01:21 反馈，BUILD-1279）：顶部条在**浅色主题下仍为黑色**、不跟随风格。根因：① `window.appearance = .darkAqua` + 不透明 `backgroundColor` 使标题栏恒为深色；② 原注入选择器 `#hubBadge`/`#stage` 只匹配 hub 页面，agent 页面匹配不上（截图显示的是 agent UI）。改为：`window.backgroundColor = .clear` + `window.isOpaque = false`（让标题栏透出页面内容）、移除 `.darkAqua`；注入 CSS 由页面自绘顶部条 —— `body{padding-top:28px}` 下移内容 + `body::before` 绘制 `background:var(--bg-panel,var(--panel,#0b0e14))` 的固定色块（co-shell 用 `--bg-panel`、hub 用 `--panel`；浅色主题下 `--bg-panel` 为 `#ffffff`），因而颜色随主题自动变化。
+  - 迭代（用户 2026-10-10 01:25 反馈，BUILD-1281）：**外壳侧持有顶部条颜色**方案落地，并修掉两处根因 —— ① 探针在 hub 页面上 `elementFromPoint` 命中的是外层 `IFRAME`（浏览器默认白底 `rgb(255,255,255)`），必须下钻到同源 iframe 内测量；② `Titlebar.color(fromCSS:)` 的 `rgb()` 分量未归一化（`NSColor(srgbRed:…)` 只接受 0…1，传入 255 会被折成 1/255），使条色恒为近黑（实测旧构建条色 `#010101` vs 页面顶栏 `#11141C`）。改为：探针 `colourAt()` 递归进入同源 iframe（按相对坐标测量，深度上限 4），颜色分量 ÷255；其余方案（28pt `TitlebarStripView` + webView 顶部内缩 28pt、messageHandlers 回传、MutationObserver/matchMedia/resize/1.2s 定时兜底）不变。自动验证：探针在真实 hub 页面实测深色 `rgb(16, 20, 29)`、浅色 `rgb(255, 255, 255)`；app（build 1281，agent 视图）截图取色 —— 顶部条 `#11141C` == 页面顶栏 `#11141C`，页面顶栏 `► co-shell v0.108.1 [BUILD-1281] / agent-1 / 已连接` 完整可见未被遮挡，红绿灯位于条内。
+  - 迭代（用户 2026-10-10 01:40 提出，BUILD-1282）：补齐 `co-shell.app` 应用图标 —— 此前 bundle 未声明图标，Dock/Finder 显示系统默认图标。做法：以已跟踪的 iOS 主图 `mobile/ios/.../Icon-App-1024x1024@1x.png`（满幅 1024，无 alpha）为源，新增 `app/macos/make-appicon.py` 按 macOS 图标网格重建：图案缩到 824×824 居中、圆角半径 185.4（≈22.5%）抗锯齿遮罩、外圈透明，输出 10 个 `.iconset` 成员并用 `iconutil` 打为 `app/macos/AppIcon.icns`（1.0 MB，含 16/32/128/256/512/1024 及 @2x）；`Info.plist` 新增 `CFBundleIconFile=AppIcon`，`build-app.sh` 新增拷贝步骤将图标置于 `Contents/Resources/AppIcon.icns`（.icns 已提交，构建不再依赖 Python/PIL）。选型依据：与「抠掉白底、保留原圆角」方案实测对比，后者主体占画布 96%（近乎贴边）且内部残留一圈描边形成套框感，前者主体约 80% 符合 macOS 标准网格。
+  - 迭代（用户 2026-10-10 08:31 要求，BUILD-1283）：app 启动内嵌 hub 时**去掉 `--config` / `--registry`**，改用 hub 自身的默认搜索顺序（显式参数 > 进程 cwd 的 `./hub-gateway.json` / `./hub-agents.json` > `~/.co-shell/` 同名文件，第一个存在者胜；三处都不存在时以 cwd 为新建/写入目标）。`startHub()` 仍把 cwd 设为 `AppPaths.dataDir`，因此当前仍命中 app 数据目录的 `hub-agents.json`（307 B、只含 agent-1）：实测 hub `/api/agents` 只返回 agent-1，未串到 `~/.co-shell/hub-agents.json`（24 个 id）；`hub-gateway.json` 两侧均不存在，回退写入目标为 app 数据目录。副作用（已记录）：若 app 数据目录的注册表/配置被删，hub 会回退到 `~/.co-shell/` 的全局同名文件。
+  - 迭代（用户 2026-10-10 10:06 要求，BUILD-1284）：app 启动内嵌 hub 时追加 `--serve`，消除「双击 App 后又弹出一个系统浏览器」的重复界面。`app/macos/CoShellApp.swift` 的 `startHub()` 参数列表在 `--web-addr/--tcp-addr/--co-shell-path/--no-api-key` 之后追加 `--serve`（hub 侧 `if !cfg.Serve` 分支因此跳过 `web.OpenBrowser`；App 自身用 WKWebView 展示同一页面，无需系统浏览器）。用例：`use-case/FEATURE-626/FEATURE-626-UC-0002.md`。验证：构建到独立目录 `tmp/app-verify/`（不覆盖运行中的 `work/co-shell.app`），静态校验参数含 `--serve`，运行时由用户手工双击新 App 确认无浏览器被拉起。
+  - 状态：✅ 已完成（用户 2026-10-10 10:13 确认测试通过并指示合并；分支已 squash 合并回 main，tag v0.108.1）。[BUILD-1284]
+
+---
+
 ## v0.108.0 — co-shell.app 原型：双击即用的 macOS 应用（内嵌 hub）（FEATURE-625）
 
 > **版本**: v0.108.0
