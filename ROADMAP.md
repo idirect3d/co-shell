@@ -2,6 +2,44 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.5 — Mac App Store 沙箱版（受限本地版）改造（FIX-630）
+
+> **版本**: v0.108.5
+
+> **状态**: 🚧 开发中（分支 FIX-630）
+
+> **里程碑**: 按 Mac App Store 强制沙箱要求，在 App 内运行受沙箱约束的 hub/agent：数据与工作区落位于 App 容器、工作区由用户经 NSOpenPanel 显式授权（security-scoped bookmark），并补齐隐私清单/出口合规/归档上传链路。产品形态为**受限本地版**（用户 2026-10-10 13:29 确认）：沙箱内不再具备“在任意目录执行任意命令”的能力。Bundle ID 新开 `com.coshell.app.mas`（用户 2026-10-10 13:34 修正：与 Developer ID 版互不覆盖，可共存）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-630 | 0.108.5 | P1 | Mac App Store 沙箱化改造：entitlements（app-sandbox/inherit/network/用户选文件）+ 容器内数据落位 + 工作区授权 + 隐私清单/出口合规 + 归档上传链路 + 发布文档 |
+
+> 当前 BUILD: 1287
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-630 Mac App Store 沙箱版（受限本地版）改造**
+  - 需求（用户 2026-10-10 13:22 提出，13:29/13:31 确认）：做 Mac 版 App Store 发布；只发 Mac；路线 **B（坚持 MAS）**；产品形态 **②受限本地版**；Bundle ID 新开 `com.coshell.app.mas`；版本 v0.108.5（patch 递增）。
+  - 前置调研（已完成，详见 `use-case/FIX-630/FIX-630-UC-0001.md`）：
+    - **签名资产盘点**：付费 Program / Team `5BZBX3DL83`；本机仅 `Apple Development`，**无 Apple Distribution / Developer ID / 3rd Party Mac Developer**；本机**无任何 macOS 描述文件**（仅 2 个 iOS 的）；`mobile/ios/build/ExportOptions-upload.plist`（`method=app-store-connect` / `destination=upload` / `teamID=5BZBX3DL83`）可复用。
+    - **沙箱 spike**（`tmp/spike-mas`）：给 bundle 加 `app-sandbox` 后直接运行内嵌 `co-shell --serve` → **立即 exit=133（SIGTRAP）、零输出**；崩溃报告 `signal=SIGTRAP` + `Unable to get bundle identifier for container id co-shell`（子系统二进制被单独签名、无独立 bundle 身份）。证明“天真沙箱化”必死；正确的沙箱子进程形态（helper 带 `com.apple.security.inherit` / 由沙箱父进程发起 / XPC）待 **spike v2** 实测。
+    - **平台硬约束**：沙箱进程只能访问容器 + 用户显式授权路径；审核指南 2.5.2（不得下载/执行改变功能的代码）与 4.2（网页壳）风险仍在。
+  - 用户需自行完成（清单已提供）：Xcode 建 Apple Distribution 证书 → portal 建 Mac App Store 描述文件 → ASC 建 Mac App 记录 → 物料（4 档截图 / 隐私政策 URL / 审核备注与演示凭据）。
+  - 用例：`use-case/FIX-630/`
+  - 分支：**FIX-630**（基于 main）
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `app/macos/*.entitlements`（新增） | App：`app-sandbox` + `network.client/server` + `files.user-selected.read-write`（+书签 scope）；内嵌 hub/agent：`app-sandbox` + `inherit` |
+    | `app/build-app.sh` | 支持沙箱模式：按 MAS 分发签名（Apple Distribution + 描述文件）、写入 entitlements、容器内数据目录 |
+    | `app/macos/CoShellApp.swift` | 数据目录改到 App 容器；新增工作区授权（NSOpenPanel + security-scoped bookmark）并传给 hub/agent |
+    | `app/macos/Info.plist` | 隐私清单/出口合规（`ITSAppUsesNonExemptEncryption=false`）等合规项 |
+    | 归档链路（新增） | 归档/导出上传（`xcodebuild -exportArchive` 或 `productbuild`），沿用 iOS 的 ExportOptions 格式 |
+    | `docs/macos-appstore-release.md`（新增） | 上架指导（账号事实/流程/沙箱排错/元数据与审核备注草稿） |
+
 ## v0.108.4 — ask 问答弹窗精简：去掉底部重复键、警告上移进度行（FIX-629）
 
 > **版本**: v0.108.4
