@@ -35,6 +35,31 @@
   - **本轮追加（BUILD-1289）**：✅ 沙箱数据落位适配——`app/macos/CoShellApp.swift` 写明标准目录在沙箱下重定向到容器，并新增菜单项「打开日志目录」（容器日志外部进程读不到，只能由 App 自己打开）；✅ 合规项——`app/macos/PrivacyInfo.xcprivacy`（不追踪/不采集 + 所需理由 API）、`Info.plist` 增 `ITSAppUsesNonExemptEncryption=false`、MAS 产物由构建脚本挂入 `Contents/Resources/PrivacyInfo.xcprivacy`；✅ `app/mas-package.sh`——证书前置校验（缺证书明确报错、绝不退回开发证书）+ `productbuild` 签名打包 + 上传指引（实测：守卫生效、productbuild 机制可用）；✅ `docs/macos-appstore-release.md`——上架手册（前置条件/本机现状/证书步骤/打包上传/元数据清单/沙箱排错）+ **硬审核理由草稿（中英双版）**；✅ 以 BUILD-1289 重建 `work/co-shell.app`（默认通道）与 `work/mas/co-shell.app`（沙箱试用版）。
   - **本轮追加（BUILD-1290）**：✅ **A/B 实测推翻并纠正了一处错误结论**——`com.apple.security.files.all` 经三变体实测**是空转的**（单独声明它时，连 home 内的写入都被拒），已从 `app/macos/app.entitlements` **移除**；真正生效的只有 `temporary-exception.files.home-relative-path.read-write`。同时确认**权限边界是 home 之内**（`/Users/Shared`、外接宗卷等一律拒绝）。✅ 设计文档 §3.1/§5.2/§6.9/§7/§8.2 与上架手册 §6 审核理由（中英双版）均已按实测纠正。✅ 移除 `files.all` 后回归验证：沙箱 App 仍能在 home 下正常创建 workspace（无回退）。✅ 另：TCC 保护目录（桌面/文稿/下载）实测为静默可读写、不弹窗（§6.8）。
   - **上架准备进展（2026-10-10）**：✅ 证书齐备——`Apple Distribution: Shuang Liang (5BZBX3DL83)` 与 `3rd Party Mac Developer Installer: Shuang Liang (5BZBX3DL83)`；✅ App ID `com.coshell.app.mas` 已在 developer portal 创建（Description `co-shell macOS`，Explicit，未勾任何 Capability）；✅ Mac App Store 描述文件 `co-shell MAS` 已生成并下载（Expires 2027-10-10，落于 `download/browser/coshell_MAS.provisionprofile`）；✅ **打包链路已用真实证书跑通**：`CO_SHELL_MAS_PROFILE=<profile> app/mas-package.sh work/mas-pkg` → 产出 `work/mas-pkg/co-shell-0.108.5.pkg`（18MB），`pkgutil --check-signature` 确认由 `3rd Party Mac Developer Installer` 签名。⏳ 仅剩 App Store Connect 建 Mac App 记录（SKU 建议 `coshell-macos-001`）与上传。
+  - **进度快照（2026-10-10 14:57，供跨会话接续）**：
+
+    | 维度 | 状态 |
+    |------|------|
+    | 代码与文档 | ✅ 全部提交在 `FIX-630`；未动 main |
+    | 沙箱形态 | ✅ entitlements（App 宽权限档 = `app-sandbox` + home 相对路径例外 + `network.*`；helper = `app-sandbox` + `inherit`）、`PrivacyInfo.xcprivacy`、`ITSAppUsesNonExemptEncryption=false` 均已落库并实测 |
+    | 构建通道 | ✅ `app/build-app.sh`（`CO_SHELL_MAS=1` 沙箱/MAS 通道，默认通道行为不变） |
+    | 打包通道 | ✅ `app/mas-package.sh`（证书前置校验 + `productbuild` 签名出 `.pkg`） |
+    | 证书 | ✅ `Apple Distribution` 与 `3rd Party Mac Developer Installer`（后者用户于 14:50 补齐） |
+    | App ID | ✅ `com.coshell.app.mas`（Description `co-shell macOS`；Explicit；未勾 Capability） |
+    | 描述文件 | ✅ `co-shell MAS`（Type App Store，Expires 2027-10-10） |
+    | 描述文件落位 | ⚠ `download/browser/coshell_MAS.provisionprofile`——**浏览器工具把下载目录设为工作区 `download/browser/`，不是 `~/Downloads`** |
+    | 打包实跑 | ✅ 产物 `work/mas-pkg/co-shell-0.108.5.pkg`（约 18MB），已由 Installer 证书签名 |
+    | ASC Mac App 记录 | ⏳ **唯一剩余步骤** |
+
+  - **接续所需命令**：
+    ```bash
+    export PATH="$PATH:/opt/homebrew/bin"
+    CO_SHELL_MAS_PROFILE=$PWD/download/browser/coshell_MAS.provisionprofile \\
+      app/mas-package.sh work/mas-pkg
+    pkgutil --check-signature work/mas-pkg/co-shell-0.108.5.pkg
+    ```
+  - **剩余步骤（ASC）**：新建 Mac App 记录（平台 macOS / 名称 `co-shell` / Bundle ID `com.coshell.app.mas` / SKU `coshell-macos-001` / 主要语言简体中文）→ 上传 `.pkg`（Transporter 或 `xcrun altool --upload-app`）→ 补元数据（4 档截图、描述、关键词、支持 URL、隐私政策 URL、年龄分级、**演示 LLM API Key**、审核备注；审核理由草稿见 `docs/macos-appstore-release.md` §6）。
+  - **待用户拍板的未决项**：① 老用户数据迁移（非沙箱版 → 沙箱容器）；② home 之外不可访问这一产品级边界如何向用户交代。
+  - **历史提交链（FIX-630）**：`4f845f19`（登记）→ `820dab99`（设计文档）→ `5a950998`（entitlements + 构建通道，BUILD-1288）→ `2e7d9263`（数据落位/合规/打包/手册，BUILD-1289）→ `0cd69f95`（TCC 实测）→ `f560a5fd`（A/B 实测 + 纠正，BUILD-1290）→ `ddd8a32b`（上架准备记录）。
   - 变更点（实施状态）：
 
     | 位置 | 变更 |
