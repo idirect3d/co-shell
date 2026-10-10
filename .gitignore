@@ -36,7 +36,12 @@ NOTE.md
 debug/
 
 # Database
+# Runtime data (not for public repo)
 db/
+*.db
+
+# Session exports (not for public repo)
+*.cosh-session.json
 
 # Temp files
 /tmp/
