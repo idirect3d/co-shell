@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  App-level entitlements for the sandboxed Mac App Store build (FIX-630).
+
+  This is the "wide permission" tier the product depends on: co-shell is an
+  agent application whose core job is to read and write files in the user's
+  real project directories, run commands and call remote models. Anything
+  narrower turns it into a different product.
+
+  com.apple.security.files.all
+      Opens the sandbox file rules for the whole filesystem the user can reach.
+  com.apple.security.temporary-exception.files.home-relative-path.read-write
+      Apple's documented exception channel; "/" covers the entire home
+      directory. Used together with files.all so path resolution never falls
+      through to a denied branch.
+  com.apple.security.network.client / .server
+      Outbound model/MCP calls, and the local hub/agent Web UI + WS gateway.
+
+  Both the wide file grant and the temporary exception must be justified to
+  App Review; see docs/macos-appstore-sandbox-design.md (§3, §7) and the
+  review-rationale draft in docs/macos-appstore-release.md.
+-->
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.all</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/</string>
+	</array>
+</dict>
+</plist>

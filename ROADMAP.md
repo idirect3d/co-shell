@@ -14,7 +14,7 @@
 |------|------|------|------|
 | FIX-630 | 0.108.5 | P1 | Mac App Store 沙箱化改造：entitlements（App 宽权限档 `app-sandbox`/`files.all`/`network.client+server`/home 相对路径读写例外；helper `app-sandbox`/`inherit`）+ 容器内数据落位 + 隐私清单/出口合规 + 归档上传链路 + 设计文档与发布文档 |
 
-> 当前 BUILD: 1287
+> 当前 BUILD: 1288
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -31,13 +31,14 @@
   - 用户需自行完成（清单已提供）：Xcode 建 Apple Distribution 证书 → portal 建 Mac App Store 描述文件 → ASC 建 Mac App 记录 → 物料（4 档截图 / 隐私政策 URL / 审核备注与演示凭据）。
   - 用例：`use-case/FIX-630/`
   - 分支：**FIX-630**（基于 main）
-  - 变更点（计划）：
+  - **实施进展（截至 BUILD-1288）**：✅ 设计文档 `docs/macos-appstore-sandbox-design.md` 落库；✅ `app/macos/app.entitlements`（宽权限档）+ `app/macos/helper.entitlements`（`app-sandbox`+`inherit`）落库；✅ `app/build-app.sh` 新增沙箱/MAS 通道（`CO_SHELL_MAS=1`，可选 `CO_SHELL_MAS_PROFILE` 内嵌描述文件；默认通道行为不变）。端到端实测：`CO_SHELL_MAS=1` 产出物启动 → hub 监听 → Web UI `HTTP 200` → 独立容器 `~/Library/Containers/com.coshell.app.mas` 建立；bundle id `com.coshell.app.mas`、双层 entitlements、硬化运行时（`flags=0x10000(runtime)`）全部正确落位。默认通道回归通过（`com.coshell.app`、无 entitlements、无 runtime flag）。`go build ./... && go vet ./...` 通过。
+  - 变更点（实施状态）：
 
     | 位置 | 变更 |
     |------|------|
-    | `app/macos/app.entitlements`（新增） | App 宽权限档：`app-sandbox` + `files.all` + `network.client` + `network.server` + `temporary-exception.files.home-relative-path.read-write`(`/`) |
-    | `app/macos/helper.entitlements`（新增） | 内嵌 hub/agent：`app-sandbox` + `com.apple.security.inherit`（不独立声明权利，继承 App 沙箱） |
-    | `app/build-app.sh` | 支持沙箱模式：按 MAS 分发签名（Apple Distribution + 描述文件）、写入 entitlements、容器内数据目录 |
+    | `app/macos/app.entitlements`（新增，✅ 已落库） | App 宽权限档：`app-sandbox` + `files.all` + `network.client` + `network.server` + `temporary-exception.files.home-relative-path.read-write`(`/`) |
+    | `app/macos/helper.entitlements`（新增，✅ 已落库） | 内嵌 hub/agent：`app-sandbox` + `com.apple.security.inherit`（不独立声明权利，继承 App 沙箱） |
+    | `app/build-app.sh`（✅ 已落库） | 沙箱/MAS 通道：`CO_SHELL_MAS=1` 时 helper 用 `helper.entitlements`、App 用 `app.entitlements`、带硬化运行时、bundle id 切为 `com.coshell.app.mas`，并支持 `CO_SHELL_MAS_PROFILE` 内嵌 MAS 描述文件；默认通道行为不变 |
     | `app/macos/CoShellApp.swift` | 沙箱数据落位适配：确认 `AppPaths`（dataDir/logDir）在沙箱下的容器重定向行为并显式化（**不**引入 NSOpenPanel/书签授权流程） |
     | `app/macos/Info.plist` | 隐私清单/出口合规（`ITSAppUsesNonExemptEncryption=false`）等合规项 |
     | 归档链路（新增） | 归档/导出上传（`xcodebuild -exportArchive` 或 `productbuild`），沿用 iOS 的 ExportOptions 格式 |

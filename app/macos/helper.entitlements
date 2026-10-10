@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Entitlements for the embedded helper binaries (FIX-630):
+  Contents/Resources/bin/co-shell and Contents/Resources/bin/co-shell-hub.
+
+  These are plain Go executables with no bundle identity of their own. Under
+  the sandbox they must declare app-sandbox + inherit and be launched by an
+  already-sandboxed parent (the app). They then inherit the app's sandbox and
+  therefore the app's wide permissions.
+
+  Deliberately NOT declared here: files.all, network.*, any temporary
+  exception. Rights live in exactly one place (app.entitlements); duplicating
+  them here only creates two sources of truth that can drift apart.
+
+  Do NOT sign these binaries with app-sandbox alone and run them directly:
+  that was spike v1 and it dies instantly with SIGTRAP
+  ("Unable to get bundle identifier for container id co-shell").
+-->
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+</dict>
+</plist>
