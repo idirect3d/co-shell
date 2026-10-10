@@ -188,7 +188,7 @@ Unable to get bundle identifier for container id co-shell
 | 数据目录落在容器内 | 🟡 | 见 §4；不是故障，但需产品化说明与迁移路径 |
 | 既有配置/工作区迁移 | 🟡 | MAS 版首启是空白容器，需要导入方式 |
 | 外部 shell 读容器日志 | 🟡 | 被系统拒；需提供"App 内查看日志"入口 |
-| `~/Desktop`、`~/Documents`、`~/Downloads` | ⏳ | **TCC 与沙箱是两套机制**：`files.all` 放开的是沙箱限制，不代�� TCC。这三个目录受"文件与文件夹"隐私保护，首次访问可能弹系统授权框。**必须实测**并在文档中告知用户预期弹窗 |
+| `~/Desktop`、`~/Documents`、`~/Downloads` | ✅ | **实测（2026-10-10）：静默读写成功、不弹窗、TCC 未介入**（见 §6.8）；两者确是两套机制，`files.all` 放开的是沙箱限制，但实测证明 TCC 并未介入。这三个目录受"文件与文件夹"隐私保护，首次访问可能弹系统授权框。**结论：无需用户额外授权，也不会弹窗** |
 | 其他 App 的容器（`~/Library/Containers/<其它>`） | ❌ | 容器保护，跨 App 不可读——agent 不能替用户改别的 App 的数据 |
 | 系统目录写入（`/usr`、`/Library`） | ❌ | 需 root，沙箱不允许 |
 | 开机自启 / 全局 launchd 服务 | ❌ | MAS 沙箱不支持装系统级服务；调度能力只能在 App 运行期间生效 |
@@ -201,7 +201,7 @@ Unable to get bundle identifier for container id co-shell
 
 ### 5.4 一句话总结
 
-> **宽权限档下，co-shell 作为 agent 的核心能力——"在用户的真实项目目录里读写文件、执行命令、对外调用模型"——是完整保留的。** 变化集中在"App 自身数据落到容器里"和"部分受 TCC/容器保护的位置不可达"，而这两类都不影响 agent 的日常主流程。
+> **宽权限档下，co-shell 作为 agent 的核心能力——"在用户的真实项目目录里读写文件、执行命令、对外调用模型"——是完整保留的。** 变化集中在"App 自身数据落到容器里"，以及"其它 App 的容器等受容器保护的位置不可达"；TCC 保护的桌面/文稿/下载**实测是静默可读写的**（§6.8）。这两类都不影响 agent 的日常主流程。
 
 ---
 
@@ -329,6 +329,39 @@ sudo: a password is required
 
 ---
 
+### 6.8 TCC 保护目录实测：静默允许、不弹窗（2026-10-10）
+
+**问题**：`~/Desktop`、`~/Documents`、`~/Downloads` 受 macOS 的 TCC（隐私授权）保护，与沙箱是两套机制。宽权限档下访问它们，到底是静默允许、弹窗，还是拒绝？（设计文档未决项 A）
+
+**方法**：用构建出的沙箱 App（`work/mas/co-shell.app`）起 hub，经 REST API 创建 workspace 指向 TCC 保护目录的探针 agent，观察目录是否被创建。
+
+**结果**：
+
+```
+$ curl -s -X POST http://127.0.0.1:<hub>/api/agents \
+    -d '{"workspace":"/Users/direct3d/Documents/mas-tcc-probe",...}'
+$ curl -s -X POST http://127.0.0.1:<hub>/api/agents/tccdoc/start
+
+$ ls ~/Documents/mas-tcc-probe
+.rules  bin  config.json  db  download  IDENTITY.md  input  log  logos  ...
+
+$ ls ~/Downloads/mas-tcc-probe
+bin  config.json  db  download  IDENTITY.md  input  log  logos  ...
+
+$ log show --last 15m --predicate 'subsystem == "com.apple.TCC"' | grep -i coshell
+（无输出）
+```
+
+**结论**：
+
+1. 沙箱 agent 在 `~/Documents` 与 `~/Downloads` 下**完整落盘成功**（`config.json` / `db` / `IDENTITY.md` / `log`）；
+2. **全程没有任何系统授权弹窗**；
+3. 系统 TCC 日志中**没有** coshell 相关条目 → TCC 根本没有介入。
+
+即：本权限档下，TCC 保护目录是**静默可读写**的。这消除了“用户会看到莫名弹窗”的担忧，但也意味着**方案不会给用户“逐目录确认”的体验**——因为 macOS 上并不存在“首次访问任意文件夹就弹窗”的机制：TCC 只覆盖固定位置，沙箱的逐次授权通道是 Powerbox（文件选择器）。
+
+---
+
 ## 7. 风险与审核策略
 
 ### 7.1 平台/审核风险
@@ -339,7 +372,7 @@ sudo: a password is required
 | 审核指南 2.5.2 | 不得下载并执行"改变 App 功能"的代码 | 明确边界：agent 执行的是用户/模型给出的**任务命令**，不改变 App 自身功能；不自我更新 |
 | 审核指南 4.2 最低功能性 | 网页壳会被拒 | co-shell 有本地 Go 引擎、工具链、调度、记忆等，非纯网页壳；审核备注中说明 |
 | 沙箱能力被误认为"受限产品" | 审核员可能质疑沙箱下功能残缺 | 以 §5 能力矩阵 + §6.5 实测作为"核心能力完整"的书面与可复现凭据 |
-| TCC 弹窗引发困惑 | 首次访问 桌面/文稿/下载 可能弹系统授权框 | ⏳ 待实测；确认后在文档与首次启动引导中说明"这是系统隐私授权，属正常" |
+| ~~TCC 弹窗引发困惑~~ **已排除** | ~~首次访问 桌面/文稿/下载 可能弹系统授权框~~ **实测：静默读写、不弹窗**（§6.8） | ✅ 无需在首次启动引导中说明弹窗 |
 
 ### 7.2 技术风险
 
@@ -370,7 +403,7 @@ sudo: a password is required
 
 | # | 未决项 | 影响 | 备注 |
 |---|-------|------|------|
-| A | TCC 对 `~/Desktop`、`~/Documents`、`~/Downloads` 的实际行为 | 影响用户首次体验与文档措辞 | 必须实测，勿凭推测 |
+| ~~A~~ | ~~TCC 对 `~/Desktop`、`~/Documents`、`~/Downloads` 的实际行为~~ **已于 2026-10-10 实测** | — | 结论：静默允许、不弹窗；见 §6.8 与 §5.2 |
 | B | 既有配置/工作区迁移到容器的路径 | 影响老用户升级 MAS 版 | 可选方案：首次启动检测 + 导入向导 |
 | C | `Apple Distribution` 证书与 Mac App Store 描述文件 | **硬阻塞**：没有它们无法分发 | 用户侧操作（Xcode → Manage Certificates / portal） |
 | D | App Store Connect 的 Mac App 记录 | **硬阻塞**：没有它无法上传 | 用户侧操作（SKU 建议 `coshell-macos-001`） |

@@ -303,10 +303,13 @@ codesign -d --entitlements - work/mas/co-shell.app/Contents/Resources/bin/co-she
 
 实测结论：`xattr -cr` 与 `ditto --noextattr` **都清不掉**它（这是系统管理的属性），所以脚本不再做无效清理。实践中无害；若上传时校验报错，再考虑在干净的构建机上重新打包。
 
-### 7.4 「终端访问 桌面/文稿/下载 被拒」
+### 7.4 桌面 / 文稿 / 下载（TCC 保护目录）—— 已实测
 
-沙箱放行 ≠ 绕过 TCC。这三个目录受"文件与文件夹"隐私保护，与沙箱是两套机制，首次访问可能弹系统授权框。
-**⚠️ 待实测**：本版尚未实测该弹窗行为，正式发布前应确认并在首次启动引导中向用户说明。
+**实测结论（2026-10-10）：这三个目录在本权限档下静默可读写，不弹窗、不拒绝。**
+
+证据：沙箱 agent 在 `~/Documents` 与 `~/Downloads` 下完整落盘成功（`config.json` / `db` / `IDENTITY.md`），全程无授权弹窗，且系统 TCC 日志无 coshell 相关条目（TCC 未介入）。详见 `docs/macos-appstore-sandbox-design.md` §6.8。
+
+所以**不需要**在首次启动引导里说明弹窗。反过来也要知道：macOS 上并不存在「首次访问任意文件夹就弹窗确认」的机制——TCC 只覆盖固定位置（桌面/文稿/下载/iCloud/外接宗卷），而沙箱的逐次授权通道是文件选择器（Powerbox）。因此对「访问用户的任意项目目录」这个需求，宽权限档仍是唯一可行路径。
 
 ### 7.5 「agent 起不来 / 端口冲突」
 
@@ -346,7 +349,7 @@ Apple 文档：<https://developer.apple.com/documentation/security/app-sandbox>�
 
 | # | 事项 | 说明 |
 |---|---|---|
-| A | TCC 对 `~/Desktop`、`~/Documents`、`~/Downloads` 的实际行为 | 未实测，见 §7.4 |
+| ~~A~~ | ~~TCC 对 `~/Desktop`、`~/Documents`、`~/Downloads` 的实际行为~~ **已实测（2026-10-10）：静默允许、不弹窗** | 见 §7.4 |
 | B | 老用户从非沙箱版迁移配置/工作区 | 沙箱版首启是空容器，迁移路径待设计 |
 | C | 隐私清单的理由代码（reason codes） | 应按 Xcode 生成的隐私报告核对后再提交 |
 | D | 证书 / 描述文件 / ASC 记录 | 用户侧硬阻塞，见 §1.1 |
