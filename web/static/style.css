@@ -230,6 +230,22 @@ body {
   color: var(--fg-dim);
 }
 
+/* FEATURE-627: the workspace absolute path follows the agent name on the
+   titlebar midline. Wide screens only; app.js middle-ellipsises an over-long
+   path ("head…tail") and keeps the full path in the title attribute. */
+.ws-path {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--fg-faint);
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* FEATURE-627: on narrow screens the midline slot competes with the right-hand
+   controls, so the path is hidden and only the agent name stays. */
+body.narrow .ws-path { display: none; }
+
 /* On narrow screens the right-hand controls reach past the midline (they keep
    the display-mode/connection/theme/menu buttons), so a centred slot would sit
    on top of them. Drop the centring there and let the name flow in the free

@@ -9133,6 +9133,8 @@ async function refreshBranch() {
       wsRoot = b.workspace.replace(/\\+$/, "").replace(/\/+$/, "");
       const name = wsRoot.split(/[\\/]/).pop() || wsRoot;
       document.title = name + " - " + b.workspace;
+      // FEATURE-627: mirror the workspace path in the titlebar (wide screens).
+      setWorkspacePath(b.workspace);
     }
     // Sidebar title shows the current git branch at the right edge of the
     // panel head (e.g. "工作区 ⟳   main").
@@ -9211,6 +9213,7 @@ const brandEl = document.querySelector(".brand");
 const brandNameEl = document.querySelector(".brand-name");
 const verEl = document.getElementById("ver");
 const agentNameEl = document.getElementById("agentName");
+const wsPathEl = document.getElementById("wsPath"); // FEATURE-627
 const menuWrapEl = document.getElementById("menuWrap");
 const menuEl = document.getElementById("menu");
 const narrowToolsEl = document.getElementById("narrowTools");
@@ -9260,6 +9263,51 @@ function setAgentName(name) {
   // The name can be ellipsised when space runs out, so keep the full text in
   // the tooltip.
   agentNameEl.title = n;
+}
+
+/* ---------- FEATURE-627: workspace path on the titlebar midline ---------- */
+
+// wsFullPath is the workspace root as reported by /api/bootstrap; empty until
+// boot() has run.
+let wsFullPath = "";
+
+// setWorkspacePath records the workspace root shown after the agent name and
+// renders it (CSS hides the slot on narrow screens).
+function setWorkspacePath(path) {
+  wsFullPath = String(path || "").trim();
+  if (!wsPathEl) return;
+  if (!wsFullPath) {
+    wsPathEl.textContent = "";
+    wsPathEl.removeAttribute("title");
+    return;
+  }
+  // The visible text may be middle-ellipsised, so the tooltip keeps the full
+  // path.
+  wsPathEl.title = wsFullPath;
+  renderWorkspacePath();
+}
+
+// renderWorkspacePath fits " - {path}" into the slot, shortening the middle
+// ("head…tail", the last segment always kept) when the path overflows. The head
+// length is found by binary search so the browser's own layout does the
+// measuring (fonts and letter spacing stay authoritative).
+function renderWorkspacePath() {
+  if (!wsPathEl || !wsFullPath) return;
+  wsPathEl.textContent = " - " + wsFullPath;
+  // Hidden on narrow screens, or it already fits.
+  if (wsPathEl.clientWidth === 0 || wsPathEl.scrollWidth <= wsPathEl.clientWidth) return;
+  const cut = wsFullPath.lastIndexOf("/");
+  const tail = cut > 0 ? wsFullPath.slice(cut) : "";
+  const head = cut > 0 ? wsFullPath.slice(0, cut) : wsFullPath;
+  let lo = 0;
+  let hi = head.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    wsPathEl.textContent = " - " + head.slice(0, mid) + "…" + tail;
+    if (wsPathEl.scrollWidth <= wsPathEl.clientWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  wsPathEl.textContent = " - " + head.slice(0, lo) + "…" + tail;
 }
 
 // brandWidth returns the full titlebar brand width (logo + co-shell + version),
@@ -9368,6 +9416,9 @@ function updateResponsive() {
   // FIX-542: hide the wordmark too on narrow screens so the centred agent name
   // gets the full width; the brand triangle stays as the logo mark.
   if (brandNameEl) brandNameEl.style.display = narrow ? "none" : "";
+  // FEATURE-627: re-fit the workspace path (its available width changed, and it
+  // is hidden on narrow screens by CSS).
+  renderWorkspacePath();
   applyNarrowLayout(narrow);
 }
 

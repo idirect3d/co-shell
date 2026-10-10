@@ -2,6 +2,49 @@
 
 > 版本号格式：`v{major}.{minor}.{patch}`
 
+## v0.108.2 — Web UI 顶栏显示工作区路径 + App 顶部条显示 co-shell（FEATURE-627）
+
+> **版本**: v0.108.2
+
+> **状态**: ✅ 已完成（分支 FEATURE-627 已 squash 合并回 main，tag v0.108.2）
+
+> **里程碑**: 两处界面信息补全：① co-shell Web UI 顶栏在**宽屏**下于 agent 名后显示当前工作区绝对路径（形如 ` - /Users/.../co-shell`；超长时中间省略、悬停显示完整路径）；② `co-shell.app` 顶部留白条居中显示 `co-shell`（文字随页面主题明暗自适应，次级灰、约 12–13pt）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-627 | 0.108.2 | P1 | Web UI：顶栏 agent 名后显示工作区绝对路径（宽屏；超长中间省略 + tooltip）；App：顶部留白条居中显示 co-shell |
+
+> 当前 BUILD: 1285
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-627 顶栏工作区路径 + App 顶部条 co-shell 字样**
+  - 需求（用户 2026-10-10 11:09 提出，11:14 确认细节）：
+    ① co-shell Web UI 顶部标题栏（`#topbar` 的 `.top-center`）在**宽屏**模式下、于当前 agent 名之后显示当前工作区绝对路径，形式 ` - {workspace}`；超长时中间省略（…）并悬停显示完整路径；窄屏不显示。
+    ② `co-shell.app` 最上部标题栏留白条（`TitlebarStripView`，28pt）**中间显示 `co-shell`**；文字跟随主题（深色底浅字、浅色底深字）、次级灰、约 12–13pt。
+  - 版本：v0.108.2（patch 递增，用户确认）
+  - 用例：`use-case/FEATURE-627/`
+  - 分支：**FEATURE-627**（基于 main）
+  - 变更点（计划）：
+
+    | 位置 | 变更 |
+    |------|------|
+    | `web/static/index.html` | `#topbar` 的 `.top-center` 内、`#agentName` 之后新增工作区路径元素；窄屏隐藏 |
+    | `web/static/app.js` | 用 `/api/bootstrap` 已下发的 `workspace` 回填该元素（宽屏显示、中间省略、`title` 存完整路径） |
+    | `app/macos/CoShellApp.swift` | `TitlebarStripView` 内新增居中 `co-shell` 文字，颜色随条色明暗自适应 |
+  - 实施（BUILD-1285）：
+    ① `web/static/index.html`：`.top-center` 内 `#agentName` 之后新增 `<span class="ws-path" id="wsPath">`；
+    ② `web/static/style.css`：新增 `.ws-path`（`--fg-faint`、12px 等宽字体、`min-width:0` + `overflow:hidden` + `white-space:nowrap`）与 `body.narrow .ws-path { display: none; }`；
+    ③ `web/static/app.js`：新增 `wsPathEl` / `wsFullPath` / `setWorkspacePath()` / `renderWorkspacePath()`（对头部长度二分搜索实现**中间省略**“头…尾”并保留末段，`title` 存完整路径）；`boot()` 中用 bootstrap 的 `workspace` 调用 `setWorkspacePath()`；`updateResponsive()` 中调 `renderWorkspacePath()` 在缩放后重算；
+    ④ `app/macos/CoShellApp.swift`：`Titlebar` 新增 `wordmarkFontSize = 12.5` 与 `secondaryTextColor(on:)`（按亮度取黑/白 45% 透明度）；`TitlebarStripView` 新增居中 `NSTextField` 标签、`hitTest` 透传保证整条仍可拖动窗口、`setBarColor(_:)` 同时更新底色与文字色；`buildWindow` 与主题色回传处改用 `setBarColor`。
+  - 验证（BUILD-1285）：
+    - `go build ./... && go vet ./...` 通过；`work/co-shell-0.108.2.darwin.arm64`、`work/co-shell-hub-0.108.2.darwin.arm64` 生成；App 构建到独立目录 `tmp/app-verify/co-shell.app`（v0.108.2 build 1285）。
+    - 浏览器实测（临时实例 `--serve --port 28356`，工作区 `/Users/direct3d/github/co-shell/tmp/feat627-ws`）：顶栏文本 = `co-shell - /Users/direct3d/github/co-shell/tmp/feat627-ws`，`title` 为完整路径；强制窄宽（max-width 120px）后文本变为 ` - /U…/feat627-ws`（中间省略、保留末段）；`body.narrow` 下计算样式 `display:none`，移除后恢复 `block`；几何测量 `.top-center`(438–842) 与 `.brand`(≤247)/`.top-right`(≥1114) 无重叠（截图工具本次 CDP 超时，未留图）。
+    - 待用户人工确认：App 顶部条居中 `co-shell` 的观感与深浅主题换色（UC-08）。
+  - 状态：✅ 已完成（用户 2026-10-10 11:44 确认测试通过并指示合并；分支已 squash 合并回 main，tag v0.108.2）。[BUILD-1285]
+
 ## v0.108.1 — hub 体验优化：agent「自动启动」开关 + 欢迎页改造（FEATURE-626）
 
 > **版本**: v0.108.1

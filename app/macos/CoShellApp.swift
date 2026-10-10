@@ -90,6 +90,19 @@ private enum Titlebar {
     /// Dark page background, shown until the probe reports the real colour.
     static let fallbackColor = NSColor(srgbRed: 11 / 255, green: 14 / 255, blue: 20 / 255, alpha: 1)
 
+    /// Font size of the centred wordmark painted by the shell (FEATURE-627).
+    static let wordmarkFontSize: CGFloat = 12.5
+
+    /// Secondary text colour for the strip: dark text on a light strip, light
+    /// text on a dark one, so the wordmark stays readable in both themes.
+    static func secondaryTextColor(on background: NSColor) -> NSColor {
+        let base = background.usingColorSpace(.sRGB) ?? fallbackColor
+        let luma = 0.2126 * base.redComponent + 0.7152 * base.greenComponent + 0.0722 * base.blueComponent
+        return luma > 0.5
+            ? NSColor.black.withAlphaComponent(0.45)
+            : NSColor.white.withAlphaComponent(0.45)
+    }
+
     /// Parses the CSS colour notations the probe can report (`#rgb`, `#rrggbb`,
     /// `rgb()` and `rgba()`).
     static func color(fromCSS css: String) -> NSColor? {
@@ -139,9 +152,42 @@ private enum Titlebar {
 }
 
 /// The strip that fills the title-bar area. It stays a window drag handle
-/// (mouseDownCanMoveWindow) so the transparent title bar keeps working.
+/// (mouseDownCanMoveWindow) so the transparent title bar keeps working, and it
+/// paints the product name centred on it (FEATURE-627).
 final class TitlebarStripView: NSView {
     override var mouseDownCanMoveWindow: Bool { true }
+
+    /// Centred wordmark; a label (non-editable, non-selectable) so it never
+    /// takes focus away from the page.
+    private let wordmark = NSTextField(labelWithString: "co-shell")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wordmark.font = .systemFont(ofSize: Titlebar.wordmarkFontSize, weight: .medium)
+        wordmark.alignment = .center
+        wordmark.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(wordmark)
+        NSLayoutConstraint.activate([
+            wordmark.centerXAnchor.constraint(equalTo: centerXAnchor),
+            wordmark.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// The label must not swallow clicks, otherwise the middle of the strip
+    /// would stop dragging the window.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === wordmark ? self : hit
+    }
+
+    /// Paints the strip with the page colour and adapts the wordmark to it.
+    func setBarColor(_ color: NSColor) {
+        wantsLayer = true
+        layer?.backgroundColor = color.cgColor
+        wordmark.textColor = Titlebar.secondaryTextColor(on: color)
+    }
 }
 
 /// Measures the background colour of the page area right below the strip and
@@ -340,8 +386,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         let strip = TitlebarStripView(frame: .zero)
         strip.translatesAutoresizingMaskIntoConstraints = false
-        strip.wantsLayer = true
-        strip.layer?.backgroundColor = Titlebar.fallbackColor.cgColor
+        // The strip paints itself (background + centred wordmark), so its colour
+        // can follow the page theme.
+        strip.setBarColor(Titlebar.fallbackColor)
         container.addSubview(strip)
         titlebarStrip = strip
 
@@ -371,7 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         guard message.name == Titlebar.messageName,
               let css = message.body as? String,
               let color = Titlebar.color(fromCSS: css) else { return }
-        titlebarStrip.layer?.backgroundColor = color.cgColor
+        titlebarStrip.setBarColor(color)
         window.backgroundColor = color
     }
 
