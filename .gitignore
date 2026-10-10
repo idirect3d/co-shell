@@ -24,6 +24,9 @@ config.json
 config.json.bak
 *.bak
 
+# Agent identity (user-specific, not for public repo)
+IDENTITY.md
+
 # Private Notes
 notes/
 NOTE.md
