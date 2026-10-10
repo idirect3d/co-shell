@@ -38,6 +38,7 @@ debug/
 # Database
 # Runtime data (not for public repo)
 db/
+sub-agents/
 *.db
 
 # Session exports (not for public repo)
